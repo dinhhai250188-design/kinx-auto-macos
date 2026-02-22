@@ -20,13 +20,7 @@ const he = require("electron"),
 // ============================================================================
 const path = require("path");
 
-// Biến toàn cục
-let globalCaptchaSolver = null;
-let isSolvingCaptcha = false; // <--- Biến khóa để xếp hàng
-let cachedVeoToken = null;
-let veoTokenExpiry = 0;
-
-function loadSolverModule() {
+function loadSolverClass() {
   const possiblePaths = [
     path.join(__dirname, "solver.js"),
     path.join(process.resourcesPath, "solver.js"),
@@ -37,72 +31,89 @@ function loadSolverModule() {
   for (const p of possiblePaths) {
     try {
       const SolverClass = require(p);
-      return new SolverClass();
+      return SolverClass;
     } catch (e) {}
   }
   return null;
 }
 
-globalCaptchaSolver = loadSolverModule();
+const RecaptchaSolver = loadSolverClass();
+const activeSolvers = new Map(); // ThreadID -> Solver Instance
+let currentSolvingCount = 0;
+const MAX_PARALLEL_SOLVERS = 3; // Giới hạn số cửa sổ giải cùng lúc để tránh lag
+const threadTokenCache = new Map(); // threadId -> { token, userAgent, expiry }
 
-// HÀM LẤY TOKEN (CÓ CƠ CHẾ XẾP HÀNG & CACHE)
-async function getVeoCaptchaToken(action, force = false) {
-  if (!globalCaptchaSolver) return null;
+// HÀM LẤY TOKEN (CÓ CƠ CHẾ XẾP HÀNG & CACHE & ISOLATION)
+async function getVeoCaptchaToken(action, force = false, threadId = "default") {
+  if (!RecaptchaSolver) return null;
 
-  // 1. Kiểm tra Cache (Nếu token chưa hết hạn thì dùng luôn)
+  // 1. Kiểm tra Cache theo ThreadId (Nếu token chưa hết hạn thì dùng luôn)
   const now = Date.now();
-  if (!force && cachedVeoToken && now < veoTokenExpiry) {
-    // console.log(`[Main] Sử dụng Token ReCAPTCHA từ Cache (TTL: ${Math.round((veoTokenExpiry - now) / 1000)}s)...`);
-    return cachedVeoToken;
+  const cached = threadTokenCache.get(threadId);
+  if (!force && cached && now < cached.expiry) {
+    console.log(`[Main] [Thread-${threadId}] Sử dụng Token từ Cache.`);
+    return cached;
   }
 
-  // 1. Chờ nếu đang có luồng khác giải captcha
-  // (Cơ chế này ngăn 2 luồng cùng gọi vào browser 1 lúc gây crash tab)
-  while (isSolvingCaptcha) {
-    await new Promise((resolve) => setTimeout(resolve, 500)); // Đợi 0.5s rồi check lại
-    
-    // Check lại cache sau khi đợi (Có thể luồng trước vừa cache xong)
-    if (!force && cachedVeoToken && Date.now() < veoTokenExpiry) {
-      return cachedVeoToken;
+  // 2. Chờ nếu số lượng solver đang chạy vượt quá giới hạn
+  while (currentSolvingCount >= MAX_PARALLEL_SOLVERS) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const retryCached = threadTokenCache.get(threadId);
+    if (!force && retryCached && Date.now() < retryCached.expiry) {
+      return retryCached;
     }
   }
 
-  // 2. Khóa lại
-  isSolvingCaptcha = true;
-
+  // 3. Tăng count và bắt đầu giải
+  currentSolvingCount++;
+  
   try {
-    console.log(`[Main] Đang gọi Solver lấy Token ReCAPTCHA (Action: ${action || "FLOW_GENERATION"})...`);
-    const token = await globalCaptchaSolver.getRecaptchaToken(
+    console.log(`[Main] [Thread-${threadId}] Đang gọi Solver lấy Token (Action: ${action || "FLOW_GENERATION"})...`);
+    
+    // Mỗi thread dùng 1 instance riêng để không tranh chấp proxy/session trong 1 class instance
+    let solver = new RecaptchaSolver();
+    activeSolvers.set(threadId, solver);
+
+    const result = await solver.getRecaptchaToken(
       "https://labs.google",
       "6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV",
-      action || "FLOW_GENERATION"
+      action || "FLOW_GENERATION",
+      threadId // Truyền threadId làm partitionId để tạo session sạch
     );
 
-    if (token) {
-        // [FIX] Giảm TTL Cache token xuống 10 giây (để đảm bảo refresh token thường xuyên hơn trong các polling dồn dập)
-        cachedVeoToken = token;
-        veoTokenExpiry = Date.now() + 10000;
+    if (result && result.token) {
+        const entry = { ...result, expiry: Date.now() + 10000 };
+        threadTokenCache.set(threadId, entry); // Lưu cache theo threadId
+        console.log(`[Main] [Thread-${threadId}] Lấy Token thành công.`);
+        return entry;
+    } else {
+        console.warn(`[Main] [Thread-${threadId}] Solver không trả về Token (có thể bị Timeout hoặc lỗi).`);
     }
 
-    return token;
+    return result ? result.token : null;
   } catch (e) {
-    console.error("[Main] Lỗi lấy Token:", e.message);
+    console.error(`[Main] [Thread-${threadId}] Lỗi lấy Token:`, e.message);
     return null;
   } finally {
-    // 3. Mở khóa dù thành công hay thất bại
-    isSolvingCaptcha = false;
+    const solver = activeSolvers.get(threadId);
+    if (solver) {
+      try { await solver.close(); } catch {}
+      activeSolvers.delete(threadId);
+    }
+    currentSolvingCount--;
   }
 }
 
-// Đóng browser khi tắt App
+// Đóng các browser khi tắt App
 try {
   const { app } = require("electron");
   app.on("before-quit", async () => {
-    if (globalCaptchaSolver) {
+    for (const [id, solver] of activeSolvers) {
       try {
-        await globalCaptchaSolver.close();
+        await solver.close();
       } catch {}
     }
+    activeSolvers.clear();
   });
 } catch {}
 // ============================================================================
@@ -17187,12 +17198,12 @@ const So = process.env.VITE_DEV_SERVER_URL,
       "E009",
     ],
   ]);
-async function We(a, { url: i, cookie: c, options: h }) {
+async function We(a, { url: i, cookie: c, options: h }, isRetry = false) {
   try {
     const f = new URL(i);
     let t = {
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
       Origin: "https://labs.google",
       Referer: "https://labs.google/",
       ...h.headers,
@@ -17205,12 +17216,23 @@ async function We(a, { url: i, cookie: c, options: h }) {
       
       // console.log(`[Fetch] Phát hiện API cần Captcha: ${i.split('/').pop()}, đang lấy (Action: ${action})...`);
 
-      // 1. Lấy Token với Action phù hợp
-      const captchaToken = await getVeoCaptchaToken(action);
+      // 1. Lấy Token với Action phù hợp (Extract ThreadId ổn định hơn)
+      let bodyData = h.body;
+      if (typeof h.body === "string") {
+        try { bodyData = JSON.parse(h.body); } catch(e) {}
+      }
+      const threadId = bodyData?.clientContext?.sessionId || bodyData?.sessionId || "default";
+
+      const captchaData = await getVeoCaptchaToken(action, false, threadId);
+      const captchaToken = (captchaData && typeof captchaData === "object") ? captchaData.token : (typeof captchaData === "string" ? captchaData : null);
+      const threadUA = (captchaData && typeof captchaData === "object" && captchaData.userAgent) ? captchaData.userAgent : t["User-Agent"];
 
       if (captchaToken) {
-        // 2. Thêm các Header giống trình duyệt (Cực kỳ quan trọng để bypass 403)
-        t["sec-ch-ua"] = '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"';
+        // 2. Thêm các Header giống trình duyệt (Cập nhật theo Token thực tế)
+        const chromeVersion = "145"; // Giữ cố định theo UA gốc để khớp x-browser-validation
+        
+        t["User-Agent"] = threadUA;
+        t["sec-ch-ua"] = `\"Google Chrome\";v=\"${chromeVersion}\", \"Chromium\";v=\"${chromeVersion}\", \"Not A(Brand\";v=\"24\"`;
         t["sec-ch-ua-mobile"] = "?0";
         t["sec-ch-ua-platform"] = '"Windows"';
         t["sec-fetch-dest"] = "empty";
@@ -17233,20 +17255,26 @@ async function We(a, { url: i, cookie: c, options: h }) {
                 delete bodyObj.clientContext.recaptchaContext;
             }
 
-            // Tạo clientContext mới với thứ tự field chuẩn xác theo snippet web
-            const newClientContext = {
-              recaptchaContext: {
-                token: captchaToken,
-                applicationType: "RECAPTCHA_APPLICATION_TYPE_WEB"
-              },
-              sessionId: bodyObj.clientContext?.sessionId || `;${Date.now()}`,
-              projectId: bodyObj.clientContext?.projectId || "...", 
-              tool: bodyObj.clientContext?.tool || (i.includes("uploadUserImage") ? "ASSET_MANAGER" : "PINHOLE"),
+            // Tạo recaptchaContext chuẩn
+            const recaptchaCtx = {
+              token: captchaToken,
+              applicationType: "RECAPTCHA_APPLICATION_TYPE_WEB"
+            };
+
+            // LUÔN tạo/update top-level clientContext (Chuẩn cho Video API + Google check ở đây)
+            const existingCtx = bodyObj.clientContext || {};
+            bodyObj.clientContext = {
+              recaptchaContext: recaptchaCtx,
+              sessionId: existingCtx.sessionId || `;${Date.now()}`,
+              projectId: existingCtx.projectId || "...", 
+              tool: existingCtx.tool || (i.includes("uploadUserImage") ? "ASSET_MANAGER" : "PINHOLE"),
               userPaygateTier: "PAYGATE_TIER_TWO"
             };
 
-            // Gán lại vào body
-            bodyObj.clientContext = newClientContext;
+            // THÊM: Inject captcha vào requests[0].clientContext nếu có (Image API - GEM_PIX_2)
+            if (bodyObj.requests && bodyObj.requests[0]?.clientContext) {
+              bodyObj.requests[0].clientContext.recaptchaContext = recaptchaCtx;
+            }
 
             // Đóng gói lại thành chuỗi
             h.body = JSON.stringify(bodyObj);
@@ -17289,8 +17317,42 @@ async function We(a, { url: i, cookie: c, options: h }) {
           ? JSON.stringify(h.body)
           : typeof h.body == "object"
           ? JSON.stringify(h.body)
-          : h.body,
-      l = await fetch(i, { ...h, headers: t, body: r });
+          : h.body;
+          
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+      let l;
+      try {
+        l = await fetch(i, { ...h, headers: t, body: r, signal: controller.signal });
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        // Nếu lỗi kết nối/timeout và chưa retry thì thử lại
+        if (!isRetry) {
+          console.warn(`[Fetch] Network Error (${fetchErr.name}), retrying...`);
+          return await We(a, { url: i, cookie: c, options: h }, true);
+        }
+        throw fetchErr;
+      }
+      clearTimeout(timeoutId);
+
+    // --- [BẮT ĐẦU] TỰ ĐỘNG THỬ LẠI NẾU BỊ 403 (Chỉ thử 1 lần) ---
+    if (!l.ok && (l.status === 403 || l.status === 401) && !isRetry) {
+        // Extract threadId để xóa cache
+        let bodyData = h.body;
+        if (typeof h.body === "string") {
+            try { bodyData = JSON.parse(h.body); } catch(e) {}
+        }
+        const threadId = bodyData?.clientContext?.sessionId || bodyData?.sessionId || "default";
+        
+        console.warn(`[Fetch] [Thread-${threadId}] Phát hiện ${l.status}, đang giải lại Captcha và thử lại lệnh (Retry-1)...`);
+        threadTokenCache.delete(threadId); // Xóa cache cũ của luồng này
+        
+        // Thử lại đệ quy với isRetry = true
+        return await We(a, { url: i, cookie: c, options: h }, true);
+    }
+    // --- [KẾT THÚC] ---
+
     if (!l.ok) {
       const n = await l.text();
       console.error(`[Fetch] API Error: ${i} -> Status ${l.status}`);
@@ -17323,10 +17385,11 @@ async function We(a, { url: i, cookie: c, options: h }) {
   } catch (f) {
     const t = Ao.get(i) || "NETWORK_ERROR";
     
-    // Nếu gặp lỗi 403 hoặc 401 thì xóa cache token để lần sau lấy cái mới
-    if (f.statusCode === 403 || f.statusCode === 401) {
-        console.warn(`[Fetch] API trả về ${f.statusCode}, xóa cache reCAPTCHA token...`);
-        veoTokenExpiry = 0;
+    // Nếu gặp lỗi 403 hoặc 401 và không trong pha retry thì xóa cache (Dự phòng)
+    if ((f.statusCode === 403 || f.statusCode === 401) && !isRetry) {
+        console.warn(`[Fetch] Luồng xử lý lỗi phát hiện ${f.statusCode}, xóa cache reCAPTCHA token...`);
+        // Chúng ta không có threadId ở đây dễ dàng nên xóa toàn bộ hoặc dựa vào We xử lý
+        threadTokenCache.clear(); 
     }
 
     console.error(
@@ -18121,8 +18184,8 @@ he.ipcMain.on(
           } else if (errMsg.includes("mediaid") || errMsg.includes("upload")) {
             statusMsg = "Lỗi upload ảnh. Đổi cookie & Thử lại...";
           } else {
-            // Kể cả lỗi Server bận, cũng đổi cookie luôn để đổi sang Project khác
-            statusMsg = "Lỗi 500. Đổi cookie & Thử lại...";
+            // Bao gồm cả lỗi ConnectTimeout, 500, và các lỗi không xác định khác
+            statusMsg = `${err.statusCode || "Error"}. Đổi cookie & Thử lại...`;
           }
 
           // Gửi thông báo "Đang xử lý" (màu xanh/vàng) để không hiện lỗi đỏ trên UI
@@ -19183,62 +19246,29 @@ he.ipcMain.on(
             );
           }
 
-          // 3. Cấu hình Payload & Endpoint dựa trên số lượng ảnh
+          // 3. Cấu hình Payload - LUÔN DÙNG TEXT-TO-VIDEO (Giống Veo 3 chính)
           const sceneId = `client-generated-uuid-${Date.now()}-${Math.random()}`;
-          let endpoint, requestPayload;
+          const isPortrait = h === "PORTRAIT" || h === "9:16";
+          const endpoint =
+            "https://aisandbox-pa.googleapis.com/v1/video:batchAsyncGenerateVideoText";
 
-          if (endMediaId) {
-            // --- TRƯỜNG HỢP A: 2 ẢNH (Start + End) -> Dùng API StartAndEndImage (Veo 3.1) ---
-            endpoint =
-              "https://aisandbox-pa.googleapis.com/v1/video:batchAsyncGenerateVideoStartAndEndImage";
+          const modelKey = isPortrait
+            ? "veo_3_1_t2v_fast_portrait_ultra_relaxed"
+            : "veo_3_1_t2v_fast_ultra_relaxed";
 
-            // Model Key cho 2 ảnh (Start/End)
-            const isPortrait = h === "PORTRAIT" || h === "9:16";
-            const modelKey = isPortrait
-              ? "veo_3_1_i2v_s_fast_portrait_ultra_relaxed"
-              : "veo_3_1_i2v_s_fast_ultra_relaxed";
-
-            requestPayload = {
-              aspectRatio: `VIDEO_ASPECT_RATIO_${
-                isPortrait
-                  ? "PORTRAIT"
-                  : h === "16:9"
-                  ? "LANDSCAPE"
-                  : h.toUpperCase()
-              }`,
-              seed: Math.floor(Math.random() * 1e5),
-              textInput: { prompt: (item.text || "").trim() },
-              metadata: { sceneId: sceneId },
-              videoModelKey: modelKey,
-              startImage: { mediaId: startMediaId },
-              endImage: { mediaId: endMediaId },
-            };
-          } else {
-            // --- TRƯỜNG HỢP B: 1 ẢNH (Start) -> Dùng API StartImage (Veo 3.1 I2V) ---
-            endpoint =
-              "https://aisandbox-pa.googleapis.com/v1/video:batchAsyncGenerateVideoStartImage";
-
-            // Model Key cho 1 ảnh (Start)
-            const isPortrait = h === "PORTRAIT" || h === "9:16";
-            const modelKey = isPortrait
-              ? "veo_3_1_i2v_s_fast_portrait_ultra_relaxed"
-              : "veo_3_1_i2v_s_fast_ultra_relaxed";
-
-            requestPayload = {
-              aspectRatio: `VIDEO_ASPECT_RATIO_${
-                isPortrait
-                  ? "PORTRAIT"
-                  : h === "16:9"
-                  ? "LANDSCAPE"
-                  : h.toUpperCase()
-              }`,
-              seed: Math.floor(Math.random() * 1e5),
-              textInput: { prompt: (item.text || "").trim() },
-              metadata: { sceneId: sceneId },
-              videoModelKey: modelKey,
-              startImage: { mediaId: startMediaId },
-            };
-          }
+          const requestPayload = {
+            aspectRatio: `VIDEO_ASPECT_RATIO_${
+              isPortrait
+                ? "PORTRAIT"
+                : h === "16:9"
+                ? "LANDSCAPE"
+                : h.toUpperCase()
+            }`,
+            seed: Math.floor(Math.random() * 1e5),
+            textInput: { prompt: (item.text || "").trim() },
+            metadata: { sceneId: sceneId },
+            videoModelKey: modelKey,
+          };
 
           // 4. Gửi yêu cầu tạo video
           // 🟢 CODE MỚI (Đã tích hợp Captcha cho Video Đồng Nhất)
@@ -19848,7 +19878,6 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
   // 3. Reset cờ dừng
   Qe = false;
   $e = false;
-  isSolvingCaptcha = false;
 
   // Update UI ban đầu
   if (prompts.length > 0) {
@@ -20002,18 +20031,17 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
 
             const modelKey = isPortrait
               ? "veo_3_1_t2v_fast_portrait_ultra_relaxed"
-              : "veo_3_1_t2v_fast_ultra";
+              : "veo_3_1_t2v_fast_ultra_relaxed";
 
             payload = {
               clientContext: {
                 sessionId: sessionBase,
                 projectId: projectId,
                 tool: "PINHOLE",
-                userPaygateTier: "PAYGATE_TIER_TWO"
+                userPaygateTier: "PAYGATE_TIER_TWO",
               },
               requests: [
                 {
-                  // [FIX] Dùng validAspectRatio (LANDSCAPE/PORTRAIT) thay vì 16:9
                   aspectRatio: validAspectRatio,
                   seed: Math.floor(Math.random() * 1e5),
                   textInput: { prompt: p.text },
@@ -20027,21 +20055,19 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
             if (!currentLastFrame) throw new Error("Thiếu ảnh input.");
             sendLog(p.id, "Đang xử lý ảnh đầu vào...", "processing");
 
-            // A. Chuẩn hóa ảnh sang JPEG (Xử lý cả 2 trường hợp: Ảnh user (PNG/WebP...) và Ảnh cắt từ video)
+            // A. Chuẩn hóa ảnh sang JPEG
             let cleanBase64 = currentLastFrame;
             try {
               const rawStr = currentLastFrame.includes("base64,")
                 ? currentLastFrame.split("base64,")[1]
                 : currentLastFrame;
 
-              // [FIX] Luôn luôn chuẩn hóa về JPEG để đảm bảo tương thích upload
-              // (Tránh trường hợp ảnh user input là PNG nhưng khai báo mimeType là JPEG -> Lỗi 400)
               const imgBuffer = Buffer.from(rawStr, "base64");
               const image = he.nativeImage.createFromBuffer(imgBuffer);
               if (!image.isEmpty()) {
                 cleanBase64 = image.toJPEG(95).toString("base64");
               } else {
-                cleanBase64 = rawStr; // Fallback
+                cleanBase64 = rawStr;
               }
             } catch (e) {
               console.error("Lỗi chuẩn hóa ảnh:", e);
@@ -20060,14 +20086,9 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
                 mimeType: "image/jpeg",
               },
               clientContext: {
-                tool: "ASSET_MANAGER", // [FIX] Revert về ASSET_MANAGER (Chuẩn upload)
+                tool: "ASSET_MANAGER",
                 sessionId: sessionBase,
               },
-            };
-
-            const uploadHeaders = {
-              "content-type": "text/plain;charset=UTF-8", // [FIX] Revert về text/plain (Chuẩn Google API)
-              accept: "*/*",
             };
 
             const uploadRes = await We(null, {
@@ -20075,7 +20096,7 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
               cookie: cookie,
               options: {
                 method: "POST",
-                headers: uploadHeaders,
+                headers: { "content-type": "text/plain;charset=UTF-8", accept: "*/*" },
                 body: uploadPayload,
               },
             });
@@ -20093,20 +20114,19 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
               "https://aisandbox-pa.googleapis.com/v1/video:batchAsyncGenerateVideoStartImage";
 
             const modelKey = isPortrait
-              ? "veo_3_1_i2v_s_fast_portrait_ultra"
-              : "veo_3_1_i2v_s_fast_ultra";
+              ? "veo_3_1_i2v_s_fast_portrait_ultra_relaxed"
+              : "veo_3_1_i2v_s_fast_ultra_relaxed";
 
             payload = {
               clientContext: {
                 sessionId: sessionBase,
                 projectId: projectId,
                 tool: "PINHOLE",
-                userPaygateTier: "PAYGATE_TIER_TWO"
+                userPaygateTier: "PAYGATE_TIER_TWO",
               },
               requests: [
                 {
                   startImage: { mediaId: mediaId },
-                  // [FIX] Dùng validAspectRatio (LANDSCAPE/PORTRAIT)
                   aspectRatio: validAspectRatio,
                   seed: Math.floor(Math.random() * 1e5),
                   textInput: { prompt: p.text },
@@ -20117,16 +20137,14 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
             };
           }
 
-          // Gửi Request (Chung)
-          const genHeaders = {
-            "content-type": "text/plain;charset=UTF-8",
-            accept: "*/*",
-          };
-
           const genRes = await We(null, {
             url: apiUrl,
             cookie: cookie,
-            options: { method: "POST", headers: genHeaders, body: payload },
+            options: {
+              method: "POST",
+              headers: {},
+              body: payload,
+            },
           });
 
           const opName = genRes?.operations?.[0]?.operation?.name;
@@ -20148,7 +20166,12 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
                 method: "POST",
                 body: {
                   operations: [
-                    { operation: { name: opName }, sceneId: sceneId, status: "MEDIA_GENERATION_STATUS_PENDING" },
+                    [
+                      {
+                        operation: { name: opName },
+                        sceneId: sceneId,
+                      },
+                    ],
                   ],
                 },
               },

@@ -16002,6 +16002,7 @@ var je = ((t) => (
   (t[(t.MANAGE_COOKIES = 15)] = "MANAGE_COOKIES"),
   (t[(t.PROFILE = 16)] = "PROFILE"),
   (t[(t.SUPPORT = 17)] = "SUPPORT"),
+  (t[(t.CREATE_COMIC = 18)] = "CREATE_COMIC"),
   t
 ))(je || {});
 const Iv = ({ isCollapsed: t, setActiveView: e }) => {
@@ -18943,6 +18944,13 @@ const qb = ({
           label: h("sidebar.upgrade"),
           icon: c.jsx(eb, {}),
         },
+        {
+          view: je.CREATE_COMIC,
+          label: h("sidebar.createComic"),
+          icon: c.jsx(ib, {}),
+          preLabel: "PRO - Không giới hạn",
+          isPro: !0,
+        }
       ],
       [h]
     ),
@@ -31121,13 +31129,16 @@ TASK:
 4. Break the story into ${v} scenes using the mapped characters.
 5. **LANGUAGE:** Dialogue in ${dialogueLang.toUpperCase()}. Visuals in ENGLISH.
 
+### LOGIC & CONTINUITY (CRITICAL):
+1. **SERIAL NARRATIVE:** Each scene must logically follow the previous one. Inherit the environment, lighting, and placement of objects from the preceding scene to ensure seamless continuity.
+2. **CHARACTER CONSISTENCY:** Maintain absolute visual consistency for all characters. Specify exact hair style, eye color, facial features, and clothing in every scene's visual description.
+3. **STYLE ALIGNMENT:** Every scene must be designed in a consistent style: ${rawStyle}.
+
 INPUT STORY:
 "${t}"
 
-STYLE: ${rawStyle}, ${rawCamera}, ${rawLighting}.
-
-### LOCKED ACTORS (MUST USE THESE):
-${i.map((c) => `Name: ${c.name} | Desc: ${c.description}`).join("\n")}
+### LOCKED ACTORS (MUST USE THESE - IGNORE STORY NAMES):
+${i.map((c) => `Name: ${c.name} | Visual Description (CONSISTENT): ${c.description}`).join("\n")}
 
 ### JSON OUTPUT SCHEMA:
 Return a JSON object with two keys: "new_characters" (array of NON-LOCKED characters) and "scenes" (array).
@@ -32282,6 +32293,681 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
         g === "metadata" && dt(),
         g === "history" && Qe(),
       ],
+    });
+  },
+  ComicView_New = () => {
+    const {
+      stories: t,
+      whiskImages: e,
+      addWhiskImage: s,
+      activeCookie: cookie,
+      setActiveCookie: E,
+      currentUser: fe,
+      whiskAutoSaveConfig: x,
+      setWhiskAutoSaveConfig: g_save,
+    } = jt(),
+    { showToast: p } = _t(),
+    { t: x_t } = so(),
+    [g, v] = A.useState(""), // inputStoryId
+    [b, T] = A.useState(""), // manualStory
+    [S, E_panels] = A.useState([]), // panels (objects: { id, prompt, status, imageUrl, message, seed })
+    [R, G] = A.useState(!1), // isAnalyzing
+    [H, K] = A.useState(!1), // isGenerating
+    [L, V] = A.useState(null), // generatedImage
+    [Re, $e] = A.useState("LANDSCAPE"), // aspect ratio
+    [model, setModel] = A.useState("GEM_PIX_2"), // model
+    [se_seed, U_seed] = A.useState(() => Math.floor(Math.random() * 1e6)), // seed
+    [textLanguage, setTextLanguage] = A.useState("Tiếng Việt"), // text language
+    [comicGenre, setComicGenre] = A.useState("Comic Book Style"), // comic genre
+    [sceneCount, setSceneCount] = A.useState(4), // scene count
+    [concurrentStreams, setConcurrentStreams] = A.useState(4), // concurrent streams
+    [inputMode, setInputMode] = A.useState("select"); // "select" or "manual"
+    const [isStopping, setIsStopping] = A.useState(false); // stop signal for UI
+    const isStoppingRef = A.useRef(false); // stop signal for logic
+    const [selectedPanels, setSelectedPanels] = A.useState(new Set()); // selected for batch
+
+    A.useEffect(() => {
+      if (!cookie && fe?.token) {
+        ak(fe.token)
+          .then((newCookie) => {
+            if (newCookie) {
+              E(newCookie);
+              p("Đã tự động lấy Cookie Whisk từ server.", "info");
+            }
+          })
+          .catch((err) => {
+            console.error("Auto fetch cookie error:", err);
+          });
+      }
+    }, [fe, cookie, E]);
+
+    const handleAnalyze = async () => {
+      let storyText = "";
+      if (inputMode === "manual") {
+        storyText = b;
+      } else {
+        const found = t.find(st => st.id === g);
+        if (found) storyText = found.content;
+      }
+
+      if (!storyText) {
+        p("Vui lòng nhập hoặc chọn một câu chuyện.", "warning");
+        return;
+      }
+
+      G(!0);
+      try {
+        const result = await vx(
+          storyText, // 1: t (Story)
+          "", // 2: e (Extra)
+          `${comicGenre}, Digital Art`, // 3: s (Style)
+          [], // 4: i (Locked Actors)
+          [], // 5: r (Extra)
+          ["Cinematic"], // 6: f (Camera 1)
+          [], // 7: h (Camera 2)
+          ["Dramatic Lighting"], // 8: p (Lighting)
+          Re, // 9: x (AR)
+          "vi", // 10: g (Lang)
+          sceneCount.toString(), // 11: v (Count)
+          "auto", // 12: b (Model)
+          () => {}, // 13: T (Logger)
+          null // 14: S (Signal)
+        );
+        
+        if (result && result.text) {
+          const parsed = JSON.parse(result.text);
+          if (parsed.prompts) {
+            const initialPanels = parsed.prompts.map((pnl, idx) => {
+              // Clean prompt: remove SCENE:, Phân cảnh:, number prefixes, and technical metadata
+              let cleanPrompt = pnl.replace(/^(phân cảnh|scene)\s*\d*[:.-]?\s*/i, "")
+                                  .replace(/^\d+[:.-]?\s*/, "")
+                                  .replace(/\[CHARACTERS Description\]/gi, "")
+                                  .replace(/CHARACTERS \(LOCKED\):?/gi, "")
+                                  .replace(/RATIO:\s*\d+:\d+/gi, "")
+                                  .replace(/STYLE:\s*[^,\n]+/gi, "")
+                                  .trim();
+              return {
+                id: `panel-${Date.now()}-${idx}`,
+                prompt: cleanPrompt,
+                status: "idle",
+                imageUrl: null,
+                message: "Sẵn sàng",
+                seed: Math.floor(Math.random() * 1e6)
+              };
+            });
+            E_panels(initialPanels);
+            p("Phân tích kịch bản thành công!", "success");
+          }
+        }
+      } catch (err) {
+        console.error("Analysis Error:", err);
+        p("Lỗi khi phân tích kịch bản: " + err.message, "error");
+      } finally {
+        G(!1);
+      }
+    };
+
+    const handleSelectFolder = async () => {
+      try {
+        const path = await window.electronAPI.selectDownloadDirectory();
+        if (path) {
+          g_save(prev => ({ ...prev, path: path }));
+          p(`Đã chọn thư mục: ${path}`, "success");
+        }
+      } catch (err) {
+        console.error("Select folder error:", err);
+        p("Không thể mở trình chọn thư mục.", "error");
+      }
+    };
+
+    const handleSaveSinglePanel = async (panel, index) => {
+      if (!panel.imageUrl) {
+        p("Chưa có ảnh để lưu.", "warning");
+        return;
+      }
+      let currentPath = x.path;
+      if (!currentPath) {
+        await handleSelectFolder();
+        return; // handleSelectFolder will update state, user can click Save again once path is set
+      }
+      try {
+        const filename = `Comic_Panel_${index + 1}_${Date.now()}.jpg`;
+        const res = await window.electronAPI.saveImageToDisk(panel.imageUrl, currentPath, filename, index);
+        if (res.success) {
+          p(`Đã lưu ảnh phân cảnh ${index + 1}!`, "success");
+        } else {
+          throw new Error(res.error || "Lỗi khi lưu");
+        }
+      } catch (err) {
+        p(`Lỗi lưu: ${err.message}`, "error");
+      }
+    };
+
+    const handleGenerateSingle = async (index) => {
+      if (!cookie || !cookie.bearerToken) {
+        p("Vui lòng cấu hình Cookie/Token Whisk trước.", "error");
+        return;
+      }
+      const panel = S[index];
+      let success = false;
+      let attempts = 0;
+
+      K(!0);
+      setIsStopping(false);
+      isStoppingRef.current = false;
+      try {
+        while (!success) {
+          if (isStoppingRef.current) break;
+          attempts++;
+          E_panels(prev => prev.map((p, i) => i === index ? { 
+            ...p, 
+            status: "processing", 
+            message: attempts > 1 ? `Thử lại lần ${attempts}...` : "Đang tạo..." 
+          } : p));
+          
+          try {
+            const finalPrompt = `${comicGenre}, high detail, masterpiece. ${panel.prompt}`;
+            const encodedImage = await uk(cookie, void 0, finalPrompt, panel.seed, Re, null, model);
+            
+            if (encodedImage) {
+              const base64Data = `data:image/png;base64,${encodedImage}`;
+              if (x.enabled && x.path) {
+                const filename = `comic_panel_${Date.now()}_${panel.id}.png`;
+                window.electronAPI.saveImageToDisk(base64Data, x.path, filename, index).catch(e => console.error(e));
+              }
+              E_panels(prev => prev.map((p, i) => i === index ? { ...p, status: "success", imageUrl: base64Data, message: "Hoàn thành" } : p));
+              success = true;
+            }
+          } catch (err) {
+            console.error(`Error generating panel:`, err);
+            const errorMsg = err.message || "";
+            const errorCodeMatch = errorMsg.match(/\d{3}/);
+            const errorCode = errorCodeMatch ? errorCodeMatch[0] : "Lỗi";
+            
+            E_panels(prev => prev.map((p, i) => i === index ? { 
+              ...p, 
+              status: "failed", 
+              message: errorCode 
+            } : p));
+
+            // Wait with interruptible delay (3000ms split into 500ms chunks)
+            for (let j = 0; j < 6; j++) {
+              if (isStoppingRef.current) break;
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+        }
+        if (isStoppingRef.current) {
+           p("Đã dừng quá trình tạo ảnh.", "info");
+        } else if (success) {
+           p("Tạo ảnh thành công!", "success");
+        }
+      } catch (err) {
+        console.error("Single Generation Error:", err);
+        p("Lỗi khi tạo ảnh: " + err.message, "error");
+      } finally {
+        K(!1);
+        setIsStopping(false);
+      }
+    };
+
+    const handleGenerate = async (onlySelected = false) => {
+      if (S.length === 0) {
+        p("Vui lòng phân tích kịch bản trước.", "warning");
+        return;
+      }
+      if (!cookie || !cookie.bearerToken) {
+        p("Vui lòng cấu hình Cookie/Token Whisk trước.", "error");
+        return;
+      }
+
+      K(!0);
+      setIsStopping(false);
+      isStoppingRef.current = false;
+      try {
+        const panelsToRun = S.filter(pnl => {
+          if (onlySelected) return selectedPanels.has(pnl.id);
+          return pnl.status !== "success";
+        });
+
+        if (panelsToRun.length === 0) {
+          p("Không có phân cảnh nào cần tạo.", "info");
+          K(!1);
+          return;
+        }
+
+        // Parallel execution with concurrency limit
+        for (let i = 0; i < panelsToRun.length; i += concurrentStreams) {
+          if (isStoppingRef.current) break;
+
+          const chunk = panelsToRun.slice(i, i + concurrentStreams);
+          await Promise.all(chunk.map(async (panel) => {
+            let success = false;
+            let attempts = 0;
+
+            while (!success) {
+              if (isStoppingRef.current) break;
+              attempts++;
+              E_panels(prev => prev.map(pnl => pnl.id === panel.id ? { 
+                ...pnl, 
+                status: "processing", 
+                message: attempts > 1 ? `Thử lại lần ${attempts}...` : "Đang tạo ảnh..." 
+              } : pnl));
+
+              try {
+                const finalPrompt = `${comicGenre}, high detail, masterpiece. ${panel.prompt}`;
+                const encodedImage = await uk(
+                   cookie, 
+                   void 0, 
+                   finalPrompt, 
+                   panel.seed, 
+                   Re, 
+                   null, 
+                   model
+                );
+                
+                if (encodedImage) {
+                  const base64Data = `data:image/png;base64,${encodedImage}`;
+                  
+                  // Auto save individual panel
+                  if (x.enabled && x.path) {
+                     const filename = `comic_panel_${Date.now()}_${panel.id}.png`;
+                     window.electronAPI.saveImageToDisk(base64Data, x.path, filename, S.indexOf(panel)).catch(e => console.error("Auto save panel error:", e));
+                  }
+
+                  E_panels(prev => prev.map(pnl => pnl.id === panel.id ? { 
+                    ...pnl, 
+                    status: "success", 
+                    imageUrl: base64Data, 
+                    message: "Hoàn thành" 
+                  } : pnl));
+                  success = true;
+                }
+              } catch (err) {
+                console.error(`Error generating panel:`, err);
+                const errorMsg = err.message || "";
+                const errorCodeMatch = errorMsg.match(/\d{3}/);
+                const errorCode = errorCodeMatch ? errorCodeMatch[0] : "Lỗi";
+                
+                // If it's a known error (like 403), we retry, otherwise we might want to stop or just report
+                // The user said "403 thì báo 403 và tự động thử lại đến khi nào được thì thôi"
+                E_panels(prev => prev.map(pnl => pnl.id === panel.id ? { 
+                  ...pnl, 
+                  status: "failed", 
+                  message: errorCode 
+                } : pnl));
+
+                // Wait with interruptible delay
+                for (let j = 0; j < 6; j++) {
+                  if (isStoppingRef.current) break;
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+              }
+            }
+          }));
+        }
+
+        if (isStopping) {
+          p("Đã dừng quá trình tạo ảnh.", "info");
+        } else {
+          p("Đã hoàn thành quá trình tạo ảnh truyện tranh!", "success");
+        }
+      } catch (err) {
+        console.error("Batch Generation Error:", err);
+        p("Lỗi hệ thống khi tạo ảnh: " + err.message, "error");
+      } finally {
+        K(!1);
+        setIsStopping(false);
+      }
+    };
+
+    return c.jsxs("div", {
+      className: "animate-fade-in space-y-6",
+      children: [
+        c.jsxs("div", {
+          className: "flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2",
+          children: [
+            c.jsxs("div", {
+              children: [
+                c.jsxs("h1", {
+                  className: "text-3xl font-bold text-light flex items-center gap-3",
+                  children: [
+                    c.jsx("span", { className: "p-2 bg-accent/20 rounded-lg", children: "📖" }),
+                    "TRUYỆN TRANH AI (BETA)"
+                  ]
+                }),
+                c.jsx("p", {
+                  className: "text-dark-text mt-1 text-sm opacity-60",
+                  children: "Tạo truyện tranh chuyên nghiệp từ kịch bản hoặc ý tưởng của bạn."
+                })
+              ]
+            })
+          ]
+        }),
+        c.jsxs("div", {
+          className: "bg-secondary p-4 rounded-lg border border-border-color space-y-4",
+          children: [
+            c.jsxs("div", {
+              className: "flex border-b border-border-color",
+              children: [
+                c.jsx("button", {
+                  className: `px-4 py-2 text-sm font-bold transition-colors ${inputMode === "select" ? "border-b-2 border-accent text-accent" : "text-dark-text hover:text-light"}`,
+                  onClick: () => setInputMode("select"),
+                  children: "CHỌN TRUYỆN CÓ SẴN"
+                }),
+                c.jsx("button", {
+                  className: `px-4 py-2 text-sm font-bold transition-colors ${inputMode === "manual" ? "border-b-2 border-accent text-accent" : "text-dark-text hover:text-light"}`,
+                  onClick: () => setInputMode("manual"),
+                  children: "TỰ NHẬP NỘI DUNG"
+                })
+              ]
+            }),
+            inputMode === "select" ? c.jsxs("div", {
+              className: "flex flex-col md:flex-row gap-2",
+              children: [
+                c.jsxs("select", {
+                  className: "flex-grow p-2 bg-primary rounded border border-border-color text-sm text-light outline-none focus:ring-1 focus:ring-accent",
+                  value: g,
+                  onChange: (ev) => v(ev.target.value),
+                  children: [
+                    c.jsx("option", { value: "", children: "-- Chọn một câu chuyện từ thư viện --" }),
+                    t.map((st) => c.jsx("option", { value: st.id, children: st.title }, st.id))
+                  ]
+                }),
+                c.jsx("button", {
+                  className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-full text-sm transition-all shadow-lg active:scale-95 disabled:opacity-50",
+                  onClick: handleAnalyze,
+                  disabled: R,
+                  children: R ? "Đang phân tích..." : "PHÂN TÍCH KỊCH BẢN"
+                })
+              ]
+            }) : c.jsxs("div", {
+              className: "space-y-2",
+              children: [
+                c.jsx("textarea", {
+                  className: "w-full h-24 p-2 bg-primary rounded border border-border-color text-sm text-light outline-none focus:ring-1 focus:ring-accent",
+                  placeholder: "Nhập nội dung câu chuyện của bạn ở đây...",
+                  value: b,
+                  onChange: (ev) => T(ev.target.value)
+                }),
+                c.jsx("button", {
+                  className: "w-full bg-accent hover:bg-indigo-500 text-white font-bold py-2 rounded-full text-sm transition-all shadow-lg active:scale-95 disabled:opacity-50",
+                  onClick: handleAnalyze,
+                  disabled: R,
+                  children: R ? "Đang phân tích..." : "PHÂN TÍCH KỊCH BẢN"
+                })
+              ]
+            }),
+            c.jsxs("div", {
+              className: "flex flex-wrap items-end gap-x-4 gap-y-3 p-3 bg-primary/30 rounded-xl border border-border-color",
+              children: [
+                c.jsxs("div", {
+                  className: "flex-grow min-w-[120px]",
+                  children: [
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Tỷ lệ" }),
+                    c.jsxs("select", {
+                      className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
+                      value: Re,
+                      onChange: (ev) => $e(ev.target.value),
+                      children: [
+                        c.jsx("option", { value: "LANDSCAPE", children: "16:9 Ngang" }),
+                        c.jsx("option", { value: "PORTRAIT", children: "9:16 Dọc" }),
+                        c.jsx("option", { value: "SQUARE", children: "1:1 Vuông" })
+                      ]
+                    })
+                  ]
+                }),
+                c.jsxs("div", {
+                  className: "flex-grow min-w-[140px]",
+                  children: [
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Thể loại" }),
+                    c.jsxs("select", {
+                      className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
+                      value: comicGenre,
+                      onChange: (ev) => setComicGenre(ev.target.value),
+                      children: [
+                        c.jsx("option", { value: "Comic Book Style", children: "Truyện Tranh" }),
+                        c.jsx("option", { value: "Japanese Anime Style", children: "Anime" }),
+                        c.jsx("option", { value: "Cinematic Movie Concept", children: "Điện Ảnh" }),
+                        c.jsx("option", { value: "3D Pixar Animation", children: "Hoạt Hình" }),
+                        c.jsx("option", { value: "Noir Black and White", children: "Trắng Đen" }),
+                        c.jsx("option", { value: "Modern Marvel Style", children: "Marvel/DC" })
+                      ]
+                    })
+                  ]
+                }),
+                c.jsxs("div", {
+                  className: "flex-grow min-w-[100px]",
+                  children: [
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Ngôn ngữ" }),
+                    c.jsxs("select", {
+                      className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
+                      value: textLanguage,
+                      onChange: (ev) => setTextLanguage(ev.target.value),
+                      children: [
+                        c.jsx("option", { value: "Tiếng Việt", children: "Tiếng Việt" }),
+                        c.jsx("option", { value: "English", children: "English" }),
+                        c.jsx("option", { value: "Korean", children: "Korean" }),
+                        c.jsx("option", { value: "Japanese", children: "Japanese" })
+                      ]
+                    })
+                  ]
+                }),
+                c.jsxs("div", {
+                  className: "w-20",
+                  children: [
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Cảnh" }),
+                    c.jsx("input", {
+                      type: "number",
+                      className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
+                      value: sceneCount,
+                      min: 1,
+                      max: 50,
+                      onChange: (ev) => setSceneCount(parseInt(ev.target.value) || 1)
+                    })
+                  ]
+                }),
+                c.jsxs("div", {
+                  className: "w-20",
+                  children: [
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Luồng" }),
+                    c.jsx("input", {
+                      type: "number",
+                      className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
+                      value: concurrentStreams,
+                      min: 1,
+                      max: 10,
+                      onChange: (ev) => setConcurrentStreams(Math.max(1, Math.min(10, parseInt(ev.target.value) || 4)))
+                    })
+                  ]
+                }),
+                c.jsxs("div", {
+                  className: "flex-grow min-w-[120px]",
+                  children: [
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Seed" }),
+                    c.jsxs("div", {
+                      className: "flex gap-1",
+                      children: [
+                        c.jsx("input", {
+                          type: "number",
+                          className: "flex-grow p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
+                          value: se_seed,
+                          onChange: (ev) => U_seed(parseInt(ev.target.value) || 0)
+                        }),
+                        c.jsx("button", {
+                          className: "px-2 bg-primary hover:bg-white/5 rounded-md border border-border-color text-sm h-[34px] transition-colors",
+                          onClick: () => U_seed(Math.floor(Math.random() * 1e6)),
+                          title: "Random Seed",
+                          children: "🎲"
+                        })
+                      ]
+                    })
+                  ]
+                }),
+                c.jsxs("div", {
+                  className: "flex flex-col items-center gap-1",
+                  children: [
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Tự lưu" }),
+                    c.jsxs("div", {
+                      className: "flex items-center gap-2 h-[34px]",
+                      children: [
+                        c.jsxs("div", {
+                          className: "relative flex items-center shrink-0 cursor-pointer",
+                          onClick: () => g_save(prev => ({ ...prev, enabled: !prev.enabled })),
+                          children: [
+                            c.jsx("input", {
+                              type: "checkbox",
+                              className: "sr-only peer",
+                              checked: x.enabled,
+                              readOnly: true
+                            }),
+                            c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition" }),
+                            c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full" })
+                          ]
+                        })
+                      ]
+                    })
+                  ]
+                }),
+                c.jsxs("div", {
+                  className: "flex flex-col flex-grow min-w-[150px]",
+                  children: [
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Thư mục lưu" }),
+                    c.jsx("button", {
+                      onClick: handleSelectFolder,
+                      className: "w-full bg-primary hover:bg-white/5 text-dark-text text-xs font-bold h-[34px] px-3 rounded-md border border-border-color transition-colors truncate text-left",
+                      children: x.path ? `📂 ${x.path.split(/[\\/]/).pop()}` : "CHỌN THƯ MỤC..."
+                    })
+                  ]
+                })
+              ]
+            })
+          ]
+        })
+,
+        S.length > 0 && c.jsxs("div", {
+          className: "bg-secondary p-6 rounded-lg shadow-md border border-border-color",
+          children: [
+            c.jsxs("div", {
+              className: "flex justify-between items-center mb-4",
+              children: [
+                c.jsxs("div", {
+                  className: "flex items-center gap-4",
+                  children: [
+                    c.jsx("h3", { className: "text-xl font-bold text-light", children: "Kịch bản phân cảnh" }),
+                    selectedPanels.size > 0 && c.jsx("button", {
+                      className: "bg-accent hover:bg-indigo-500 text-white text-xs font-bold py-1 px-4 rounded-full transition-all shadow-md active:scale-95",
+                      onClick: () => handleGenerate(!0),
+                      disabled: H,
+                      children: `Chạy ${selectedPanels.size} cảnh đã chọn`
+                    })
+                  ]
+                }),
+                c.jsxs("div", {
+                  className: "flex gap-2",
+                  children: [
+                    H ? c.jsx("button", {
+                      className: "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-all animate-pulse active:scale-95",
+                      onClick: () => { isStoppingRef.current = true; setIsStopping(true); },
+                      children: "DỪNG LẠI 🛑"
+                    }) : c.jsx("button", {
+                      className: "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-all active:scale-95",
+                      onClick: () => handleGenerate(!1),
+                      children: "Bắt đầu tạo tất cả"
+                    })
+                  ]
+                })
+              ]
+            }),
+            c.jsx("div", {
+              className: "grid grid-cols-1 md:grid-cols-3 gap-4",
+              children: S.map((pnl, idx) => c.jsxs("div", {
+                className: `p-4 bg-primary rounded-xl border transition-all flex flex-col gap-3 ${pnl.status === 'processing' ? 'border-accent shadow-[0_0_15px_rgba(var(--accent-rgb),0.3)]' : 'border-border-color'}`,
+                children: [
+                  c.jsxs("div", {
+                    className: "flex justify-between items-center",
+                    children: [
+                      c.jsxs("div", {
+                        className: "flex items-center gap-2",
+                        children: [
+                          c.jsx("input", {
+                            type: "checkbox",
+                            className: "w-3.5 h-3.5 rounded border-border-color bg-secondary accent-accent",
+                            checked: selectedPanels.has(pnl.id),
+                            onChange: () => {
+                              const next = new Set(selectedPanels);
+                              next.has(pnl.id) ? next.delete(pnl.id) : next.add(pnl.id);
+                              setSelectedPanels(next);
+                            }
+                          }),
+                          c.jsx("span", { className: "font-bold text-accent", children: `Phân cảnh ${idx + 1}` }),
+                        ]
+                      }),
+                      c.jsxs("div", {
+                        className: "flex items-center gap-2",
+                        children: [
+                          c.jsx("span", { 
+                            className: `text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                              pnl.status === 'success' ? 'bg-green-500/20 text-green-500' :
+                              pnl.status === 'processing' ? 'bg-accent/20 text-accent animate-pulse' :
+                              pnl.status === 'failed' ? 'bg-red-500/20 text-red-500' : 'bg-gray-500/20 text-gray-500'
+                            }`,
+                            children: pnl.message
+                          }),
+                          c.jsx("button", {
+                            onClick: () => handleGenerateSingle(idx),
+                            disabled: H,
+                            title: "Chạy phân cảnh này",
+                            className: "p-1 hover:bg-green-500/20 rounded-full transition-colors",
+                            children: c.jsx(Ps, {
+                              className: "h-4 w-4 text-green-500",
+                            }),
+                          }),
+                          c.jsx("button", {
+                            onClick: () => E_panels(prev => prev.filter(p => p.id !== pnl.id)),
+                            disabled: H,
+                            title: "Xóa",
+                            className: "p-1 hover:bg-red-500/20 rounded-full transition-colors",
+                            children: c.jsx(Oa, {
+                              className: "h-4 w-4 text-red-500",
+                            }),
+                          }),
+                        ]
+                      })
+                    ]
+                  }),
+                  c.jsxs("div", {
+                    className: "aspect-video bg-secondary rounded-lg border border-border-color flex items-center justify-center overflow-hidden relative group",
+                    children: [
+                      pnl.imageUrl ? 
+                        c.jsx("img", { src: pnl.imageUrl, className: "w-full h-full object-cover transition-transform group-hover:scale-105" }) :
+                        pnl.status === 'processing' ? c.jsx(Ut, { className: "scale-75" }) :
+                        c.jsx("div", { className: "text-dark-text opacity-20", children: c.jsx("svg", { className: "w-12 h-12", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" }) }) }),
+                      pnl.imageUrl && c.jsx("div", {
+                        className: "absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40",
+                        children: c.jsxs("button", {
+                          onClick: () => handleSaveSinglePanel(pnl, idx),
+                          className: "bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-full text-xs flex items-center gap-1 shadow-lg transform translate-y-2 group-hover:translate-y-0 transition-all",
+                          children: [
+                            c.jsx(Ut, { className: "w-4 h-4" }),
+                            "Lưu ảnh"
+                          ]
+                        })
+                      })
+                    ]
+                  }),
+                  c.jsx("textarea", { 
+                    className: "w-full p-2 bg-secondary rounded border border-border-color text-xs text-dark-text h-20 resize-none focus:border-accent outline-none", 
+                    value: pnl.prompt,
+                    onChange: (ev) => E_panels(prev => prev.map((it, i) => i === idx ? { ...it, prompt: ev.target.value } : it)),
+                    placeholder: "Prompt cho phân cảnh này..."
+                  })
+                ]
+              }, pnl.id))
+            })
+          ]
+        })
+      ]
     });
   },
   QM = [
@@ -42635,8 +43321,8 @@ const Nk = 1e4,
               {
                 id: "1_1m_ca_nhan",
                 name: "Gói Cá Nhân/1 Máy",
-                price: 250000, // Giá rẻ để entry
-                originalPrice: 300000,
+                price: 350000, // Giá rẻ để entry
+                originalPrice: 400000,
                 durationLabel: "/ tháng",
                 description: "Gói cơ bản cho nhu cầu tạo video text-to-video.",
                 features: [
@@ -42649,7 +43335,7 @@ const Nk = 1e4,
               {
                 id: "7_ca_nhan_pro",
                 name: "Gói Cá Nhân Pro",
-                price: 350000, // MỐC CHUẨN
+                price: 450000, // MỐC CHUẨN
                 durationLabel: "/ tháng",
                 description:
                   "Gói chuyên nghiệp với đầy đủ tính năng và hiệu suất cao.",
@@ -42659,8 +43345,8 @@ const Nk = 1e4,
               {
                 id: "6_small_team_1m",
                 name: "Gói Team Pro/5 Máy",
-                price: 990000, // Rất hời cho team 5 người
-                originalPrice: 1750000, // Giá trị thực (350k * 5)
+                price: 1800000, // Rất hời cho team 5 người
+                originalPrice: 2750000, // Giá trị thực (350k * 5)
                 durationLabel: "/ tháng",
                 description: "Gói mở rộng 5 máy cùng lúc cho Team.",
                 features: [...P, "Sử dụng số lượng 5 máy cùng lúc."],
@@ -42669,8 +43355,8 @@ const Nk = 1e4,
               {
                 id: "2_1y",
                 name: "Gói 1 Năm Pro/1 Máy",
-                price: Q, // 3.360.000
-                originalPrice: ne, // 4.200.000
+                price: Q, // 4.500.000
+                originalPrice: ne, // 5.400.000
                 durationLabel: "/ năm",
                 description:
                   "Lựa chọn tiết kiệm nhất cho người dùng lâu dài (Giảm 20%).",
@@ -42680,8 +43366,8 @@ const Nk = 1e4,
               {
                 id: "3_enterprise",
                 name: "Gói Doanh nghiệp",
-                price: 5500000, // Giá cao cho scale lớn
-                originalPrice: 10500000, // Giá trị thực (350k * 30)
+                price: 7500000, // Giá cao cho scale lớn
+                originalPrice: 15000000, // Giá trị thực (350k * 30)
                 durationLabel: "/ tháng",
                 description: "Giải pháp toàn diện cho công ty.",
                 features: [
@@ -49272,6 +49958,8 @@ const Nk = 1e4,
             return c.jsx(pk, {
               setActiveView: i,
             });
+          case je.CREATE_COMIC:
+            return c.jsx(ComicView_New, {});
           default:
             return c.jsx(qm, {});
         }
@@ -49320,6 +50008,7 @@ const Nk = 1e4,
     apiKeySettings: "API Key Settings",
     support: "Support",
     logout: "Logout",
+    createComic: "Comic Creation (Beta)",
   },
   Xk = {
     title: "Dashboard",
@@ -49564,6 +50253,7 @@ const Nk = 1e4,
     apiKeySettings: "Cài đặt API Key",
     support: "Hỗ trợ",
     logout: "Đăng xuất",
+    createComic: "Tạo Truyện Tranh (Beta)",
   },
   s_ = {
     title: "Tổng quan",
