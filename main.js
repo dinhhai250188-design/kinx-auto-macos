@@ -19250,13 +19250,14 @@ he.ipcMain.on(
           const sceneId = `client-generated-uuid-${Date.now()}-${Math.random()}`;
           const isPortrait = h === "PORTRAIT" || h === "9:16";
           const endpoint =
-            "https://aisandbox-pa.googleapis.com/v1/video:batchAsyncGenerateVideoText";
+            "https://aisandbox-pa.googleapis.com/v1/video:batchAsyncGenerateVideoStartImage";
 
           const modelKey = isPortrait
-            ? "veo_3_1_t2v_fast_portrait_ultra_relaxed"
-            : "veo_3_1_t2v_fast_ultra_relaxed";
+            ? "veo_3_1_i2v_s_fast_portrait_ultra_relaxed"
+            : "veo_3_1_i2v_s_fast_ultra_relaxed";
 
           const requestPayload = {
+            startImage: { mediaId: startMediaId },
             aspectRatio: `VIDEO_ASPECT_RATIO_${
               isPortrait
                 ? "PORTRAIT"
@@ -20323,7 +20324,7 @@ function nc() {
   })),
     So
       ? qe.loadURL(So)
-      : (qe.loadFile(ye.join(__dirname, "index.html")),
+      : (qe.loadFile(ye.join(__dirname,"index.html")),
         qe.once("ready-to-show", () => {
           ut.autoUpdater.checkForUpdatesAndNotify();
         })),
