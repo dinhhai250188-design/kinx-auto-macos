@@ -5,7 +5,7 @@ const DEFAULT_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 class RecaptchaSolver {
   constructor() {
     this.solverWindow = null;
-    this.userAgent = DEFAULT_UA; 
+    this.userAgent = DEFAULT_UA;
     this.hardwareConcurrency = [2, 4, 6, 8, 12, 16][Math.floor(Math.random() * 6)];
     this.deviceMemory = [4, 8, 16][Math.floor(Math.random() * 3)];
     // Randomize screen dimensions for fingerprinting
@@ -14,7 +14,7 @@ class RecaptchaSolver {
   }
 
   findChrome() {
-    return "Electron"; 
+    return "Electron";
   }
 
   async createSolverWindow(targetUrl, partitionId = null) {
@@ -22,26 +22,31 @@ class RecaptchaSolver {
       this.solverWindow.destroy();
     }
 
-    const sessionOptions = partitionId 
-      ? { session: session.fromPartition(`persist:${partitionId}`) } 
+    const sessionOptions = partitionId
+      ? { session: session.fromPartition(`persist:${partitionId}`) }
       : { session: session.defaultSession };
+
+    const isMac = process.platform === 'darwin';
 
     this.solverWindow = new BrowserWindow({
       width: 400 + Math.floor(Math.random() * 50),
       height: 700 + Math.floor(Math.random() * 50),
-      show: true,        
-      x: -1500 + Math.floor(Math.random() * 200),
-      y: -1500 + Math.floor(Math.random() * 200),
+      show: true,
+      x: isMac ? 5000 : (-1500 + Math.floor(Math.random() * 200)),
+      y: isMac ? 5000 : (-1500 + Math.floor(Math.random() * 200)),
+      opacity: isMac ? 0 : 1,
       frame: false,
-      skipTaskbar: true, 
-      focusable: false,  
+      skipTaskbar: true,
+      focusable: false,
+      type: isMac ? 'panel' : undefined,
+      hasShadow: false,
       webPreferences: {
         nodeIntegration: false,
-        contextIsolation: false, 
-        ...sessionOptions, 
-        webSecurity: false, 
+        contextIsolation: false,
+        ...sessionOptions,
+        webSecurity: false,
         backgroundThrottling: false,
-        devTools: false 
+        devTools: false
       },
     });
 
@@ -60,42 +65,42 @@ class RecaptchaSolver {
 
   async simulateHumanInteraction() {
     if (!this.solverWindow || this.solverWindow.isDestroyed()) return;
-    
+
     const contents = this.solverWindow.webContents;
     try {
-        const moveMouse = async (tx, ty) => {
-            let steps = 20 + Math.floor(Math.random() * 15);
-            for (let i = 0; i <= steps; i++) {
-                let progress = i / steps;
-                let t = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-                let x = Math.floor(tx * t) + (Math.random() * 3 - 1.5);
-                let y = Math.floor(ty * t) + (Math.random() * 3 - 1.5);
-                contents.sendInputEvent({ type: 'mouseMove', x, y });
-                await new Promise(r => setTimeout(r, 8 + Math.random() * 12));
-            }
-        };
-
-        const startX = 5 + Math.floor(Math.random() * 100);
-        const startY = 5 + Math.floor(Math.random() * 100);
-        contents.sendInputEvent({ type: 'mouseEnter', x: startX, y: startY });
-        
-        // Phase 1: Hover near target
-        const hoverX = 200 + Math.random() * 40;
-        const hoverY = 150 + Math.random() * 40;
-        await moveMouse(hoverX, hoverY);
-        await new Promise(r => setTimeout(r, 150 + Math.random() * 200));
-
-        // Phase 2: Micro-jitter around target
-        for(let j=0; j<3; j++) {
-            contents.sendInputEvent({ type: 'mouseMove', x: hoverX + (Math.random()*4 - 2), y: hoverY + (Math.random()*4 - 2) });
-            await new Promise(r => setTimeout(r, 50 + Math.random() * 50));
+      const moveMouse = async (tx, ty) => {
+        let steps = 20 + Math.floor(Math.random() * 15);
+        for (let i = 0; i <= steps; i++) {
+          let progress = i / steps;
+          let t = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+          let x = Math.floor(tx * t) + (Math.random() * 3 - 1.5);
+          let y = Math.floor(ty * t) + (Math.random() * 3 - 1.5);
+          contents.sendInputEvent({ type: 'mouseMove', x, y });
+          await new Promise(r => setTimeout(r, 8 + Math.random() * 12));
         }
-        
-        // Phase 3: Final click
-        contents.sendInputEvent({ type: 'mouseDown', x: hoverX, y: hoverY, button: 'left', clickCount: 1 });
-        await new Promise(r => setTimeout(r, 70 + Math.random() * 100));
-        contents.sendInputEvent({ type: 'mouseUp', x: hoverX, y: hoverY, button: 'left', clickCount: 1 });
-    } catch (e) {}
+      };
+
+      const startX = 5 + Math.floor(Math.random() * 100);
+      const startY = 5 + Math.floor(Math.random() * 100);
+      contents.sendInputEvent({ type: 'mouseEnter', x: startX, y: startY });
+
+      // Phase 1: Hover near target
+      const hoverX = 200 + Math.random() * 40;
+      const hoverY = 150 + Math.random() * 40;
+      await moveMouse(hoverX, hoverY);
+      await new Promise(r => setTimeout(r, 150 + Math.random() * 200));
+
+      // Phase 2: Micro-jitter around target
+      for (let j = 0; j < 3; j++) {
+        contents.sendInputEvent({ type: 'mouseMove', x: hoverX + (Math.random() * 4 - 2), y: hoverY + (Math.random() * 4 - 2) });
+        await new Promise(r => setTimeout(r, 50 + Math.random() * 50));
+      }
+
+      // Phase 3: Final click
+      contents.sendInputEvent({ type: 'mouseDown', x: hoverX, y: hoverY, button: 'left', clickCount: 1 });
+      await new Promise(r => setTimeout(r, 70 + Math.random() * 100));
+      contents.sendInputEvent({ type: 'mouseUp', x: hoverX, y: hoverY, button: 'left', clickCount: 1 });
+    } catch (e) { }
   }
 
   async getRecaptchaToken(websiteURL, websiteKey, pageAction, partitionId = null) {
@@ -202,10 +207,10 @@ class RecaptchaSolver {
               return "ERROR: " + e.message;
             }
           })();
-        `, true); 
+        `, true);
 
         if (!token || typeof token !== 'string' || token.startsWith("ERROR:")) {
-           throw new Error("Token lỗi: " + token);
+          throw new Error("Token lỗi: " + token);
         }
 
         console.log(`[ElectronSolver] => OK (${token.length} chars) - UA: 145`);
