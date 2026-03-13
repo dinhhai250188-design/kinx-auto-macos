@@ -23,23 +23,18 @@ class RecaptchaSolver {
     }
 
     const sessionOptions = partitionId
-      ? { session: session.fromPartition(`persist:${partitionId}`) }
+      ? { session: session.fromPartition(partitionId) }
       : { session: session.defaultSession };
-
-    const isMac = process.platform === 'darwin';
 
     this.solverWindow = new BrowserWindow({
       width: 400 + Math.floor(Math.random() * 50),
       height: 700 + Math.floor(Math.random() * 50),
       show: true,
-      x: isMac ? 5000 : (-1500 + Math.floor(Math.random() * 200)),
-      y: isMac ? 5000 : (-1500 + Math.floor(Math.random() * 200)),
-      opacity: isMac ? 0 : 1,
+      x: -1500 + Math.floor(Math.random() * 200),
+      y: -1500 + Math.floor(Math.random() * 200),
       frame: false,
       skipTaskbar: true,
       focusable: false,
-      type: isMac ? 'panel' : undefined,
-      hasShadow: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: false,
@@ -231,8 +226,18 @@ class RecaptchaSolver {
 
   async close() {
     if (this.solverWindow && !this.solverWindow.isDestroyed()) {
-      this.solverWindow.destroy();
-      this.solverWindow = null;
+      try {
+        // Dọn dẹp sạch sẽ bộ nhớ RAM của Session ẩn danh này trước khi đóng
+        const winSession = this.solverWindow.webContents.session;
+        await winSession.clearCache();
+        await winSession.clearStorageData();
+      } catch (e) {
+        // Bỏ qua nếu có lỗi trong quá trình dọn dẹp
+      } finally {
+        // Tiêu diệt cửa sổ
+        this.solverWindow.destroy();
+        this.solverWindow = null;
+      }
     }
   }
 }

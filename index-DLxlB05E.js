@@ -18862,7 +18862,7 @@ const qb = ({
           view: je.DASHBOARD,
           label: h("sidebar.dashboard"),
           icon: c.jsx(yb, {}),
-        } /*{view:je.SUNO_MUSIC,label:"Suno Music",icon:c.jsx(Pu,{}),preLabel:"PRO - BETA",isPro:!0},*/,
+        },
         {
           view: je.CREATE_STORY,
           label: h("sidebar.createStory"),
@@ -18886,6 +18886,13 @@ const qb = ({
           isPro: !0,
         },
         {
+          view: je.CREATE_COMIC,
+          label: h("sidebar.createComic"),
+          icon: c.jsx(Pb, {}),
+          preLabel: "PRO - Không giới hạn",
+          isPro: !0,
+        },
+        {
           view: je.CREATE_THUMBNAIL,
           label: h("sidebar.createThumbnail"),
           icon: c.jsx(fb, {}),
@@ -18900,7 +18907,7 @@ const qb = ({
           view: je.CREATE_VIDEO_FROM_IMAGE,
           label: h("sidebar.createVideoFromImage"),
           icon: c.jsx(ub, {}),
-          preLabel: "PRO - Không giới hạn", // Thêm dòng này để hiện chữ màu trên menu
+          preLabel: "PRO - Không giới hạn",
           isPro: !0,
         },
         {
@@ -18912,7 +18919,7 @@ const qb = ({
         },
         {
           view: je.CREATE_EXTENDED_VIDEO,
-          label: "Video Mở Rộng",
+          label: h("sidebar.createExtendedVideo", "Video Mở Rộng"),
           icon: c.jsx(Yv, {}),
           preLabel: "PRO - Không giới hạn",
           isPro: !0,
@@ -18936,13 +18943,6 @@ const qb = ({
           view: je.PACKAGES,
           label: h("sidebar.upgrade"),
           icon: c.jsx(eb, {}),
-        },
-        {
-          view: je.CREATE_COMIC,
-          label: h("sidebar.createComic"),
-          icon: c.jsx(ib, {}),
-          preLabel: "PRO - Không giới hạn",
-          isPro: !0,
         }
       ],
       [h]
@@ -19081,7 +19081,7 @@ const qb = ({
             className: `${v} ${t === je.MANAGE_COOKIES ? b : T} ${s ? "justify-center" : "px-3"
               }`,
             onClick: () => e(je.MANAGE_COOKIES),
-            title: s ? "Quản lý Cookie" : void 0,
+            title: s ? h("sidebar.manageCookies") : void 0,
             children: [
               c.jsx(gb, {
                 className: `${p} ${s ? "" : "mr-2.5"} ${t === je.MANAGE_COOKIES
@@ -19092,7 +19092,7 @@ const qb = ({
               !s &&
               c.jsx("span", {
                 className: "font-medium text-sm whitespace-nowrap",
-                children: "Quản lý Cookie",
+                children: h("sidebar.manageCookies"),
               }),
             ],
           }),
@@ -31001,41 +31001,44 @@ const Gn = () => {
     config = {},
     systemInstruction = null
   ) => {
+    let currentModel = model; // Biến lưu model đang chạy
+    let errorCount = 0;       // Bộ đếm lỗi
+
     while (true) {
-      // Vòng lặp vô tận
       try {
         const client = Gn();
-        const requestConfig = {
-          ...config,
-        };
-        if (systemInstruction)
-          requestConfig.systemInstruction = systemInstruction;
+        const requestConfig = { ...config };
+        if (systemInstruction) requestConfig.systemInstruction = systemInstruction;
 
         // Gọi API
         return await client.models.generateContent({
-          model,
+          model: currentModel,
           contents,
           config: requestConfig,
         });
       } catch (err) {
-        // Nếu người dùng bấm Dừng thì thoát
+        // Bấm Dừng thì thoát
         if (err.name === "AbortError" || err instanceof Ds) throw err;
 
-        // Xử lý lỗi Limit/Quota/Permission (429, 403)
+        errorCount++;
+        // TỰ ĐỘNG HẠ CẤP: Nếu lỗi 2 lần, ép chuyển sang dùng model LITE
+        if (errorCount >= 2 && currentModel !== "gemini-2.5-flash-lite-preview-09-2025") {
+          console.warn(`[Auto-Fallback] Model ${currentModel} lỗi. Đang ép dùng bản Lite...`);
+          currentModel = "gemini-2.5-flash-lite-preview-09-2025";
+          errorCount = 0; // Reset đếm để chạy tiếp bản Lite
+        }
+
         const msg = err.message || "";
+        // Nếu dính lỗi Quota / Lỗi Key -> Xin key mới rồi thử lại
         if (
-          msg.includes("429") ||
-          msg.includes("403") ||
-          msg.includes("quota") ||
-          msg.includes("permission") ||
-          msg.includes("RESOURCE_EXHAUSTED")
+          msg.includes("429") || msg.includes("403") || msg.includes("400") ||
+          msg.includes("quota") || msg.includes("permission") ||
+          msg.includes("INVALID") || msg.includes("RESOURCE_EXHAUSTED")
         ) {
-          // Lấy key mới (Im lặng, không hiện Toast)
           await gx();
-          // Chờ 1s rồi thử lại
-          await new Promise((r) => setTimeout(r, 1000));
+          await new Promise((r) => setTimeout(r, 2000));
         } else {
-          // Các lỗi khác (500, 503...) cũng thử lại luôn, không ném lỗi ra ngoài
+          // Các lỗi khác thì đợi rồi thử lại
           await new Promise((r) => setTimeout(r, 2000));
         }
       }
@@ -31073,28 +31076,40 @@ const vx = async (
   T = () => { },
   S
 ) => {
-  // --- [GIỮ NGUYÊN] PHẦN 1: LOGIC XỬ LÝ DỮ LIỆU CŨ ---
-  const rawStyle = s || "Cinematic 3D Animation";
-  const rawCamera =
-    [...(f || []), ...(h || [])].join(", ") || "Dynamic Camera";
-  const rawLighting = (p || []).join(", ") || "Cinematic Lighting";
   const ar = typeof x === "string" && x.includes(":") ? x.trim() : "16:9";
   const dialogueLang = g || "Tiếng Việt";
+  const isVi = dialogueLang.toLowerCase().includes("vi") || dialogueLang.toLowerCase().includes("vn");
 
-  // Logic xử lý nhân vật (Giữ nguyên)
+  let rawStyle = s || "Cinematic 3D Animation";
+  if (isVi) {
+    rawStyle = rawStyle
+      .replace(/Comic Book Style/gi, "Phong cách truyện tranh")
+      .replace(/Japanese Anime Style/gi, "Phong cách Anime Nhật Bản")
+      .replace(/Cinematic Movie Concept/gi, "Phong cách điện ảnh")
+      .replace(/3D Pixar Animation/gi, "Hoạt hình 3D Pixar")
+      .replace(/Noir Black and White/gi, "Trắng đen Noir")
+      .replace(/Modern Marvel Style/gi, "Phong cách Marvel/DC")
+      .replace(/Digital Art/gi, "Nghệ thuật kỹ thuật số")
+      .replace(/Cinematic 3D Animation/gi, "Hoạt hình 3D điện ảnh");
+  }
+
+  const rawCamera = [...(f || []), ...(h || [])].join(", ") || (isVi ? "Góc máy động" : "Dynamic Camera");
+  const rawLighting = (p || []).join(", ") || (isVi ? "Ánh sáng điện ảnh" : "Cinematic Lighting");
+
+  // Logic xử lý nhân vật
   let lockedNames = [];
   let userCharBlock = "";
   if (i && Array.isArray(i) && i.length > 0) {
     lockedNames = i.map((c) => c.name);
     userCharBlock = i
       .map(
-        (c) =>
-          `- ${c.name}\n  - Appearance: ${c.description}\n  - Consistent Style: ${rawStyle}\n  - NOTE: THIS IS THE MAIN ACTOR. USE THIS VISUAL 100%.`
+        (c) => isVi
+          ? `- ${c.name}\n  - Ngoại hình: ${c.description}\n  - Phong cách đồng nhất: ${rawStyle}\n  - LƯU Ý: ĐÂY LÀ NHÂN VẬT CHÍNH. BẮT BUỘC SỬ DỤNG NGOẠI HÌNH NÀY 100%.`
+          : `- ${c.name}\n  - Appearance: ${c.description}\n  - Consistent Style: ${rawStyle}\n  - NOTE: THIS IS THE MAIN ACTOR. USE THIS VISUAL 100%.`
       )
       .join("\n\n");
   }
 
-  // System Prompt (Giữ nguyên)
   const G = `
 SYSTEM COMMAND: ACT AS A LEAD CGI DIRECTOR & CASTING DIRECTOR.
 MODE: STRICT JSON OUTPUT ONLY.
@@ -31107,7 +31122,9 @@ TASK:
    - Use the LOCKED NAMES in all scene descriptions, actions, and dialogue.
 3. **MISSING CHARACTERS:** If the story has supporting roles not covered by Locked Actors, generate profiles for them.
 4. Break the story into ${v} scenes using the mapped characters.
-5. **LANGUAGE:** Dialogue in ${dialogueLang.toUpperCase()}. Visuals in ENGLISH.
+5. **LANGUAGE TRANSLATION (CRITICAL):** - YOU MUST WRITE EVERYTHING ENTIRELY IN ${dialogueLang.toUpperCase()}.
+   - If you see any English technical terms in the input (like "Low Angle Shot", "Wide Shot", "Digital Art"), YOU MUST TRANSLATE THEM into ${dialogueLang.toUpperCase()}. 
+   - DO NOT leave English words in brackets. (e.g., Write "Góc máy thấp", DO NOT write "Góc máy thấp (Low Angle Shot)").
 
 ### LOGIC & CONTINUITY (CRITICAL):
 1. **SERIAL NARRATIVE:** Each scene must logically follow the previous one. Inherit the environment, lighting, and placement of objects from the preceding scene to ensure seamless continuity.
@@ -31121,38 +31138,42 @@ INPUT STORY:
 ${i.map((c) => `Name: ${c.name} | Visual Description (CONSISTENT): ${c.description}`).join("\n")}
 
 ### JSON OUTPUT SCHEMA:
-Return a JSON object with two keys: "new_characters" (array of NON-LOCKED characters) and "scenes" (array).
+Return a JSON object with two keys: "new_characters" (array of NON-LOCKED characters) and "scenes" (array). Ensure all string values are completely translated into ${dialogueLang.toUpperCase()} without any English words left behind.
 {
   "new_characters": [
     {
       "name": "Name",
-      "species": "Species",
-      "age": "Age",
-      "body": "Visual body description",
-      "clothing": "Outfit",
-      "personality": "Traits",
-      "quirks": "Habits"
+      "species": "Species in ${dialogueLang}",
+      "age": "Age in ${dialogueLang}",
+      "body": "Visual body description in ${dialogueLang}",
+      "clothing": "Outfit in ${dialogueLang}",
+      "personality": "Traits in ${dialogueLang}",
+      "quirks": "Habits in ${dialogueLang}"
     }
   ],
   "scenes": [
     {
       "scene_number": 1,
-      "title": "Title",
-      "environment": "Visual description (ENGLISH)",
-      "actions": "Action bullets using LOCKED NAMES (ENGLISH)",
-      "camera": "Camera shot (ENGLISH)",
-      "audio": "Sound effects (ENGLISH)",
+      "title": "Title in ${dialogueLang}",
+      "environment": "Visual description in ${dialogueLang}",
+      "actions": "Action bullets using LOCKED NAMES in ${dialogueLang}",
+      "camera": "Camera shot in ${dialogueLang} (NO English brackets)",
+      "audio": "Sound effects in ${dialogueLang}",
       "dialogue": "Lines in ${dialogueLang} (Format: **LockedName**: 'Line')",
-      "visual_fx": "Lighting/VFX (ENGLISH)"
+      "visual_fx": "Lighting/VFX in ${dialogueLang}"
     }
   ]
 }
 `;
 
-  // Các hàm render (Giữ nguyên)
   const renderFinalPrompt = (sceneData, combinedCharBlock) => {
-    return `[CHARACTERS Description] RATIO: ${ar} STYLE: ${rawStyle}\nCHARACTERS (LOCKED):\n\n${combinedCharBlock}\n\n[END CHARACTERS Description]\n\nSCENE ${sceneData.scene_number}: ${sceneData.title}\nENVIRONMENT: ${sceneData.environment}\nACTIONS:\n${sceneData.actions}\nCAMERA: ${sceneData.camera}\nAUDIO: ${sceneData.audio}\nDIALOGUE: ${sceneData.dialogue}\nVISUAL FX: ${sceneData.visual_fx}`;
+    if (isVi) {
+      return `[MÔ TẢ NHÂN VẬT] TỶ LỆ: ${ar} PHONG CÁCH: ${rawStyle}\nNHÂN VẬT (CỐ ĐỊNH):\n\n${combinedCharBlock}\n\n[KẾT THÚC MÔ TẢ NHÂN VẬT]\n\nPHÂN CẢNH ${sceneData.scene_number}: ${sceneData.title}\nMÔI TRƯỜNG: ${sceneData.environment}\nHÀNH ĐỘNG:\n${sceneData.actions}\nGÓC MÁY CAMERA: ${sceneData.camera}\nÂM THANH: ${sceneData.audio}\nLỜI THOẠI: ${sceneData.dialogue}\nHIỆU ỨNG (VFX): ${sceneData.visual_fx}\nLỆNH ÉP CHỮ: Mọi văn bản, chữ cái, bong bóng thoại xuất hiện trong ảnh BẮT BUỘC phải viết bằng ngôn ngữ ${dialogueLang.toUpperCase()}. TUYỆT ĐỐI không dùng tiếng Anh ngẫu nhiên.`;
+    } else {
+      return `[CHARACTERS Description] RATIO: ${ar} STYLE: ${rawStyle}\nCHARACTERS (LOCKED):\n\n${combinedCharBlock}\n\n[END CHARACTERS Description]\n\nSCENE ${sceneData.scene_number}: ${sceneData.title}\nENVIRONMENT: ${sceneData.environment}\nACTIONS:\n${sceneData.actions}\nCAMERA: ${sceneData.camera}\nAUDIO: ${sceneData.audio}\nDIALOGUE: ${sceneData.dialogue}\nVISUAL FX: ${sceneData.visual_fx}\nTYPOGRAPHY RULE: Any text, sound words or speech bubbles MUST be in ${dialogueLang.toUpperCase()}. DO NOT use random English letters.`;
+    }
   };
+
   const cleanJson = (text) => {
     if (!text) return "{}";
     let clean = text
@@ -31166,7 +31187,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
     }
     return clean;
   };
-  // Danh sách Model (Giữ nguyên)
+
   const H = {
     "gemini-2.0-flash": "Nhanh (Khuyên dùng)",
     "gemini-2.5-flash": "Trung Bình",
@@ -31174,40 +31195,33 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
   };
 
   const L = {
-    auto: [
-      "gemini-2.5-flash-lite-preview-09-2025",
-      "gemini-2.5-flash",
-      "gemini-2.0-flash",
-    ],
-    "gemini-2.5-flash": [
-      "gemini-2.5-flash",
-      "gemini-2.5-flash-lite-preview-09-2025",
-    ],
-    "gemini-2.0-flash": [
-      "gemini-2.0-flash",
-      "gemini-2.5-flash-lite-preview-09-2025",
-    ],
-    "gemini-2.5-flash-lite-preview-09-2025": [
-      "gemini-2.5-flash-lite-preview-09-2025",
-      "gemini-2.5-flash",
-    ],
+    auto: ["gemini-2.5-flash-lite-preview-09-2025", "gemini-2.5-flash", "gemini-2.0-flash"],
+    "gemini-2.5-flash": ["gemini-2.5-flash", "gemini-2.5-flash-lite-preview-09-2025"],
+    "gemini-2.0-flash": ["gemini-2.0-flash", "gemini-2.5-flash-lite-preview-09-2025"],
+    "gemini-2.5-flash-lite-preview-09-2025": ["gemini-2.5-flash-lite-preview-09-2025", "gemini-2.5-flash"],
   }[b];
 
-  // --- [THAY ĐỔI] PHẦN 2: CƠ CHẾ GỌI API VÔ TẬN ---
   let loopCount = 0;
+  let errorCountForDowngrade = 0;
+  let currentModels = [...L];
+
   while (true) {
-    // Vòng lặp vô tận
     S?.throwIfCancelled();
     loopCount++;
-    T(`Đang xử lý kịch bản...`);
 
-    for (const Q of L) {
+    if (errorCountForDowngrade >= 2) {
+      T("Các model chính quá tải. Đang ép chuyển sang model Lite...");
+      currentModels = ["gemini-2.5-flash-lite-preview-09-2025"];
+      errorCountForDowngrade = 0;
+    } else {
+      T(`Đang xử lý kịch bản...`);
+    }
+
+    for (const Q of currentModels) {
       S?.throwIfCancelled();
       try {
         T(`Đang chạy model: ${H[Q] || Q}`);
-
         const client = Gn();
-        // Lấy client hiện tại
         const le = await client.models.generateContent({
           model: Q,
           contents: G,
@@ -31217,7 +31231,6 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
           },
         });
 
-        // --- XỬ LÝ KẾT QUẢ (Giữ nguyên logic cũ) ---
         S?.throwIfCancelled();
         T("Đang đồng bộ hóa dữ liệu...");
 
@@ -31234,18 +31247,10 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
           throw new Error("API thiếu dữ liệu cảnh.");
         }
 
-        // Logic ghép nhân vật (Giữ nguyên)
-        const aiMissingCharsString = (be.new_characters || [])
-          .map(
-            (c) => `- ${c.name}
-  - Species: ${c.species}
-  - Age: ${c.age}
-  - Body: ${c.body}
-  - Clothing: ${c.clothing}
-  - Personality: ${c.personality}
-  - Consistent Style: ${rawStyle}`
-          )
-          .join("\n\n");
+        const aiMissingCharsString = (be.new_characters || []).map((c) => isVi
+          ? `- ${c.name}\n  - Giống loài: ${c.species}\n  - Tuổi tác: ${c.age}\n  - Thân hình: ${c.body}\n  - Quần áo: ${c.clothing}\n  - Tính cách: ${c.personality}\n  - Phong cách đồng nhất: ${rawStyle}`
+          : `- ${c.name}\n  - Species: ${c.species}\n  - Age: ${c.age}\n  - Body: ${c.body}\n  - Clothing: ${c.clothing}\n  - Personality: ${c.personality}\n  - Consistent Style: ${rawStyle}`
+        ).join("\n\n");
 
         let fullCharBlock = "";
         if (userCharBlock && aiMissingCharsString) {
@@ -31261,41 +31266,32 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
         );
 
         return {
-          text: JSON.stringify({
-            prompts: finalPrompts,
-          }),
+          text: JSON.stringify({ prompts: finalPrompts }),
         };
-        // --- KẾT THÚC XỬ LÝ KẾT QUẢ ---
+
       } catch (J) {
-        // Xử lý lỗi
         if (J instanceof Ds) throw J;
-        // Dừng nếu người dùng bấm nút
+
+        errorCountForDowngrade++;
 
         const msg = J.message || "";
         console.warn(`Lỗi model ${Q}:`, msg);
 
-        // Nếu lỗi liên quan đến Limit/Quota -> Lấy key mới và thử lại ngay
         if (
-          msg.includes("429") ||
-          msg.includes("403") ||
-          msg.includes("quota") ||
-          msg.includes("permission") ||
+          msg.includes("429") || msg.includes("403") || msg.includes("400") ||
+          msg.includes("quota") || msg.includes("permission") ||
+          msg.includes("API_KEY_INVALID") || msg.includes("INVALID_ARGUMENT") ||
           msg.includes("RESOURCE_EXHAUSTED")
         ) {
-          T("Đang tối ưu hóa kết nối (Lấy key mới)...");
+          T("Đang tối ưu hóa kết nối (Đổi Key mới)...");
           await gx();
-          // Lấy key mới
           await new Promise((r) => setTimeout(r, 2000));
-          // Chờ
-          // break;
-          // Thoát vòng for models để quay lại while(true) với key mới
-        } // Nếu lỗi khác (503, overload) -> Chỉ chờ và thử model tiếp theo
-        else {
+          break;
+        } else {
           await new Promise((r) => setTimeout(r, 2000));
         }
       }
     }
-    // Nếu thử hết các model mà vẫn chưa được -> Chờ một chút rồi quay lại đầu vòng lặp while(true)
     await new Promise((r) => setTimeout(r, 1000));
   }
 },
@@ -32338,7 +32334,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
           [], // 7: h (Camera 2)
           ["Dramatic Lighting"], // 8: p (Lighting)
           Re, // 9: x (AR)
-          "vi", // 10: g (Lang)
+          textLanguage, // <--- ĐÃ SỬA: Dùng biến textLanguage thay vì "vi"
           sceneCount.toString(), // 11: v (Count)
           "auto", // 12: b (Model)
           () => { }, // 13: T (Logger)
@@ -32428,7 +32424,10 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
       isStoppingRef.current = false;
       try {
         while (!success) {
-          if (isStoppingRef.current) break;
+          if (isStoppingRef.current) {
+            E_panels(prev => prev.map((p, i) => i === index && p.status !== 'success' ? { ...p, status: 'idle', message: 'Đã dừng' } : p));
+            break;
+          }
           attempts++;
           E_panels(prev => prev.map((p, i) => i === index ? {
             ...p,
@@ -32437,8 +32436,15 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
           } : p));
 
           try {
-            const finalPrompt = `${comicGenre}, high detail, masterpiece. ${panel.prompt}`;
+            const finalPrompt = `${comicGenre}, high detail, masterpiece. ${panel.prompt}. IMPORTANT TYPOGRAPHY RULE: Any text, sound words, or speech bubbles in the image MUST BE written in ${textLanguage.toUpperCase()} language. DO NOT use random English letters.`;
             const encodedImage = await uk(cookie, void 0, finalPrompt, panel.seed, Re, null, model);
+
+            // --- BẮT ĐẦU SỬA: CHẶN KẾT QUẢ BÓNG MA ---
+            if (isStoppingRef.current) {
+              E_panels(prev => prev.map((p, i) => i === index && p.status !== 'success' ? { ...p, status: 'idle', message: 'Đã dừng' } : p));
+              break; // Vứt bỏ ảnh, không lưu, thoát vòng lặp
+            }
+            // --- KẾT THÚC SỬA ---
 
             if (encodedImage) {
               const base64Data = `data:image/png;base64,${encodedImage}`;
@@ -32450,6 +32456,10 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
               success = true;
             }
           } catch (err) {
+            if (isStoppingRef.current) {
+              E_panels(prev => prev.map((p, i) => i === index && p.status !== 'success' ? { ...p, status: 'idle', message: 'Đã dừng' } : p));
+              break;
+            }
             console.error(`Error generating panel:`, err);
             const errorMsg = err.message || "";
             const errorCodeMatch = errorMsg.match(/\d{3}/);
@@ -32465,6 +32475,11 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
             for (let j = 0; j < 6; j++) {
               if (isStoppingRef.current) break;
               await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            // DÁN THÊM ĐOẠN NÀY
+            if (isStoppingRef.current) {
+              E_panels(prev => prev.map((p, i) => i === index && p.status !== 'success' ? { ...p, status: 'idle', message: 'Đã dừng' } : p));
+              break;
             }
           }
         }
@@ -32517,7 +32532,10 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
             let attempts = 0;
 
             while (!success) {
-              if (isStoppingRef.current) break;
+              if (isStoppingRef.current) {
+                E_panels(prev => prev.map(pnl => pnl.id === panel.id && pnl.status !== 'success' ? { ...pnl, status: 'idle', message: 'Đã dừng' } : pnl));
+                break;
+              }
               attempts++;
               E_panels(prev => prev.map(pnl => pnl.id === panel.id ? {
                 ...pnl,
@@ -32526,7 +32544,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
               } : pnl));
 
               try {
-                const finalPrompt = `${comicGenre}, high detail, masterpiece. ${panel.prompt}`;
+                const finalPrompt = `${comicGenre}, high detail, masterpiece. ${panel.prompt}. IMPORTANT TYPOGRAPHY RULE: Any text, sound words, or speech bubbles in the image MUST BE written in ${textLanguage.toUpperCase()} language. DO NOT use random English letters.`;
                 const encodedImage = await uk(
                   cookie,
                   void 0,
@@ -32536,6 +32554,13 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                   null,
                   model
                 );
+
+                // --- BẮT ĐẦU SỬA: CHẶN KẾT QUẢ BÓNG MA ---
+                if (isStoppingRef.current) {
+                  E_panels(prev => prev.map(pnl => pnl.id === panel.id && pnl.status !== 'success' ? { ...pnl, status: 'idle', message: 'Đã dừng' } : pnl));
+                  break; // Vứt bỏ ảnh, không lưu, thoát vòng lặp
+                }
+                // --- KẾT THÚC SỬA ---
 
                 if (encodedImage) {
                   const base64Data = `data:image/png;base64,${encodedImage}`;
@@ -32555,6 +32580,10 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                   success = true;
                 }
               } catch (err) {
+                if (isStoppingRef.current) {
+                  E_panels(prev => prev.map(pnl => pnl.id === panel.id && pnl.status !== 'success' ? { ...pnl, status: 'idle', message: 'Đã dừng' } : pnl));
+                  break;
+                }
                 console.error(`Error generating panel:`, err);
                 const errorMsg = err.message || "";
                 const errorCodeMatch = errorMsg.match(/\d{3}/);
@@ -32572,6 +32601,11 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 for (let j = 0; j < 6; j++) {
                   if (isStoppingRef.current) break;
                   await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                // DÁN THÊM ĐOẠN NÀY ĐỂ XÓA TRẠNG THÁI LỖI NẾU BỊ DỪNG
+                if (isStoppingRef.current) {
+                  E_panels(prev => prev.map(pnl => pnl.id === panel.id && pnl.status !== 'success' ? { ...pnl, status: 'idle', message: 'Đã dừng' } : pnl));
+                  break;
                 }
               }
             }
@@ -32604,12 +32638,12 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                   className: "text-3xl font-bold text-light flex items-center gap-3",
                   children: [
                     c.jsx("span", { className: "p-2 bg-accent/20 rounded-lg", children: "📖" }),
-                    "TRUYỆN TRANH AI (BETA)"
+                    x_t("comic.title")
                   ]
                 }),
                 c.jsx("p", {
                   className: "text-dark-text mt-1 text-sm opacity-60",
-                  children: "Tạo truyện tranh chuyên nghiệp từ kịch bản hoặc ý tưởng của bạn."
+                  children: x_t("comic.desc")
                 })
               ]
             })
@@ -32624,12 +32658,12 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsx("button", {
                   className: `px-4 py-2 text-sm font-bold transition-colors ${inputMode === "select" ? "border-b-2 border-accent text-accent" : "text-dark-text hover:text-light"}`,
                   onClick: () => setInputMode("select"),
-                  children: "CHỌN TRUYỆN CÓ SẴN"
+                  children: x_t("comic.selectExisting")
                 }),
                 c.jsx("button", {
                   className: `px-4 py-2 text-sm font-bold transition-colors ${inputMode === "manual" ? "border-b-2 border-accent text-accent" : "text-dark-text hover:text-light"}`,
                   onClick: () => setInputMode("manual"),
-                  children: "TỰ NHẬP NỘI DUNG"
+                  children: x_t("comic.manualInput")
                 })
               ]
             }),
@@ -32641,7 +32675,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                   value: g,
                   onChange: (ev) => v(ev.target.value),
                   children: [
-                    c.jsx("option", { value: "", children: "-- Chọn một câu chuyện từ thư viện --" }),
+                    c.jsx("option", { value: "", children: x_t("comic.selectPlaceholder") }),
                     t.map((st) => c.jsx("option", { value: st.id, children: st.title }, st.id))
                   ]
                 }),
@@ -32649,7 +32683,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                   className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-full text-sm transition-all shadow-lg active:scale-95 disabled:opacity-50",
                   onClick: handleAnalyze,
                   disabled: R,
-                  children: R ? "Đang phân tích..." : "PHÂN TÍCH KỊCH BẢN"
+                  children: R ? x_t("comic.analyzing") : x_t("comic.analyzeBtn")
                 })
               ]
             }) : c.jsxs("div", {
@@ -32657,7 +32691,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
               children: [
                 c.jsx("textarea", {
                   className: "w-full h-24 p-2 bg-primary rounded border border-border-color text-sm text-light outline-none focus:ring-1 focus:ring-accent",
-                  placeholder: "Nhập nội dung câu chuyện của bạn ở đây...",
+                  placeholder: "...",
                   value: b,
                   onChange: (ev) => T(ev.target.value)
                 }),
@@ -32665,7 +32699,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                   className: "w-full bg-accent hover:bg-indigo-500 text-white font-bold py-2 rounded-full text-sm transition-all shadow-lg active:scale-95 disabled:opacity-50",
                   onClick: handleAnalyze,
                   disabled: R,
-                  children: R ? "Đang phân tích..." : "PHÂN TÍCH KỊCH BẢN"
+                  children: R ? x_t("comic.analyzing") : x_t("comic.analyzeBtn")
                 })
               ]
             }),
@@ -32675,7 +32709,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsxs("div", {
                   className: "flex-grow min-w-[120px]",
                   children: [
-                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Tỷ lệ" }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: x_t("comic.aspectRatio") }),
                     c.jsxs("select", {
                       className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
                       value: Re,
@@ -32691,7 +32725,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsxs("div", {
                   className: "flex-grow min-w-[140px]",
                   children: [
-                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Thể loại" }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: x_t("comic.style") }),
                     c.jsxs("select", {
                       className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
                       value: comicGenre,
@@ -32710,24 +32744,57 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsxs("div", {
                   className: "flex-grow min-w-[100px]",
                   children: [
-                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Ngôn ngữ" }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: x_t("comic.language") }),
                     c.jsxs("select", {
                       className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
                       value: textLanguage,
                       onChange: (ev) => setTextLanguage(ev.target.value),
                       children: [
-                        c.jsx("option", { value: "Tiếng Việt", children: "Tiếng Việt" }),
-                        c.jsx("option", { value: "English", children: "English" }),
-                        c.jsx("option", { value: "Korean", children: "Korean" }),
-                        c.jsx("option", { value: "Japanese", children: "Japanese" })
-                      ]
+                        { v: "Tiếng Việt", l: "Tiếng Việt" },
+                        { v: "English", l: "English" },
+                        { v: "Japanese", l: "Japanese (日本語)" },
+                        { v: "Korean", l: "Korean (한국어)" },
+                        { v: "Chinese Simplified", l: "Chinese Simplified (简体中文)" },
+                        { v: "Chinese Traditional", l: "Chinese Traditional (繁体中文)" },
+                        { v: "Spanish", l: "Spanish (Español)" },
+                        { v: "French", l: "French (Français)" },
+                        { v: "German", l: "German (Deutsch)" },
+                        { v: "Italian", l: "Italian (Italiano)" },
+                        { v: "Portuguese", l: "Portuguese (Português)" },
+                        { v: "Russian", l: "Russian (Русский)" },
+                        { v: "Arabic", l: "Arabic (العربية)" },
+                        { v: "Hindi", l: "Hindi (हिन्दी)" },
+                        { v: "Thai", l: "Thai (ไทย)" },
+                        { v: "Indonesian", l: "Indonesian (Bahasa Indonesia)" },
+                        { v: "Malay", l: "Malay (Bahasa Melayu)" },
+                        { v: "Filipino", l: "Filipino" },
+                        { v: "Turkish", l: "Turkish (Türkçe)" },
+                        { v: "Dutch", l: "Dutch (Nederlands)" },
+                        { v: "Polish", l: "Polish (Polski)" },
+                        { v: "Swedish", l: "Swedish (Svenska)" },
+                        { v: "Danish", l: "Danish (Dansk)" },
+                        { v: "Finnish", l: "Finnish (Suomi)" },
+                        { v: "Norwegian", l: "Norwegian (Norsk)" },
+                        { v: "Greek", l: "Greek (Ελληνικά)" },
+                        { v: "Czech", l: "Czech (Čeština)" },
+                        { v: "Hungarian", l: "Hungarian (Magyar)" },
+                        { v: "Romanian", l: "Romanian (Română)" },
+                        { v: "Ukrainian", l: "Ukrainian (Українська)" },
+                        { v: "Hebrew", l: "Hebrew (עברית)" },
+                        { v: "Bengali", l: "Bengali (বাংলা)" },
+                        { v: "Urdu", l: "Urdu (اردو)" },
+                        { v: "Persian", l: "Persian (فارسی)" },
+                        { v: "Tamil", l: "Tamil (தமிழ்)" },
+                        { v: "Telugu", l: "Telugu (తెలుగు)" },
+                        { v: "Swahili", l: "Swahili" }
+                      ].map(lang => c.jsx("option", { key: lang.v, value: lang.v, children: lang.l }))
                     })
                   ]
                 }),
                 c.jsxs("div", {
                   className: "w-20",
                   children: [
-                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Cảnh" }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: x_t("comic.scenes") }),
                     c.jsx("input", {
                       type: "number",
                       className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
@@ -32741,7 +32808,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsxs("div", {
                   className: "w-20",
                   children: [
-                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Luồng" }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: x_t("comic.streams") }),
                     c.jsx("input", {
                       type: "number",
                       className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] text-light outline-none focus:ring-1 focus:ring-accent",
@@ -32755,7 +32822,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsxs("div", {
                   className: "flex-grow min-w-[120px]",
                   children: [
-                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Seed" }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: x_t("comic.seed") }),
                     c.jsxs("div", {
                       className: "flex gap-1",
                       children: [
@@ -32778,7 +32845,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsxs("div", {
                   className: "flex flex-col items-center gap-1",
                   children: [
-                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Tự lưu" }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: x_t("comic.autoSave") }),
                     c.jsxs("div", {
                       className: "flex items-center gap-2 h-[34px]",
                       children: [
@@ -32803,19 +32870,18 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsxs("div", {
                   className: "flex flex-col flex-grow min-w-[150px]",
                   children: [
-                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Thư mục lưu" }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: x_t("comic.saveFolder") }),
                     c.jsx("button", {
                       onClick: handleSelectFolder,
                       className: "w-full bg-primary hover:bg-white/5 text-dark-text text-xs font-bold h-[34px] px-3 rounded-md border border-border-color transition-colors truncate text-left",
-                      children: x.path ? `📂 ${x.path.split(/[\\/]/).pop()}` : "CHỌN THƯ MỤC..."
+                      children: x.path ? `📂 ${x.path.split(/[\\/]/).pop()}` : x_t("comic.selectFolder")
                     })
                   ]
                 })
               ]
             })
           ]
-        })
-        ,
+        }),
         S.length > 0 && c.jsxs("div", {
           className: "bg-secondary p-6 rounded-lg shadow-md border border-border-color",
           children: [
@@ -32825,12 +32891,12 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                 c.jsxs("div", {
                   className: "flex items-center gap-4",
                   children: [
-                    c.jsx("h3", { className: "text-xl font-bold text-light", children: "Kịch bản phân cảnh" }),
+                    c.jsx("h3", { className: "text-xl font-bold text-light", children: x_t("comic.storyboard") }),
                     selectedPanels.size > 0 && c.jsx("button", {
                       className: "bg-accent hover:bg-indigo-500 text-white text-xs font-bold py-1 px-4 rounded-full transition-all shadow-md active:scale-95",
                       onClick: () => handleGenerate(!0),
                       disabled: H,
-                      children: `Chạy ${selectedPanels.size} cảnh đã chọn`
+                      children: x_t("comic.runSelected").replace("{count}", selectedPanels.size)
                     })
                   ]
                 }),
@@ -32840,11 +32906,11 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                     H ? c.jsx("button", {
                       className: "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-all animate-pulse active:scale-95",
                       onClick: () => { isStoppingRef.current = true; setIsStopping(true); },
-                      children: "DỪNG LẠI 🛑"
+                      children: x_t("comic.stop")
                     }) : c.jsx("button", {
                       className: "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-all active:scale-95",
                       onClick: () => handleGenerate(!1),
-                      children: "Bắt đầu tạo tất cả"
+                      children: x_t("comic.generateAll")
                     })
                   ]
                 })
@@ -32871,7 +32937,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                               setSelectedPanels(next);
                             }
                           }),
-                          c.jsx("span", { className: "font-bold text-accent", children: `Phân cảnh ${idx + 1}` }),
+                          c.jsx("span", { className: "font-bold text-accent", children: x_t("comic.sceneNum").replace("{num}", idx + 1) }),
                         ]
                       }),
                       c.jsxs("div", {
@@ -32882,7 +32948,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                               pnl.status === 'processing' ? 'bg-accent/20 text-accent animate-pulse' :
                                 pnl.status === 'failed' ? 'bg-red-500/20 text-red-500' : 'bg-gray-500/20 text-gray-500'
                               }`,
-                            children: pnl.message
+                            children: pnl.status === 'success' ? x_t("comic.success") : pnl.status === 'processing' ? x_t("comic.processing") : pnl.status === 'failed' ? x_t("comic.failed") : x_t("comic.ready")
                           }),
                           c.jsx("button", {
                             onClick: () => handleGenerateSingle(idx),
@@ -32920,7 +32986,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                           className: "bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-full text-xs flex items-center gap-1 shadow-lg transform translate-y-2 group-hover:translate-y-0 transition-all",
                           children: [
                             c.jsx(Ut, { className: "w-4 h-4" }),
-                            "Lưu ảnh"
+                            x_t("comic.saveImage")
                           ]
                         })
                       })
@@ -32930,7 +32996,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
                     className: "w-full p-2 bg-secondary rounded border border-border-color text-xs text-dark-text h-20 resize-none focus:border-accent outline-none",
                     value: pnl.prompt,
                     onChange: (ev) => E_panels(prev => prev.map((it, i) => i === idx ? { ...it, prompt: ev.target.value } : it)),
-                    placeholder: "Prompt cho phân cảnh này..."
+                    placeholder: x_t("comic.promptPlaceholder")
                   })
                 ]
               }, pnl.id))
@@ -32941,83 +33007,87 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
     });
   },
   QM = [
-    "English prompts (Khuyên dùng)",
-    "Character Consistency (Giữ đồng bộ nhân vật)",
-    "Scene Continuity (Liên kết cảnh liền mạch)",
-    "Detailed Description (Mô tả chi tiết)",
-    "Dynamic Action (Tăng cường hành động)",
-    "Emotional Focus (Tập trung biểu cảm)",
-    "Slow Pacing (Nhịp phim chậm/Thơ mộng)",
-    "Fast Pacing (Nhịp phim nhanh/Kịch tính)",
+    { v: "English prompts", vi: "English prompts (Khuyên dùng)", en: "English prompts (Recommended)" },
+    { v: "Character Consistency", vi: "Giữ đồng bộ nhân vật", en: "Character Consistency" },
+    { v: "Scene Continuity", vi: "Liên kết cảnh liền mạch", en: "Scene Continuity" },
+    { v: "Detailed Description", vi: "Mô tả chi tiết", en: "Detailed Description" },
+    { v: "Dynamic Action", vi: "Tăng cường hành động", en: "Dynamic Action" },
+    { v: "Emotional Focus", vi: "Tập trung biểu cảm", en: "Emotional Focus" },
+    { v: "Slow Pacing", vi: "Nhịp phim chậm", en: "Slow Pacing" },
+    { v: "Fast Pacing", vi: "Nhịp phim nhanh", en: "Fast Pacing" }
   ],
   ZM = [
-    "Cinematic Film (Điện ảnh)",
-    "Photorealistic (Ảnh thực)",
-    "Documentary (Tài liệu)",
-    "Vlog/Youtube Style",
-    "Vintage Film (Phim cổ điển)",
-    "Cyberpunk Realism",
-    "National Geographic (Thiên nhiên)",
-    "Pixar 3D Style",
-    "Disney 2D Animation",
-    "Japanese Anime",
-    "Studio Ghibli",
-    "Claymation (Đất sét)",
-    "Stop Motion",
-    "Pixel Art",
-    "Comic Book (Truyện tranh)",
-    "Oil Painting (Tranh sơn dầu)",
+    { v: "Cinematic Film", vi: "Điện ảnh (Cinematic)", en: "Cinematic Film" },
+    { v: "Photorealistic", vi: "Ảnh thực (Photorealistic)", en: "Photorealistic" },
+    { v: "Documentary", vi: "Tài liệu (Documentary)", en: "Documentary" },
+    { v: "Vlog/Youtube Style", vi: "Vlog/Youtube Style", en: "Vlog/Youtube Style" },
+    { v: "Vintage Film", vi: "Phim cổ điển (Vintage)", en: "Vintage Film" },
+    { v: "Cyberpunk Realism", vi: "Cyberpunk", en: "Cyberpunk Realism" },
+    { v: "National Geographic", vi: "Thiên nhiên (NatGeo)", en: "National Geographic" },
+    { v: "Pixar 3D Style", vi: "Hoạt hình 3D Pixar", en: "Pixar 3D Style" },
+    { v: "Disney 2D Animation", vi: "Hoạt hình 2D Disney", en: "Disney 2D Animation" },
+    { v: "Japanese Anime", vi: "Anime Nhật Bản", en: "Japanese Anime" },
+    { v: "Studio Ghibli", vi: "Studio Ghibli", en: "Studio Ghibli" },
+    { v: "Claymation", vi: "Đất sét (Claymation)", en: "Claymation" },
+    { v: "Stop Motion", vi: "Stop Motion", en: "Stop Motion" },
+    { v: "Pixel Art", vi: "Pixel Art", en: "Pixel Art" },
+    { v: "Comic Book", vi: "Truyện tranh (Comic Book)", en: "Comic Book" },
+    { v: "Oil Painting", vi: "Tranh sơn dầu", en: "Oil Painting" }
   ],
   hg = [
-    "Hành động/Chiến đấu",
-    "Tình cảm/Lãng mạn",
-    "Hài hước/Vui nhộn",
-    "Kinh dị/Horror",
-    "Bí ẩn/Trinh thám",
-    "Fantasy/Thần thoại",
-    "Khoa học viễn tưởng",
-    "Drama/Chính kịch",
-    "Giáo dục/Học tập",
-    "Phiêu lưu/Thám hiểm",
-    "Đời thường/Slice of Life",
-    "Trailer phim",
-    "Quân sự",
-    "Thuyết minh",
-    "Câu chuyện bình thường",
+    { v: "Action/Combat", vi: "Hành động/Chiến đấu", en: "Action/Combat" },
+    { v: "Romance", vi: "Tình cảm/Lãng mạn", en: "Romance" },
+    { v: "Comedy", vi: "Hài hước/Vui nhộn", en: "Comedy" },
+    { v: "Horror", vi: "Kinh dị/Horror", en: "Horror" },
+    { v: "Mystery", vi: "Bí ẩn/Trinh thám", en: "Mystery" },
+    { v: "Fantasy", vi: "Fantasy/Thần thoại", en: "Fantasy" },
+    { v: "Sci-Fi", vi: "Khoa học viễn tưởng", en: "Sci-Fi" },
+    { v: "Drama", vi: "Drama/Chính kịch", en: "Drama" },
+    { v: "Educational", vi: "Giáo dục/Học tập", en: "Educational" },
+    { v: "Adventure", vi: "Phiêu lưu/Thám hiểm", en: "Adventure" },
+    { v: "Slice of Life", vi: "Đời thường/Slice of Life", en: "Slice of Life" },
+    { v: "Movie Trailer", vi: "Trailer phim", en: "Movie Trailer" },
+    { v: "Military", vi: "Quân sự", en: "Military" },
+    { v: "Narration", vi: "Thuyết minh", en: "Narration" },
+    { v: "Normal", vi: "Câu chuyện bình thường", en: "Normal Story" }
   ],
   WM = [
-    "Ống kính góc rộng",
-    "Ống kính tele",
-    "Ống kính macro",
-    "Ống kính mắt cá",
-    "Ống kính anamorphic",
-    "Góc nhìn thứ nhất (FPV)",
-    "Drone shot",
+    { v: "Wide angle lens", vi: "Ống kính góc rộng", en: "Wide angle lens" },
+    { v: "Telephoto lens", vi: "Ống kính tele", en: "Telephoto lens" },
+    { v: "Macro lens", vi: "Ống kính macro", en: "Macro lens" },
+    { v: "Fisheye lens", vi: "Ống kính mắt cá", en: "Fisheye lens" },
+    { v: "Anamorphic lens", vi: "Ống kính anamorphic", en: "Anamorphic lens" },
+    { v: "First Person View (FPV)", vi: "Góc nhìn thứ nhất (FPV)", en: "First Person View (FPV)" },
+    { v: "Drone shot", vi: "Góc quay Flycam (Drone)", en: "Drone shot" }
   ],
   ek = [
-    "Eye Level (Ngang tầm mắt)",
-    "Low Angle (Góc thấp/Hùng vĩ)",
-    "High Angle (Góc cao)",
-    "Drone/Aerial View (Flycam)",
-    "FPV (Góc nhìn thứ nhất)",
-    "Static Shot (Máy tĩnh)",
-    "Slow Pan (Lia máy chậm)",
-    "Tracking Shot (Đi theo nhân vật)",
-    "Dolly Zoom (Hiệu ứng chóng mặt)",
-    "Handheld (Cầm tay rung lắc)",
+    { v: "Eye Level", vi: "Ngang tầm mắt (Eye Level)", en: "Eye Level" },
+    { v: "Low Angle", vi: "Góc thấp (Low Angle)", en: "Low Angle" },
+    { v: "High Angle", vi: "Góc cao (High Angle)", en: "High Angle" },
+    { v: "Aerial View", vi: "Nhìn từ trên cao (Aerial)", en: "Aerial View" },
+    { v: "FPV", vi: "Góc nhìn thứ 1 (FPV)", en: "FPV" },
+    { v: "Static Shot", vi: "Máy tĩnh (Static Shot)", en: "Static Shot" },
+    { v: "Slow Pan", vi: "Lia máy chậm (Slow Pan)", en: "Slow Pan" },
+    { v: "Tracking Shot", vi: "Đi theo nhân vật (Tracking)", en: "Tracking Shot" },
+    { v: "Dolly Zoom", vi: "Hiệu ứng chóng mặt (Dolly Zoom)", en: "Dolly Zoom" },
+    { v: "Handheld", vi: "Cầm tay rung lắc (Handheld)", en: "Handheld" }
   ],
   tk = [
-    "Ánh sáng tự nhiên",
-    "Ánh sáng 3 điểm",
-    "High-key",
-    "Low-key",
-    "Rembrandt",
-    "Giờ vàng (Golden hour)",
-    "Neon",
-    "Ánh sáng ma mị (Eerie)",
+    { v: "Natural lighting", vi: "Ánh sáng tự nhiên", en: "Natural lighting" },
+    { v: "3-point lighting", vi: "Ánh sáng 3 điểm", en: "3-point lighting" },
+    { v: "High-key", vi: "Sáng rực rỡ (High-key)", en: "High-key" },
+    { v: "Low-key", vi: "Tối mờ (Low-key)", en: "Low-key" },
+    { v: "Rembrandt", vi: "Rembrandt (Nghệ thuật)", en: "Rembrandt" },
+    { v: "Golden hour", vi: "Giờ vàng (Golden hour)", en: "Golden hour" },
+    { v: "Neon", vi: "Ánh sáng Neon", en: "Neon" },
+    { v: "Eerie", vi: "Ánh sáng ma mị (Eerie)", en: "Eerie lighting" }
   ],
   nk = [1, 2, 3, 5, 10, 15, 20],
-  mg = ["Tiếng Việt", "English", "Không có giọng nói"],
+  mg = [
+    { v: "Tiếng Việt", vi: "Tiếng Việt", en: "Vietnamese" },
+    { v: "English", vi: "English", en: "English" },
+    { v: "No Voice", vi: "Không có giọng nói", en: "No Voice" }
+  ],
   du =
     "Phân tích ảnh và viết Character Sheet cho (các) nhân vật trong ảnh để làm character đồng nhất nhân vật bao gồm ngoại hình tên tuổi màu da và các thông tin chi tiết khác, bằng tiếng anh.";
 const sk = ({ setActiveView: t }) => {
@@ -33036,6 +33106,7 @@ const sk = ({ setActiveView: t }) => {
     setGeminiModel: T,
   } = jt();
   const { showToast: E } = _t();
+  const { t: tr } = so();
   // --- xuất txt prompt ---
   const handleExportTxt = (data, filename) => {
     if (!data || data.length === 0) {
@@ -33085,11 +33156,11 @@ const sk = ({ setActiveView: t }) => {
   // Config Prompt
   const [se, U] = A.useState("detailed");
   // Prompt type
-  const [ee, fe] = A.useState(ZM[0]);
+  const [ee, fe] = A.useState(ZM[0].v || ZM[0]);
   // Mặc định chọn cái đầu tiên
   const [ke, w] = A.useState(["English prompts language"]);
   // Settings
-  const [B, W] = A.useState(hg[0]);
+  const [B, W] = A.useState(hg[0].v || hg[0]);
   // Genre (unused in UI but kept for compat)
   const [oe, we] = A.useState("");
   // Custom Style input
@@ -33105,7 +33176,7 @@ const sk = ({ setActiveView: t }) => {
   // Duration value
   const [Ge, nt] = A.useState("");
   // Custom Duration value
-  const [F, ge] = A.useState(mg[0]);
+  const [F, ge] = A.useState(mg[0].v || mg[0]);
   // Dialogue Language
   const [xe, We] = A.useState("");
   // Custom Language input
@@ -33545,21 +33616,20 @@ const sk = ({ setActiveView: t }) => {
   // --- RENDER COMPONENT CON ---
 
   // 1. Giao diện Tạo Prompt (ml)
-  const ml = () =>
-    c.jsxs(c.Fragment, {
+  const ml = () => {
+    const isVi = tr("sidebar.dashboard") === "Tổng quan";
+    return c.jsxs(c.Fragment, {
       children: [
         c.jsxs("form", {
           onSubmit: js,
           className: "space-y-6 w-full",
           children: [
-            // Cột Trái: Input & Settings
             c.jsxs("div", {
               className: "grid grid-cols-1 lg:grid-cols-2 gap-6 w-full",
               children: [
                 c.jsxs("div", {
                   className: "lg:col-span-2 space-y-6",
                   children: [
-                    // Box Câu chuyện
                     c.jsxs("div", {
                       className: "bg-secondary p-6 rounded-lg shadow-md w-full",
                       children: [
@@ -33569,96 +33639,62 @@ const sk = ({ setActiveView: t }) => {
                             c.jsx("button", {
                               type: "button",
                               onClick: () => le("select"),
-                              className: `px-4 py-2 font-medium ${J === "select"
-                                ? "bg-accent text-white shadow-lg"
-                                : "text-dark-text"
-                                }`,
-                              children: "Chọn câu chuyện",
+                              className: `px-4 py-2 font-medium ${J === "select" ? "bg-accent text-white shadow-lg" : "text-dark-text"}`,
+                              children: isVi ? "Chọn câu chuyện" : "Select Story",
                             }),
                             c.jsx("button", {
                               type: "button",
                               onClick: () => le("manual"),
-                              className: `px-4 py-2 font-medium ${J === "manual"
-                                ? "bg-accent text-white shadow-lg"
-                                : "text-dark-text"
-                                }`,
-                              children: "Nhập thủ công",
+                              className: `px-4 py-2 font-medium ${J === "manual" ? "bg-accent text-white shadow-lg" : "text-dark-text"}`,
+                              children: isVi ? "Nhập thủ công" : "Manual Input",
                             }),
                           ],
                         }),
-                        J === "select"
-                          ? c.jsxs(c.Fragment, {
-                            children: [
-                              c.jsx("label", {
-                                className:
-                                  "block text-dark-text font-bold mb-2",
-                                children: "Chọn câu chuyện",
-                              }),
-                              c.jsxs("select", {
-                                value: be,
-                                onChange: (ev) => Me(ev.target.value),
-                                className:
-                                  "w-full p-3 bg-primary rounded-md border border-gray-300 focus:ring-2 focus:ring-accent",
-                                children: [
-                                  c.jsx("option", {
-                                    value: "",
-                                    children: "-- Chọn một câu chuyện --",
-                                  }),
-                                  (e || [])
-                                    .filter((s) => s && s.id)
-                                    .map((s) =>
-                                      c.jsx(
-                                        "option",
-                                        {
-                                          value: s.id,
-                                          children:
-                                            s.title || `Story ${s.id}`,
-                                        },
-                                        s.id
-                                      )
-                                    ),
-                                ],
-                              }),
-                            ],
-                          })
-                          : c.jsxs(c.Fragment, {
-                            children: [
-                              c.jsx("label", {
-                                className:
-                                  "block text-dark-text font-bold mb-2",
-                                children: "💡 Nội dung câu chuyện/kịch bản",
-                              }),
-                              c.jsx("textarea", {
-                                value: Re,
-                                onChange: (ev) => $e(ev.target.value),
-                                placeholder:
-                                  "Dán nội dung câu chuyện hoặc kịch bản của bạn vào đây...",
-                                className:
-                                  "w-full h-32 p-3 bg-primary rounded-md border border-gray-300 focus:ring-2 focus:ring-accent",
-                              }),
-                            ],
-                          }),
+                        J === "select" ? c.jsxs(c.Fragment, {
+                          children: [
+                            c.jsx("label", {
+                              className: "block text-dark-text font-bold mb-2",
+                              children: isVi ? "Chọn câu chuyện" : "Select Story",
+                            }),
+                            c.jsxs("select", {
+                              value: be,
+                              onChange: (ev) => Me(ev.target.value),
+                              className: "w-full p-3 bg-primary rounded-md border border-gray-300 focus:ring-2 focus:ring-accent",
+                              children: [
+                                c.jsx("option", { value: "", children: isVi ? "-- Chọn một câu chuyện --" : "-- Select a story --" }),
+                                (e || []).filter((s) => s && s.id).map((s) => c.jsx("option", { value: s.id, children: s.title || `Story ${s.id}` }, s.id)),
+                              ],
+                            }),
+                          ],
+                        }) : c.jsxs(c.Fragment, {
+                          children: [
+                            c.jsx("label", {
+                              className: "block text-dark-text font-bold mb-2",
+                              children: isVi ? "💡 Nội dung câu chuyện/kịch bản" : "💡 Story/Script Content",
+                            }),
+                            c.jsx("textarea", {
+                              value: Re,
+                              onChange: (ev) => $e(ev.target.value),
+                              placeholder: isVi ? "Dán nội dung câu chuyện hoặc kịch bản của bạn vào đây..." : "Paste your story or script content here...",
+                              className: "w-full h-32 p-3 bg-primary rounded-md border border-gray-300 focus:ring-2 focus:ring-accent",
+                            }),
+                          ],
+                        }),
                       ],
                     }),
-                    // Box Chọn Nhân Vật (Tích hợp vào form tạo)
                     c.jsxs("div", {
-                      className:
-                        "bg-secondary p-6 rounded-lg shadow-md border border-purple-500/30",
+                      className: "bg-secondary p-6 rounded-lg shadow-md border border-purple-500/30",
                       children: [
                         c.jsxs("div", {
                           className: "flex justify-between items-center mb-4",
                           children: [
                             c.jsx("h3", {
-                              className:
-                                "text-lg font-bold text-light flex items-center gap-2",
+                              className: "text-lg font-bold text-light flex items-center gap-2",
                               children: [
+                                c.jsx("span", { children: isVi ? "👥 Chọn Nhân Vật Tái Sử Dụng" : "👥 Select Reusable Characters" }),
                                 c.jsx("span", {
-                                  children: "👥 Chọn Nhân Vật Tái Sử Dụng",
-                                }),
-                                c.jsx("span", {
-                                  className:
-                                    "text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full font-normal",
-                                  children: "Khuyên dùng",
+                                  className: "text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full font-normal",
+                                  children: isVi ? "Khuyên dùng" : "Recommended",
                                 }),
                               ],
                             }),
@@ -33666,81 +33702,51 @@ const sk = ({ setActiveView: t }) => {
                               type: "button",
                               onClick: () => G("collection"),
                               className: "text-sm text-accent hover:underline",
-                              children: "+ Quản lý / Thêm mới",
+                              children: isVi ? "+ Quản lý / Thêm mới" : "+ Manage / Add New",
                             }),
                           ],
                         }),
-                        (p || []).length === 0
-                          ? c.jsx("p", {
-                            className:
-                              "text-dark-text text-sm text-center py-4",
-                            children:
-                              "Chưa có nhân vật nào trong bộ sưu tập.",
-                          })
-                          : c.jsx("div", {
-                            className:
-                              "grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar",
-                            children: (p || []).map((char) => {
-                              const isSelected = Le.has(char.id);
-                              return c.jsxs(
-                                "div",
-                                {
-                                  onClick: () => si(char.id),
-                                  className: `cursor-pointer p-2 rounded-lg border flex items-center gap-3 transition-all select-none ${isSelected
-                                    ? "bg-purple-600/20 border-purple-500 shadow-sm"
-                                    : "bg-primary border-transparent hover:border-gray-600"
-                                    }`,
+                        (p || []).length === 0 ? c.jsx("p", {
+                          className: "text-dark-text text-sm text-center py-4",
+                          children: isVi ? "Chưa có nhân vật nào trong bộ sưu tập." : "No characters in the collection yet.",
+                        }) : c.jsx("div", {
+                          className: "grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar",
+                          children: (p || []).map((char) => {
+                            const isSelected = Le.has(char.id);
+                            return c.jsxs("div", {
+                              onClick: () => si(char.id),
+                              className: `cursor-pointer p-2 rounded-lg border flex items-center gap-3 transition-all select-none ${isSelected ? "bg-purple-600/20 border-purple-500 shadow-sm" : "bg-primary border-transparent hover:border-gray-600"}`,
+                              children: [
+                                c.jsx("div", {
+                                  className: `w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${isSelected ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-300"}`,
+                                  children: char.name.charAt(0).toUpperCase(),
+                                }),
+                                c.jsxs("div", {
+                                  className: "min-w-0 flex-1",
                                   children: [
-                                    c.jsx("div", {
-                                      className: `w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${isSelected
-                                        ? "bg-purple-600 text-white"
-                                        : "bg-gray-700 text-gray-300"
-                                        }`,
-                                      children: char.name
-                                        .charAt(0)
-                                        .toUpperCase(),
+                                    c.jsx("p", {
+                                      className: `font-bold text-sm truncate ${isSelected ? "text-purple-300" : "text-light"}`,
+                                      children: char.name,
                                     }),
-                                    c.jsxs("div", {
-                                      className: "min-w-0 flex-1",
-                                      children: [
-                                        c.jsx("p", {
-                                          className: `font-bold text-sm truncate ${isSelected
-                                            ? "text-purple-300"
-                                            : "text-light"
-                                            }`,
-                                          children: char.name,
-                                        }),
-                                        c.jsx("p", {
-                                          className:
-                                            "text-[10px] text-gray-500 truncate",
-                                          children:
-                                            char.description.substring(
-                                              0,
-                                              30
-                                            ) + "...",
-                                        }),
-                                      ],
-                                    }),
-                                    isSelected &&
-                                    c.jsx(Ov, {
-                                      className:
-                                        "w-4 h-4 text-purple-500 ml-auto flex-shrink-0",
+                                    c.jsx("p", {
+                                      className: "text-[10px] text-gray-500 truncate",
+                                      children: char.description.substring(0, 30) + "...",
                                     }),
                                   ],
-                                },
-                                char.id
-                              );
-                            }),
+                                }),
+                                isSelected && c.jsx(Ov, { className: "w-4 h-4 text-purple-500 ml-auto flex-shrink-0" }),
+                              ],
+                            }, char.id);
                           }),
+                        }),
                       ],
                     }),
-                    // Box Cài đặt chung (Ngôn ngữ, Thời lượng...)
                     c.jsxs("div", {
                       className: "bg-secondary p-6 rounded-lg shadow-md w-full",
                       children: [
                         c.jsx("label", {
                           className: "block text-dark-text font-bold mb-4",
-                          children: "⚙️ Cài đặt chung",
+                          children: isVi ? "⚙️ Cài đặt chung" : "⚙️ General Settings",
                         }),
                         c.jsxs("div", {
                           className: "space-y-4",
@@ -33748,8 +33754,7 @@ const sk = ({ setActiveView: t }) => {
                             c.jsxs("div", {
                               children: [
                                 c.jsx("label", {
-                                  className:
-                                    "block text-sm font-medium text-dark-text mb-2",
+                                  className: "block text-sm font-medium text-dark-text mb-2",
                                   children: "Model",
                                 }),
                                 c.jsxs("div", {
@@ -33758,20 +33763,14 @@ const sk = ({ setActiveView: t }) => {
                                     c.jsx("button", {
                                       type: "button",
                                       onClick: () => T("gemini-2.0-flash"),
-                                      className: `px-3 py-1.5 rounded-full text-sm font-medium ${b === "gemini-2.0-flash"
-                                        ? "bg-accent text-white"
-                                        : "bg-primary hover:bg-hover-bg"
-                                        }`,
-                                      children: "Nhanh (Chuẩn JSON)",
+                                      className: `px-3 py-1.5 rounded-full text-sm font-medium ${b === "gemini-2.0-flash" ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`,
+                                      children: isVi ? "Nhanh (Chuẩn JSON)" : "Fast (JSON Standard)",
                                     }),
                                     c.jsx("button", {
                                       type: "button",
                                       onClick: () => T("gemini-2.5-flash"),
-                                      className: `px-3 py-1.5 rounded-full text-sm font-medium ${b === "gemini-2.5-flash"
-                                        ? "bg-accent text-white"
-                                        : "bg-primary hover:bg-hover-bg"
-                                        }`,
-                                      children: "Trung Bình",
+                                      className: `px-3 py-1.5 rounded-full text-sm font-medium ${b === "gemini-2.5-flash" ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`,
+                                      children: isVi ? "Trung Bình" : "Medium",
                                     }),
                                   ],
                                 }),
@@ -33780,46 +33779,32 @@ const sk = ({ setActiveView: t }) => {
                             c.jsxs("div", {
                               children: [
                                 c.jsx("label", {
-                                  className:
-                                    "block text-sm font-medium text-dark-text mb-2",
-                                  children: "Ngôn ngữ giọng nói / Lời thoại",
+                                  className: "block text-sm font-medium text-dark-text mb-2",
+                                  children: isVi ? "Ngôn ngữ giọng nói / Lời thoại" : "Voice / Dialogue Language",
                                 }),
                                 c.jsxs("div", {
-                                  className:
-                                    "flex flex-wrap gap-2 items-center",
+                                  className: "flex flex-wrap gap-2 items-center",
                                   children: [
                                     mg.map((l) =>
-                                      c.jsx(
-                                        "button",
-                                        {
-                                          type: "button",
-                                          onClick: () => ge(l),
-                                          className: `px-3 py-1.5 rounded-full text-sm font-medium ${F === l
-                                            ? "bg-accent text-white"
-                                            : "bg-primary hover:bg-hover-bg"
-                                            }`,
-                                          children: l,
-                                        },
-                                        l
-                                      )
+                                      c.jsx("button", {
+                                        type: "button",
+                                        onClick: () => ge(l.v),
+                                        className: `px-3 py-1.5 rounded-full text-sm font-medium ${F === l.v ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`,
+                                        children: isVi ? l.vi : l.en,
+                                      }, l.v)
                                     ),
                                     c.jsx("button", {
                                       type: "button",
                                       onClick: () => ge("custom"),
-                                      className: `px-3 py-1.5 rounded-full text-sm font-medium ${F === "custom"
-                                        ? "bg-accent text-white"
-                                        : "bg-primary hover:bg-hover-bg"
-                                        }`,
-                                      children: "Khác...",
+                                      className: `px-3 py-1.5 rounded-full text-sm font-medium ${F === "custom" ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`,
+                                      children: isVi ? "Khác..." : "Other...",
                                     }),
-                                    F === "custom" &&
-                                    c.jsx("input", {
+                                    F === "custom" && c.jsx("input", {
                                       type: "text",
                                       value: xe,
                                       onChange: (e) => We(e.target.value),
-                                      className:
-                                        "w-full p-2 bg-primary rounded-md border h-8",
-                                      placeholder: "Ngôn ngữ",
+                                      className: "w-full p-2 bg-primary rounded-md border h-8",
+                                      placeholder: isVi ? "Ngôn ngữ" : "Language",
                                     }),
                                   ],
                                 }),
@@ -33828,46 +33813,32 @@ const sk = ({ setActiveView: t }) => {
                             c.jsxs("div", {
                               children: [
                                 c.jsx("label", {
-                                  className:
-                                    "block text-sm font-medium text-dark-text mb-2",
-                                  children: "Thời lượng Video (ước tính)",
+                                  className: "block text-sm font-medium text-dark-text mb-2",
+                                  children: isVi ? "Thời lượng Video (ước tính)" : "Video Duration (Est.)",
                                 }),
                                 c.jsxs("div", {
-                                  className:
-                                    "flex flex-wrap gap-2 items-center",
+                                  className: "flex flex-wrap gap-2 items-center",
                                   children: [
                                     nk.map((val) =>
-                                      c.jsxs(
-                                        "button",
-                                        {
-                                          type: "button",
-                                          onClick: () => lt(String(val)),
-                                          className: `px-3 py-1.5 rounded-full text-sm font-medium ${Ie === String(val)
-                                            ? "bg-accent text-white"
-                                            : "bg-primary hover:bg-hover-bg"
-                                            }`,
-                                          children: [val, " phút"],
-                                        },
-                                        val
-                                      )
+                                      c.jsxs("button", {
+                                        type: "button",
+                                        onClick: () => lt(String(val)),
+                                        className: `px-3 py-1.5 rounded-full text-sm font-medium ${Ie === String(val) ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`,
+                                        children: [val, isVi ? " phút" : " mins"],
+                                      }, val)
                                     ),
                                     c.jsx("button", {
                                       type: "button",
                                       onClick: () => lt("custom"),
-                                      className: `px-3 py-1.5 rounded-full text-sm font-medium ${Ie === "custom"
-                                        ? "bg-accent text-white"
-                                        : "bg-primary hover:bg-hover-bg"
-                                        }`,
-                                      children: "Tùy chỉnh",
+                                      className: `px-3 py-1.5 rounded-full text-sm font-medium ${Ie === "custom" ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`,
+                                      children: isVi ? "Tùy chỉnh" : "Custom",
                                     }),
-                                    Ie === "custom" &&
-                                    c.jsx("input", {
+                                    Ie === "custom" && c.jsx("input", {
                                       type: "number",
                                       value: Ge,
                                       onChange: (e) => nt(e.target.value),
-                                      className:
-                                        "w-full p-2 bg-primary rounded-md border h-8",
-                                      placeholder: "phút",
+                                      className: "w-full p-2 bg-primary rounded-md border h-8",
+                                      placeholder: isVi ? "phút" : "mins",
                                     }),
                                   ],
                                 }),
@@ -33879,70 +33850,48 @@ const sk = ({ setActiveView: t }) => {
                     }),
                   ],
                 }),
-                // CỘT PHẢI: Style, Camera, Lighting
                 c.jsxs("div", {
-                  className:
-                    "lg:col-span-2 space-y-4 flex flex-col w-full h-full overflow-hidden",
+                  className: "lg:col-span-2 space-y-4 flex flex-col w-full h-full overflow-hidden",
                   children: [
-                    // 1. PHONG CÁCH (Style) - Giữ nguyên nhưng làm gọn lại
-                    // 1. PHONG CÁCH (Style)
                     c.jsxs("div", {
-                      className:
-                        "bg-secondary p-4 rounded-lg shadow-sm flex flex-col border border-blue-500/20 max-h-[35%] w-full",
+                      className: "bg-secondary p-4 rounded-lg shadow-sm flex flex-col border border-blue-500/20 max-h-[35%] w-full",
                       children: [
                         c.jsx("label", {
-                          className:
-                            "block text-dark-text font-bold mb-2 flex justify-between items-center text-xs",
+                          className: "block text-dark-text font-bold mb-2 flex justify-between items-center text-xs",
                           children: c.jsxs("span", {
                             className: "flex items-center gap-1",
                             children: [
-                              "🎨 Phong cách",
+                              isVi ? "🎨 Phong cách" : "🎨 Style",
                               c.jsx("span", {
                                 className: "text-gray-500 font-normal",
-                                children: "(Chọn 1)",
+                                children: isVi ? "(Chọn 1)" : "(Select 1)",
                               }),
                             ],
                           }),
                         }),
-                        // --- PHẦN ĐÃ SỬA: SELECT BOX ---
                         c.jsx("div", {
                           className: "w-full",
                           children: c.jsx("select", {
                             value: ee,
                             onChange: (e) => fe(e.target.value),
-                            className:
-                              "w-full p-2 bg-primary text-gray-200 rounded border border-border-color text-xs h-[34px] focus:border-accent outline-none",
-                            children: ZM.map((s) =>
-                              c.jsx(
-                                "option",
-                                {
-                                  value: s,
-                                  children: s,
-                                },
-                                s
-                              )
-                            ),
+                            className: "w-full p-2 bg-primary text-gray-200 rounded border border-border-color text-xs h-[34px] focus:border-accent outline-none",
+                            children: ZM.map((s) => c.jsx("option", { value: s.v, children: isVi ? s.vi : s.en }, s.v)),
                           }),
-                        }), // -------------------------------
-
+                        }),
                         c.jsx("input", {
                           type: "text",
                           value: oe,
                           onChange: (e) => we(e.target.value),
-                          placeholder: "+ Style tùy chỉnh (Ghi đè)...",
-                          className:
-                            "w-full mt-2 p-1.5 bg-primary rounded border border-border-color text-xs focus:border-accent outline-none",
+                          placeholder: isVi ? "+ Style tùy chỉnh (Ghi đè)..." : "+ Custom Style (Override)...",
+                          className: "w-full mt-2 p-1.5 bg-primary rounded border border-border-color text-xs focus:border-accent outline-none",
                         }),
                       ],
                     }),
-                    // 2. CAMERA & GÓC MÁY (Mới)
                     c.jsxs("div", {
-                      className:
-                        "bg-secondary p-4 rounded-lg shadow-sm flex flex-col border border-blue-500/20 max-h-[35%]",
+                      className: "bg-secondary p-4 rounded-lg shadow-sm flex flex-col border border-blue-500/20 max-h-[35%]",
                       children: [
                         c.jsx("label", {
-                          className:
-                            "block text-blue-400 font-bold mb-2 flex justify-between items-center text-xs",
+                          className: "block text-blue-400 font-bold mb-2 flex justify-between items-center text-xs",
                           children: [
                             c.jsxs("span", {
                               className: "flex items-center gap-1",
@@ -33953,61 +33902,42 @@ const sk = ({ setActiveView: t }) => {
                                   fill: "none",
                                   viewBox: "0 0 24 24",
                                   stroke: "currentColor",
-                                  children: c.jsx("path", {
-                                    strokeLinecap: "round",
-                                    strokeLinejoin: "round",
-                                    strokeWidth: 2,
-                                    d: "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z",
-                                  }),
+                                  children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" }),
                                 }),
-                                "🎥 Camera & Góc máy",
+                                isVi ? "🎥 Camera & Góc máy" : "🎥 Camera & Shot",
                               ],
                             }),
                             c.jsx("button", {
+                              type: "button",
                               onClick: () => Ae([]),
-                              className:
-                                "text-[10px] text-blue-400/70 hover:underline",
+                              className: "text-[10px] text-blue-400/70 hover:underline",
                               children: "Reset",
                             }),
                           ],
                         }),
                         c.jsx("div", {
-                          className:
-                            "flex flex-wrap gap-1.5 overflow-y-auto custom-scrollbar content-start flex-1",
-                          children: [...WM, ...ek].map((s) =>
-                            c.jsx(
-                              "button",
-                              {
-                                type: "button",
-                                onClick: () => yn(s, "camera"),
-                                className: `px-2.5 py-1.5 rounded-md text-[11px] border transition-all ${Te.includes(s)
-                                  ? "bg-blue-600 border-blue-500 text-white shadow-sm"
-                                  : "bg-primary border-border-color text-gray-400 hover:bg-hover-bg hover:text-gray-200"
-                                  }`,
-                                children: s,
-                              },
-                              s
-                            )
-                          ),
+                          className: "flex flex-wrap gap-1.5 overflow-y-auto custom-scrollbar content-start flex-1",
+                          children: [...WM, ...ek].map((s) => c.jsx("button", {
+                            type: "button",
+                            onClick: () => yn(s.v, "camera"),
+                            className: `px-2.5 py-1.5 rounded-md text-[11px] border transition-all ${Te.includes(s.v) ? "bg-blue-600 border-blue-500 text-white shadow-sm" : "bg-primary border-border-color text-gray-400 hover:bg-hover-bg hover:text-gray-200"}`,
+                            children: isVi ? s.vi : s.en,
+                          }, s.v)),
                         }),
                         c.jsx("input", {
                           type: "text",
                           value: camInput,
                           onChange: (e) => setCamInput(e.target.value),
-                          placeholder: "+ Camera/Góc máy tùy chỉnh...",
-                          className:
-                            "w-full mt-2 p-1.5 bg-primary rounded border border-border-color text-xs focus:border-accent outline-none",
+                          placeholder: isVi ? "+ Camera/Góc máy tùy chỉnh..." : "+ Custom Camera/Shot...",
+                          className: "w-full mt-2 p-1.5 bg-primary rounded border border-border-color text-xs focus:border-accent outline-none",
                         }),
                       ],
                     }),
-                    // 3. ÁNH SÁNG (Mới)
                     c.jsxs("div", {
-                      className:
-                        "bg-secondary p-4 rounded-lg shadow-sm flex flex-col border border-yellow-500/20 flex-1 w-full",
+                      className: "bg-secondary p-4 rounded-lg shadow-sm flex flex-col border border-yellow-500/20 flex-1 w-full",
                       children: [
                         c.jsx("label", {
-                          className:
-                            "block text-yellow-500 font-bold mb-2 flex justify-between items-center text-xs",
+                          className: "block text-yellow-500 font-bold mb-2 flex justify-between items-center text-xs",
                           children: [
                             c.jsxs("span", {
                               className: "flex items-center gap-1",
@@ -34018,50 +33948,34 @@ const sk = ({ setActiveView: t }) => {
                                   fill: "none",
                                   viewBox: "0 0 24 24",
                                   stroke: "currentColor",
-                                  children: c.jsx("path", {
-                                    strokeLinecap: "round",
-                                    strokeLinejoin: "round",
-                                    strokeWidth: 2,
-                                    d: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z",
-                                  }),
+                                  children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" }),
                                 }),
-                                "💡 Ánh sáng & Không khí",
+                                isVi ? "💡 Ánh sáng & Không khí" : "💡 Lighting & Atmosphere",
                               ],
                             }),
                             c.jsx("button", {
+                              type: "button",
                               onClick: () => ti([]),
-                              className:
-                                "text-[10px] text-yellow-500/70 hover:underline",
+                              className: "text-[10px] text-yellow-500/70 hover:underline",
                               children: "Reset",
                             }),
                           ],
                         }),
                         c.jsx("div", {
-                          className:
-                            "flex flex-wrap gap-1.5 overflow-y-auto custom-scrollbar content-start",
-                          children: tk.map((s) =>
-                            c.jsx(
-                              "button",
-                              {
-                                type: "button",
-                                onClick: () => yn(s, "lighting"),
-                                className: `px-2.5 py-1.5 rounded-md text-[11px] border transition-all ${$n.includes(s)
-                                  ? "bg-yellow-600 border-yellow-500 text-white shadow-sm"
-                                  : "bg-primary border-border-color text-gray-400 hover:bg-hover-bg hover:text-gray-200"
-                                  }`,
-                                children: s,
-                              },
-                              s
-                            )
-                          ),
+                          className: "flex flex-wrap gap-1.5 overflow-y-auto custom-scrollbar content-start",
+                          children: tk.map((s) => c.jsx("button", {
+                            type: "button",
+                            onClick: () => yn(s.v, "lighting"),
+                            className: `px-2.5 py-1.5 rounded-md text-[11px] border transition-all ${$n.includes(s.v) ? "bg-yellow-600 border-yellow-500 text-white shadow-sm" : "bg-primary border-border-color text-gray-400 hover:bg-hover-bg hover:text-gray-200"}`,
+                            children: isVi ? s.vi : s.en,
+                          }, s.v)),
                         }),
                         c.jsx("input", {
                           type: "text",
                           value: lightInput,
                           onChange: (e) => setLightInput(e.target.value),
-                          placeholder: "+ Ánh sáng/Không khí tùy chỉnh...",
-                          className:
-                            "w-full mt-2 p-1.5 bg-primary rounded border border-border-color text-xs focus:border-accent outline-none",
+                          placeholder: isVi ? "+ Ánh sáng/Không khí tùy chỉnh..." : "+ Custom Lighting/Atmosphere...",
+                          className: "w-full mt-2 p-1.5 bg-primary rounded border border-border-color text-xs focus:border-accent outline-none",
                         }),
                       ],
                     }),
@@ -34069,7 +33983,6 @@ const sk = ({ setActiveView: t }) => {
                 }),
               ],
             }),
-            // Nút Submit
             c.jsx("div", {
               className: "flex flex-col items-center mt-8",
               children: c.jsxs("div", {
@@ -34078,51 +33991,29 @@ const sk = ({ setActiveView: t }) => {
                   c.jsxs("button", {
                     type: "submit",
                     disabled: H,
-                    className:
-                      "flex-1 flex justify-center items-center bg-accent hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 shadow-lg transform hover:scale-[1.02]",
+                    className: "flex-1 flex justify-center items-center bg-accent hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400 shadow-lg transform hover:scale-[1.02]",
                     children: [
-                      H
-                        ? c.jsx(Ut, {
-                          className: "w-5 h-5",
-                        })
-                        : c.jsx(Pu, {
-                          className: "w-5 h-5",
-                        }),
+                      H ? c.jsx(Ut, { className: "w-5 h-5" }) : c.jsx(Pu, { className: "w-5 h-5" }),
                       c.jsx("span", {
                         className: "ml-2",
-                        children: H ? "Đang tạo..." : "Tạo Kịch Bản Chi Tiết",
+                        children: H ? (isVi ? "Đang tạo..." : "Generating...") : (isVi ? "Tạo Kịch Bản Chi Tiết" : "Generate Detailed Script"),
                       }),
                     ],
                   }),
-                  H &&
-                  c.jsx("button", {
+                  H && c.jsx("button", {
                     type: "button",
                     onClick: rs,
-                    className:
-                      "bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg",
-                    children: "Dừng",
+                    className: "bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg",
+                    children: isVi ? "Dừng" : "Stop",
                   }),
                 ],
               }),
             }),
-            H &&
-            _ &&
-            c.jsx("p", {
-              className:
-                "text-accent text-center mt-2 animate-pulse font-semibold",
-              children: _,
-            }),
-            L &&
-            c.jsx("p", {
-              className:
-                "text-red-500 mt-4 text-center bg-red-100 p-2 rounded",
-              children: L,
-            }),
+            H && _ && c.jsx("p", { className: "text-accent text-center mt-2 animate-pulse font-semibold", children: _ }),
+            L && c.jsx("p", { className: "text-red-500 mt-4 text-center bg-red-100 p-2 rounded", children: L }),
           ],
         }),
-        // Phần Kết Quả
-        D.length > 0 &&
-        c.jsxs("div", {
+        D.length > 0 && c.jsxs("div", {
           className: "mt-8 animate-fade-in",
           children: [
             c.jsxs("div", {
@@ -34130,7 +34021,7 @@ const sk = ({ setActiveView: t }) => {
               children: [
                 c.jsxs("h2", {
                   className: "text-2xl font-bold text-light",
-                  children: ["Kết quả (", D.length, " scenes)"],
+                  children: [isVi ? "Kết quả (" : "Results (", D.length, " scenes)"],
                 }),
                 c.jsxs("div", {
                   className: "flex items-center gap-4",
@@ -34141,87 +34032,64 @@ const sk = ({ setActiveView: t }) => {
                         c.jsx("input", {
                           type: "checkbox",
                           id: "select-all-generated",
-                          className:
-                            "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
+                          className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
                           onChange: hl,
                           checked: M.length > 0 && M.length === D.length,
                         }),
                         c.jsx("label", {
                           htmlFor: "select-all-generated",
-                          className:
-                            "ml-2 text-sm font-medium cursor-pointer",
-                          children: "Chọn tất cả",
+                          className: "ml-2 text-sm font-medium cursor-pointer",
+                          children: isVi ? "Chọn tất cả" : "Select All",
                         }),
                       ],
                     }),
                     c.jsxs("button", {
-                      onClick: () =>
-                        handleExportTxt(
-                          M.length > 0 ? M : D,
-                          "Result_Prompts"
-                        ),
-                      className:
-                        "bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm shadow flex items-center gap-2",
-                      children: [
-                        c.jsx(nb, { className: "h-4 w-4" }),
-                        "Xuất TXT",
-                      ],
+                      onClick: () => handleExportTxt(M.length > 0 ? M : D, "Result_Prompts"),
+                      className: "bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm shadow flex items-center gap-2",
+                      children: [c.jsx(nb, { className: "h-4 w-4" }), isVi ? "Xuất TXT" : "Export TXT"],
                     }),
                     c.jsxs("button", {
                       onClick: Za,
                       disabled: M.length === 0,
-                      className:
-                        "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-400 text-sm shadow",
-                      children: ["Chuyển sang Tạo Video (", M.length, ")"],
+                      className: "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-400 text-sm shadow",
+                      children: [isVi ? "Chuyển sang Tạo Video (" : "Send to Video Gen (", M.length, ")"],
                     }),
                   ],
                 }),
               ],
             }),
             c.jsx("div", {
-              className:
-                "space-y-3 max-h-[500px] overflow-y-auto bg-secondary p-4 rounded-lg border border-border-color custom-scrollbar",
-              children: D.map((txt, idx) =>
-                c.jsxs(
-                  "div",
-                  {
-                    className:
-                      "flex items-start gap-3 p-3 rounded-md hover:bg-primary transition-colors border border-transparent hover:border-gray-600",
+              className: "space-y-3 max-h-[500px] overflow-y-auto bg-secondary p-4 rounded-lg border border-border-color custom-scrollbar",
+              children: D.map((txt, idx) => c.jsxs("div", {
+                className: "flex items-start gap-3 p-3 rounded-md hover:bg-primary transition-colors border border-transparent hover:border-gray-600",
+                children: [
+                  c.jsx("input", {
+                    type: "checkbox",
+                    className: "mt-1 h-5 w-5 rounded border-gray-300 text-accent focus:ring-accent flex-shrink-0",
+                    checked: M.includes(txt),
+                    onChange: () => fl(txt),
+                  }),
+                  c.jsxs("div", {
+                    className: "flex-1 min-w-0",
                     children: [
-                      c.jsx("input", {
-                        type: "checkbox",
-                        className:
-                          "mt-1 h-5 w-5 rounded border-gray-300 text-accent focus:ring-accent flex-shrink-0",
-                        checked: M.includes(txt),
-                        onChange: () => fl(txt),
+                      c.jsx("p", {
+                        className: "font-bold text-accent mb-1",
+                        children: `Scene ${idx + 1}`,
                       }),
-                      c.jsxs("div", {
-                        className: "flex-1 min-w-0",
-                        children: [
-                          c.jsx("p", {
-                            className: "font-bold text-accent mb-1",
-                            children: `Scene ${idx + 1}`,
-                          }),
-                          c.jsx("pre", {
-                            className:
-                              "whitespace-pre-wrap font-sans text-sm text-dark-text bg-black/20 p-2 rounded",
-                            children:
-                              typeof txt === "string"
-                                ? txt
-                                : JSON.stringify(txt, null, 2),
-                          }),
-                        ],
+                      c.jsx("pre", {
+                        className: "whitespace-pre-wrap font-sans text-sm text-dark-text bg-black/20 p-2 rounded",
+                        children: typeof txt === "string" ? txt : JSON.stringify(txt, null, 2),
                       }),
                     ],
-                  },
-                  idx
-                )
-              ),
+                  }),
+                ],
+              }, idx)),
             }),
           ],
         }),
       ],
     });
+  };
 
   // 2. Giao diện Lịch sử (us) - Giữ nguyên
   const us = () =>
@@ -34431,19 +34299,19 @@ const sk = ({ setActiveView: t }) => {
               children: [
                 c.jsx("h3", {
                   className: "text-xl font-bold text-light",
-                  children: he ? "Chỉnh sửa nhân vật" : "Thêm nhân vật mới",
+                  children: he ? tr("createPrompts.collection.editChar") : tr("createPrompts.collection.addChar"),
                 }),
                 c.jsxs("div", {
                   children: [
                     c.jsx("label", {
                       className: "block text-dark-text font-bold mb-2",
-                      children: "Tên nhân vật",
+                      children: tr("createPrompts.collection.charName"),
                     }),
                     c.jsx("input", {
                       type: "text",
                       value: Ne,
                       onChange: (e) => Ye(e.target.value),
-                      placeholder: "Ví dụ: Bò Vàng",
+                      placeholder: tr("createPrompts.collection.charNamePlaceholder"),
                       className:
                         "w-full p-2 bg-primary rounded-md border border-border-color",
                     }),
@@ -34453,13 +34321,12 @@ const sk = ({ setActiveView: t }) => {
                   children: [
                     c.jsx("label", {
                       className: "block text-dark-text font-bold mb-2",
-                      children: "Mô tả (Character Sheet)",
+                      children: tr("createPrompts.collection.charDesc"),
                     }),
                     c.jsx("textarea", {
                       value: tt,
                       onChange: (e) => Je(e.target.value),
-                      placeholder:
-                        "Mô tả chi tiết ngoại hình, tính cách, quần áo...",
+                      placeholder: tr("createPrompts.collection.charDescPlaceholder"),
                       className:
                         "w-full h-40 p-2 bg-primary rounded-md border border-border-color",
                     }),
@@ -34472,15 +34339,15 @@ const sk = ({ setActiveView: t }) => {
                       type: "submit",
                       className:
                         "flex-1 bg-accent hover:bg-indigo-500 text-white font-bold py-2 rounded-lg",
-                      children: he ? "Lưu thay đổi" : "Thêm vào bộ sưu tập",
+                      children: he ? tr("createPrompts.collection.saveChanges") : tr("createPrompts.collection.addToCollection"),
                     }),
                     he &&
                     c.jsx("button", {
                       type: "button",
                       onClick: An,
                       className:
-                        "flex-1 bg-gray-200 hover:bg-gray-300 py-2 rounded-lg",
-                      children: "Hủy",
+                        "flex-1 bg-gray-200 hover:bg-gray-300 py-2 rounded-lg text-dark-text font-semibold",
+                      children: tr("createPrompts.collection.cancel"),
                     }),
                   ],
                 }),
@@ -34491,12 +34358,11 @@ const sk = ({ setActiveView: t }) => {
               children: [
                 c.jsx("h3", {
                   className: "text-xl font-bold text-light",
-                  children: "Tạo nhân vật từ ảnh",
+                  children: tr("createPrompts.collection.createFromImage"),
                 }),
                 c.jsx("p", {
                   className: "text-sm text-dark-text",
-                  children:
-                    "Tải lên một hình ảnh để AI tự động tạo mô tả nhân vật cho bạn.",
+                  children: tr("createPrompts.collection.uploadHint"),
                 }),
                 c.jsx("input", {
                   type: "file",
@@ -34516,12 +34382,12 @@ const sk = ({ setActiveView: t }) => {
                     }),
                     c.jsx("label", {
                       className: "block text-dark-text font-bold mb-2 mt-4",
-                      children: "Yêu cầu phân tích (tùy chọn)",
+                      children: tr("createPrompts.collection.analysisReq"),
                     }),
                     c.jsx("textarea", {
                       value: Us,
                       onChange: (e) => ls(e.target.value),
-                      placeholder: "Nhập hướng dẫn thêm cho AI...",
+                      placeholder: tr("createPrompts.collection.analysisReqPlaceholder"),
                       className:
                         "w-full h-24 p-2 mt-1 bg-primary rounded-md border border-border-color",
                     }),
@@ -34537,8 +34403,8 @@ const sk = ({ setActiveView: t }) => {
                           className: "w-4 h-4 mr-2",
                         }),
                         qn
-                          ? "Đang phân tích..."
-                          : "Phân tích & điền vào form",
+                          ? tr("createPrompts.collection.analyzing")
+                          : tr("createPrompts.collection.analyzeBtn"),
                       ],
                     }),
                   ],
@@ -34553,7 +34419,7 @@ const sk = ({ setActiveView: t }) => {
           children: [
             c.jsx("h3", {
               className: "text-xl font-bold text-light mb-4",
-              children: `Danh sách nhân vật (${(p || []).length})`,
+              children: tr("createPrompts.collection.charList").replace("{count}", (p || []).length),
             }),
             c.jsx("div", {
               className:
@@ -34562,7 +34428,7 @@ const sk = ({ setActiveView: t }) => {
                 (p || []).length === 0
                   ? c.jsx("p", {
                     className: "text-dark-text text-center py-8",
-                    children: "Chưa có nhân vật nào được lưu.",
+                    children: tr("createPrompts.collection.emptyList"),
                   })
                   : (p || [])
                     .filter((char) => char && char.id)
@@ -34594,7 +34460,7 @@ const sk = ({ setActiveView: t }) => {
                                 children: [
                                   c.jsx("button", {
                                     onClick: () => ro(char),
-                                    title: "Sửa",
+                                    title: tr("createPrompts.collection.edit"),
                                     className:
                                       "p-1.5 hover:bg-gray-200 rounded-md",
                                     children: c.jsx("svg", {
@@ -34613,7 +34479,7 @@ const sk = ({ setActiveView: t }) => {
                                   }),
                                   c.jsx("button", {
                                     onClick: () => v(char.id),
-                                    title: "Xóa",
+                                    title: tr("createPrompts.collection.delete"),
                                     className:
                                       "p-1.5 hover:bg-red-100 rounded-md",
                                     children: c.jsx("svg", {
@@ -34643,7 +34509,6 @@ const sk = ({ setActiveView: t }) => {
         }),
       ],
     });
-
   const renderContent = () => {
     switch (R) {
       case "create":
@@ -34661,12 +34526,11 @@ const sk = ({ setActiveView: t }) => {
     children: [
       c.jsx("h1", {
         className: "text-3xl font-bold text-light mb-2",
-        children: "Tạo Prompt Video (Pro)",
+        children: tr("sidebar.dashboard") === "Tổng quan" ? "Tạo Prompt Video (Pro)" : "Create Video Prompts (Pro)",
       }),
       c.jsx("p", {
         className: "text-dark-text mb-6",
-        children:
-          "Tạo prompt chuẩn điện ảnh từ câu chuyện, quản lý bộ sưu tập nhân vật và lịch sử.",
+        children: tr("sidebar.dashboard") === "Tổng quan" ? "Tạo prompt chuẩn điện ảnh từ câu chuyện, quản lý bộ sưu tập nhân vật và lịch sử." : "Create cinematic prompts from stories, manage character collections and history.",
       }),
       c.jsx("div", {
         className: "mb-6",
@@ -34681,7 +34545,7 @@ const sk = ({ setActiveView: t }) => {
                   ? "border-accent text-accent"
                   : "border-transparent text-dark-text hover:text-light hover:bg-white/5 hover:border-gray-300"
                   }`,
-                children: "Tạo Mới",
+                children: tr("sidebar.dashboard") === "Tổng quan" ? "Tạo Mới" : "Create New",
               }),
               c.jsxs("button", {
                 onClick: () => G("history"),
@@ -34689,7 +34553,7 @@ const sk = ({ setActiveView: t }) => {
                   ? "border-accent text-accent"
                   : "border-transparent text-dark-text hover:text-light hover:bg-white/5 hover:border-gray-300"
                   }`,
-                children: ["Lịch sử (", (s || []).length, ")"],
+                children: [tr("sidebar.dashboard") === "Tổng quan" ? "Lịch sử (" : "History (", (s || []).length, ")"],
               }),
               c.jsxs("button", {
                 onClick: () => G("collection"),
@@ -34697,7 +34561,7 @@ const sk = ({ setActiveView: t }) => {
                   ? "border-accent text-accent"
                   : "border-transparent text-dark-text hover:text-light hover:bg-white/5 hover:border-gray-300"
                   }`,
-                children: ["Bộ sưu tập (", (p || []).length, ")"],
+                children: [tr("sidebar.dashboard") === "Tổng quan" ? "Bộ sưu tập (" : "Collection (", (p || []).length, ")"],
               }),
             ],
           }),
@@ -34709,252 +34573,99 @@ const sk = ({ setActiveView: t }) => {
 };
 /* --- START THUMBNAIL (SMART COOKIE LOGIC + LAYOUT CODE 2) --- */
 const style_New = [
-  {
-    value: "none",
-    label: "Mặc định",
-  },
-  {
-    value: "cinematic",
-    label: "Điện ảnh (Cinematic)",
-  },
-  {
-    value: "anime",
-    label: "Anime / Hoạt hình",
-  },
-  {
-    value: "3d-render",
-    label: "3D Render (Pixar style)",
-  },
-  {
-    value: "realistic",
-    label: "Thực tế (Realistic)",
-  },
-  {
-    value: "comic",
-    label: "Truyện tranh (Comic)",
-  },
-  {
-    value: "digital-art",
-    label: "Digital Art",
-  },
-  {
-    value: "oil-painting",
-    label: "Sơn dầu",
-  },
-  {
-    value: "hyper-realistic",
-    label: "Siêu thực (Hyper Realistic)",
-  },
+  { value: "none", vi: "Mặc định", en: "Default" },
+  { value: "cinematic", vi: "Điện ảnh (Cinematic)", en: "Cinematic" },
+  { value: "anime", vi: "Anime / Hoạt hình", en: "Anime / Animation" },
+  { value: "3d-render", vi: "3D Render (Pixar style)", en: "3D Render (Pixar style)" },
+  { value: "realistic", vi: "Thực tế (Realistic)", en: "Realistic" },
+  { value: "comic", vi: "Truyện tranh (Comic)", en: "Comic Book" },
+  { value: "digital-art", vi: "Digital Art", en: "Digital Art" },
+  { value: "oil-painting", vi: "Sơn dầu", en: "Oil Painting" },
+  { value: "hyper-realistic", vi: "Siêu thực (Hyper Realistic)", en: "Hyper Realistic" }
 ];
 const trend_New = [
-  {
-    value: "none",
-    label: "Mặc định",
-  },
-  {
-    value: "no title",
-    label: "Không chữ (No Text)",
-  },
-  {
-    value: "dramatic-lighting",
-    label: "Ánh sáng ấn tượng",
-  },
-  {
-    value: "reaction-face",
-    label: "Khuôn mặt biểu cảm",
-  },
-  {
-    value: "text-heavy",
-    label: "Nổi bật tiêu đề",
-  },
-  {
-    value: "high-contrast",
-    label: "Tương phản cao",
-  },
-  {
-    value: "glowing",
-    label: "Hiệu ứng phát sáng",
-  },
-  {
-    value: "mysterious",
-    label: "Bí ẩn / Kinh dị",
-  },
-  {
-    value: "vibrant",
-    label: "Màu sắc rực rỡ",
-  },
+  { value: "none", vi: "Mặc định", en: "Default" },
+  { value: "no title", vi: "Không chữ (No Text)", en: "No Text" },
+  { value: "dramatic-lighting", vi: "Ánh sáng ấn tượng", en: "Dramatic Lighting" },
+  { value: "reaction-face", vi: "Khuôn mặt biểu cảm", en: "Reaction Face" },
+  { value: "text-heavy", vi: "Nổi bật tiêu đề", en: "Text Heavy" },
+  { value: "high-contrast", vi: "Tương phản cao", en: "High Contrast" },
+  { value: "glowing", vi: "Hiệu ứng phát sáng", en: "Glowing Effect" },
+  { value: "mysterious", vi: "Bí ẩn / Kinh dị", en: "Mysterious / Horror" },
+  { value: "vibrant", vi: "Màu sắc rực rỡ", en: "Vibrant Colors" }
 ];
 
-// 1. API Wrapper
 const api_Thumb = async (t, e, s = {}) => {
   if (!window.electronAPI) throw new Error("Electron API missing");
-  return window.electronAPI.fetch(
-    t,
-    e || {
-      id: "",
-      name: "",
-      value: "",
-    },
-    s
-  );
+  return window.electronAPI.fetch(t, e || { id: "", name: "", value: "" }, s);
 };
-// 2. Hàm lấy Cookie từ Server (Fallback khi cookie lưu bị lỗi)
-const getCookieFromServer = async (t) => {
-  // Dùng URL bạn yêu cầu
-  const url = "https://tainguyenweb.com/apiveo/prf2.php";
-  const e = await api_Thumb(url, null, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${t}`,
-    },
-  });
 
-  // Fallback: Nếu prf2.php lỗi, thử prf.php (đề phòng server đổi đuôi file)
+const getCookieFromServer = async (t) => {
+  const url = "https://tainguyenweb.com/apiveo/prf2.php";
+  const e = await api_Thumb(url, null, { method: "GET", headers: { Authorization: `Bearer ${t}` } });
   if (!e.success || !e.cookie?.value || !e.cookie?.bearerToken) {
     try {
-      const e2 = await api_Thumb(
-        "https://tainguyenweb.com/apiveo/prf2.php",
-        null,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${t}`,
-          },
-        }
-      );
+      const e2 = await api_Thumb("https://tainguyenweb.com/apiveo/prf2.php", null, { method: "GET", headers: { Authorization: `Bearer ${t}` } });
       if (e2.success && e2.cookie?.value) return e2.cookie;
     } catch { }
-    throw new Error(
-      "Lỗi lấy cookie từ server. Vui lòng kiểm tra kết nối hoặc tài khoản."
-    );
+    throw new Error("Lỗi lấy cookie từ server. Vui lòng kiểm tra kết nối hoặc tài khoản.");
   }
   return e.cookie;
 };
-// 3. Logic lấy Cookie Thông Minh: Local -> Server -> Retry
+
 const getSmartCookie = async (token, activeCookie) => {
-  // Ưu tiên 1: Cookie đang kích hoạt trong máy
-  if (activeCookie && activeCookie.value && activeCookie.bearerToken) {
-    console.log("Thumbnail: Sử dụng Active Cookie đã lưu.");
-    return activeCookie;
-  }
-  // Ưu tiên 2: Không có thì gọi Server
-  console.log("Thumbnail: Không có Active Cookie, gọi Server...");
+  if (activeCookie && activeCookie.value && activeCookie.bearerToken) return activeCookie;
   return await getCookieFromServer(token);
 };
-// 4. Hàm tạo ảnh (Banana Pro - Logic Code 1)
-// --- ĐOẠN CODE MỚI (HỖ TRỢ ẢNH INPUT) ---
-// [index-DLxlB05E.js]
+
 const gen_Banana_Pro = async (cookie, s, i, aspect, imageBase64 = null) => {
   const projectId = crypto.randomUUID();
   const url = `https://aisandbox-pa.googleapis.com/v1/projects/${projectId}/flowMedia:batchGenerateImages`;
-
-  // 1. Xử lý ảnh Input (Giữ nguyên)
   let imageInputs = [];
   if (imageBase64) {
     try {
       const rawBytes = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-      const uploadRes = await api_Thumb(
-        "https://aisandbox-pa.googleapis.com/v1:uploadUserImage",
-        cookie,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            imageInput: {
-              rawImageBytes: rawBytes,
-              isUserUploaded: true,
-              mimeType: "image/jpeg",
-            },
-            clientContext: {
-              sessionId: `session-${Date.now()}`,
-              tool: "ASSET_MANAGER",
-            },
-          }),
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      const uploadRes = await api_Thumb("https://aisandbox-pa.googleapis.com/v1:uploadUserImage", cookie, {
+        method: "POST",
+        body: JSON.stringify({
+          imageInput: { rawImageBytes: rawBytes, isUserUploaded: true, mimeType: "image/jpeg" },
+          clientContext: { sessionId: `session-${Date.now()}`, tool: "ASSET_MANAGER" },
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
       const mediaId = uploadRes?.mediaGenerationId?.mediaGenerationId;
-      if (mediaId) {
-        imageInputs.push({
-          name: mediaId,
-          imageInputType: "IMAGE_INPUT_TYPE_REFERENCE",
-        });
-        console.log("Banana Pro: Đã upload ảnh tham chiếu:", mediaId);
-      }
-    } catch (e) {
-      console.error("Banana Pro: Lỗi upload ảnh input", e);
-    }
+      if (mediaId) imageInputs.push({ name: mediaId, imageInputType: "IMAGE_INPUT_TYPE_REFERENCE" });
+    } catch (e) { }
   }
-
-  // 2. Tạo Payload (ĐÃ SỬA LỖI item và cfg)
   const payload = {
-    clientContext: {
-      sessionId: `session-${Date.now()}`,
-      tool: "PINHOLE",
-      projectId: projectId,
-      userPaygateTier: "PAYGATE_TIER_TWO",
-    },
-    requests: [
-      {
-        seed: i, // <--- SỬA: Dùng 'i' thay cho 'item.seed'
-        imageModelName: "GEM_PIX_2",
-        imageAspectRatio: `IMAGE_ASPECT_RATIO_${aspect || "LANDSCAPE"}`, // <--- SỬA: Dùng 'aspect' thay cho 'cfg.aspectRatio'
-        prompt: s, // <--- SỬA: Dùng 's' thay cho 'item.prompt'
-        imageInputs: imageInputs,
-      },
-    ],
+    clientContext: { sessionId: `session-${Date.now()}`, tool: "PINHOLE", projectId: projectId, userPaygateTier: "PAYGATE_TIER_TWO" },
+    requests: [{ seed: i, imageModelName: "GEM_PIX_2", imageAspectRatio: `IMAGE_ASPECT_RATIO_${aspect || "LANDSCAPE"}`, prompt: s, imageInputs: imageInputs }],
   };
-
-  // 3. Gọi API
-  const g = await api_Thumb(url, cookie, {
-    method: "POST",
-    body: JSON.stringify(payload),
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  // --- FIX FINAL: Xử lý cả Base64 và URL (fifeUrl) ---
+  const g = await api_Thumb(url, cookie, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
   let v = g?.media?.[0]?.image?.generatedImage?.encodedImage;
-
-  // Nếu không có encodedImage, kiểm tra fifeUrl
   if (!v) {
     const fifeUrl = g?.media?.[0]?.image?.generatedImage?.fifeUrl;
     if (fifeUrl) {
-      console.log("Banana Pro: Found fifeUrl, fetching...", fifeUrl);
       try {
         const imgRes = await fetch(fifeUrl);
         const imgBuffer = await imgRes.arrayBuffer();
-        // Convert ArrayBuffer to Base64
         const bytes = new Uint8Array(imgBuffer);
         let binary = "";
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
         v = btoa(binary);
-      } catch (err) {
-        console.error("Banana Pro: Error fetching fifeUrl", err);
-      }
+      } catch (err) { }
     }
   }
-
-  // Các fallback cũ (giữ lại cho chắc)
   if (!v) v = g?.media?.[0]?.image?.encodedImage;
   if (!v) v = g?.image?.encodedImage;
-
-  if (!v || v === "undefined" || v === "null") {
-    console.error("Banana Pro Error Full JSON:", JSON.stringify(g, null, 2));
-    throw new Error(
-      g?.error?.message || "Banana Pro lỗi: Không tìm thấy ảnh trong response."
-    );
-  }
+  if (!v || v === "undefined" || v === "null") throw new Error(g?.error?.message || "Banana Pro error: No image found in response.");
   return v;
 };
-// ----------------------------------------
-// 5. Component Giao Diện (BỐ CỤC CODE 2 - MÀU SẮC CODE 1)
+
 const lk = () => {
   const { t: tr } = so();
+  const isVi = tr("sidebar.dashboard") === "Tổng quan";
   const { stories: t, currentUser: e, activeCookie: r } = jt();
-  // Lấy activeCookie từ context
   const { showToast: s } = _t(),
     [i, setMode] = A.useState("story"),
     [f, h] = A.useState(""),
@@ -34969,10 +34680,8 @@ const lk = () => {
     [X, ne] = A.useState(""),
     [useInputImage, setUseInputImage] = A.useState(false),
     [inputImageData, setInputImageData] = A.useState(null);
-  A.useEffect(() => {
-    setUseInputImage(false);
-    setInputImageData(null);
-  }, [i]);
+
+  A.useEffect(() => { setUseInputImage(false); setInputImageData(null); }, [i]);
 
   A.useEffect(() => {
     let ie = "";
@@ -34980,170 +34689,59 @@ const lk = () => {
       const re = t.find((V) => V.id === f);
       ie = re ? re.content : "";
     } else ie = p;
-    if (!ie) {
-      B("");
-      return;
-    }
-    const Me = style_New.find((re) => re.value === g)?.label || g,
-      de = trend_New.find((re) => re.value === b)?.label || b,
-      Z =
-        `Create a high quality YouTube thumbnail. Style: ${Me}. Trend: ${de}. Language: ${I}. Story Context: ${ie.substring(
-          0,
-          1500
-        )}...`.trim();
+    if (!ie) { B(""); return; }
+    const Me = style_New.find((re) => re.value === g)?.[isVi ? "vi" : "en"] || g,
+      de = trend_New.find((re) => re.value === b)?.[isVi ? "vi" : "en"] || b,
+      Z = `Create a high quality YouTube thumbnail. Style: ${Me}. Trend: ${de}. Language: ${I}. Story Context: ${ie.substring(0, 1500)}...`.trim();
     B(Z);
-  }, [i, f, p, g, b, S, t, I]);
+  }, [i, f, p, g, b, S, t, I, isVi]);
 
-  // --- 1. HÀM LẤY COOKIE: ƯU TIÊN GỌI TRỰC TIẾP (Y HỆT VEO 3) ---
-  const getCookieFromServer = async (token) => {
-    // CÁCH 1: Dùng 'fetch' của trình duyệt (Nhanh, trực tiếp, giống Veo 3)
-    // Cách này né được lỗi "Error invoking remote method"
+  const fetchCookieDirect = async (token) => {
     try {
-      const response = await fetch(
-        "https://tainguyenweb.com/apiveo/prf2.php",
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const response = await fetch("https://tainguyenweb.com/apiveo/prf2.php", { method: "GET", headers: { Authorization: `Bearer ${token}` } });
       const data = await response.json();
-      if (data && data.success && data.cookie && data.cookie.value) {
-        console.log("Thumbnail: Lấy cookie thành công (Direct Fetch).");
-        return data.cookie;
-      }
-    } catch (err) {
-      console.warn("Direct fetch lỗi, thử fallback sang Electron API:", err);
-    }
-
-    // CÁCH 2: Dùng Electron API (Dự phòng nếu Cách 1 bị chặn CORS)
+      if (data && data.success && data.cookie && data.cookie.value) return data.cookie;
+    } catch (err) { }
     try {
-      const res = await window.electronAPI.fetch(
-        "https://tainguyenweb.com/apiveo/prf2.php",
-        null,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (res && res.success && res.cookie && res.cookie.value) {
-        console.log("Thumbnail: Lấy cookie thành công (Electron API).");
-        return res.cookie;
-      }
-    } catch (err) {
-      console.error("Electron API fetch lỗi:", err);
-    }
-
-    // Nếu cả 2 đều tạch
-    throw new Error("Không thể kết nối Server lấy Cookie.");
+      const res = await window.electronAPI.fetch("https://tainguyenweb.com/apiveo/prf2.php", null, { method: "GET", headers: { Authorization: `Bearer ${token}` } });
+      if (res && res.success && res.cookie && res.cookie.value) return res.cookie;
+    } catch (err) { }
+    throw new Error(tr("thumbnail.errorLogin"));
   };
 
-  // --- 2. HÀM CHẠY CHÍNH (W): LOGIC VÒNG LẶP BẤT TỬ ---
   const W = async () => {
-    // Validation
-    if (!e || !e.token) {
-      s("Vui lòng đăng nhập.", "error");
-      return;
-    }
-    if (!U.trim()) {
-      s("Nội dung prompt trống.", "error");
-      return;
-    }
-
-    j(!0); // Loading On
-    D(null); // Clear ảnh cũ
-    ne("Đang khởi tạo...");
-
-    // Biến lưu cookie hiện tại
+    if (!e || !e.token) { s(tr("thumbnail.errorLogin"), "error"); return; }
+    if (!U.trim()) { s(tr("thumbnail.errorEmpty"), "error"); return; }
+    j(!0); D(null); ne(tr("thumbnail.initializing"));
     let currentCookie = null;
+    if (r && r.value && r.bearerToken) currentCookie = r;
 
-    // Ưu tiên: Dùng Active Cookie nhập tay nếu có (Nhanh nhất)
-    if (r && r.value && r.bearerToken) {
-      currentCookie = r;
-      console.log("Thumbnail: Dùng Active Cookie có sẵn.");
-    }
-
-    // --- VÒNG LẶP VÔ TẬN (CHẠY ĐẾN KHI RA ẢNH) ---
     while (true) {
       try {
-        // A. LẤY COOKIE MỚI (Nếu chưa có hoặc bị reset do lỗi)
         if (!currentCookie) {
-          ne("Đang lấy tài khoản Server...");
-
-          // Không delay ở đây để nó lấy "luôn và ngay"
-          try {
-            currentCookie = await getCookieFromServer(e.token);
-          } catch (serverErr) {
-            // Nếu lấy lỗi, chờ 2s rồi thử lại ngay
-            ne("Lỗi Server. Thử lại...");
-            await new Promise((wait) => setTimeout(wait, 2000));
-            continue;
-          }
+          ne(tr("thumbnail.fetchingServer"));
+          try { currentCookie = await fetchCookieDirect(e.token); }
+          catch (serverErr) { ne(tr("thumbnail.serverError")); await new Promise((wait) => setTimeout(wait, 2000)); continue; }
         }
-
-        // B. VẼ ẢNH (Banana Pro)
-        ne("Đang vẽ (Banana Pro)...");
+        ne(tr("thumbnail.generating"));
         const seed = Math.floor(Math.random() * 1e6);
-
-        // Gọi hàm tạo
-        // --- SỬA ĐOẠN GỌI HÀM TẠO ẢNH ---
         const imgInput = useInputImage ? inputImageData : null;
-        const base64Img = await gen_Banana_Pro(
-          currentCookie,
-          U,
-          seed,
-          S,
-          imgInput
-        );
-        // --------------------------------
-        // C. THÀNH CÔNG -> THOÁT
+        const base64Img = await gen_Banana_Pro(currentCookie, U, seed, S, imgInput);
         D(`data:image/png;base64,${base64Img}`);
-        s("Tạo thành công!", "success");
+        s(tr("thumbnail.success"), "success");
         break;
       } catch (err) {
-        console.error("Lỗi vòng lặp:", err);
         const msg = (err.message || "").toLowerCase();
-
-        // --- CƠ CHẾ AUTO-HEALING (TỰ SỬA LỖI) ---
-        // Gặp bất cứ lỗi gì liên quan đến kết nối/tài khoản -> Reset cookie -> Lấy mới
-
-        let statusMsg = "Đang xử lý...";
-
-        if (
-          msg.includes("invoking remote") ||
-          msg.includes("context destroyed")
-        ) {
-          statusMsg = "Lỗi kết nối App. Thử lại ngay...";
-          currentCookie = null; // Reset để lấy mới
-        } else if (
-          msg.includes("401") ||
-          msg.includes("403") ||
-          msg.includes("unauthenticated") ||
-          msg.includes("e001")
-        ) {
-          statusMsg = "Cookie hết hạn. Đổi tài khoản...";
-          currentCookie = null; // Reset để lấy mới
-        } else if (
-          msg.includes("429") ||
-          msg.includes("quota") ||
-          msg.includes("resource_exhausted")
-        ) {
-          statusMsg = "Server bận. Đổi tài khoản...";
-          currentCookie = null; // Reset để lấy mới
-        } else {
-          // Lỗi khác (500...) cũng reset luôn cho chắc
-          statusMsg = `Lỗi (${msg.substring(0, 15)}...). Thử lại...`;
-          currentCookie = null;
-        }
-
+        let statusMsg = tr("thumbnail.processing");
+        if (msg.includes("invoking remote") || msg.includes("context destroyed")) { statusMsg = tr("thumbnail.errorApp"); currentCookie = null; }
+        else if (msg.includes("401") || msg.includes("403") || msg.includes("unauthenticated") || msg.includes("e001")) { statusMsg = tr("thumbnail.errorExpired"); currentCookie = null; }
+        else if (msg.includes("429") || msg.includes("quota") || msg.includes("resource_exhausted")) { statusMsg = tr("thumbnail.errorBusy"); currentCookie = null; }
+        else { statusMsg = isVi ? `Lỗi (${msg.substring(0, 15)}...). Thử lại...` : `Error (${msg.substring(0, 15)}...). Retrying...`; currentCookie = null; }
         ne(statusMsg);
-
-        // Chờ 1 giây rồi thử lại ngay lập tức (Nhanh hơn bản cũ)
         await new Promise((wait) => setTimeout(wait, 1000));
       }
     }
-
-    j(!1); // Tắt loading
-    ne(""); // Xóa thông báo
+    j(!1); ne("");
   };
 
   const Ce = async () => {
@@ -35153,508 +34751,205 @@ const lk = () => {
         const Me = t.find((de) => de.id === f);
         Me && (ie = `Thumb_${Me.title.substring(0, 20)}`);
       }
-      window.electronAPI.downloadImage({
-        imageDataUrl: _,
-        storyTitle: ie,
-      });
+      window.electronAPI.downloadImage({ imageDataUrl: _, storyTitle: ie });
     }
   };
-  // --- JSX: BỐ CỤC CODE 2 + CLASS CODE 1 (Dark Mode) ---
+
   return c.jsxs("div", {
     className: "animate-fade-in h-full flex flex-col lg:flex-row gap-6",
     children: [
-      // CỘT TRÁI (Input)
       c.jsxs("div", {
         className: "lg:w-1/2 flex flex-col h-full overflow-y-auto pr-2",
         children: [
           c.jsxs("div", {
             className: "mb-6",
             children: [
-              c.jsx("h1", {
-                className: "text-2xl font-bold text-light mb-2",
-                children: "Tạo Thumbnail YouTube (Pro)",
-              }),
-              c.jsx("p", {
-                className: "text-dark-text text-sm",
-                children: "Tạo ảnh bìa thu hút từ câu chuyện.",
-              }),
+              c.jsx("h1", { className: "text-2xl font-bold text-light mb-2", children: tr("thumbnail.title") }),
+              c.jsx("p", { className: "text-dark-text text-sm", children: tr("thumbnail.desc") }),
             ],
           }),
-          // Box 1: Nguồn
           c.jsxs("div", {
             className: "bg-secondary p-4 rounded-lg shadow-md mb-4",
             children: [
               c.jsxs("div", {
-                className:
-                  "grid grid-cols-2 gap-1 p-1 bg-primary rounded-lg mb-4 border border-border-color pb-2",
+                className: "grid grid-cols-2 gap-1 p-1 bg-primary rounded-lg mb-4 border border-border-color pb-2",
                 children: [
-                  c.jsx("button", {
-                    onClick: () => setMode("story"),
-                    className: `ppy-2.5 text-sm font-bold rounded-md transition-all ${i === "story"
-                      ? "bg-accent text-white shadow-lg"
-                      : "text-dark-text hover:text-light hover:bg-white/5"
-                      }`,
-                    children: "Từ Câu Chuyện",
-                  }),
-                  c.jsx("button", {
-                    onClick: () => setMode("manual"),
-                    className: `ppy-2.5 text-sm font-bold rounded-md transition-all ${i === "manual"
-                      ? "bg-accent text-white shadow-lg"
-                      : "text-dark-text hover:text-light hover:bg-white/5"
-                      }`,
-                    children: "Nhập Thủ Công",
-                  }),
+                  c.jsx("button", { onClick: () => setMode("story"), className: `py-2.5 text-sm font-bold rounded-md transition-all ${i === "story" ? "bg-accent text-white shadow-lg" : "text-dark-text hover:text-light hover:bg-white/5"}`, children: tr("thumbnail.fromStory") }),
+                  c.jsx("button", { onClick: () => setMode("manual"), className: `py-2.5 text-sm font-bold rounded-md transition-all ${i === "manual" ? "bg-accent text-white shadow-lg" : "text-dark-text hover:text-light hover:bg-white/5"}`, children: tr("thumbnail.manualInput") }),
                 ],
               }),
-              i === "story"
-                ? c.jsxs("div", {
-                  children: [
-                    c.jsx("label", {
-                      className:
-                        "block text-xs font-medium text-dark-text mb-1",
-                      children: "Chọn Câu chuyện",
-                    }),
-                    c.jsxs("select", {
-                      value: f,
-                      onChange: (ie) => h(ie.target.value),
-                      className:
-                        "w-full p-2 bg-primary text-dark-text rounded border border-border-color focus:border-accent outline-none",
-                      children: [
-                        c.jsx("option", {
-                          value: "",
-                          children: "-- Chọn một câu chuyện --",
-                        }),
-                        t.map((ie) =>
-                          c.jsxs(
-                            "option",
-                            {
-                              value: ie.id,
-                              children: [ie.title.substring(0, 50), "..."],
-                            },
-                            ie.id
-                          )
-                        ),
-                      ],
-                    }),
-                  ],
-                })
-                : c.jsxs("div", {
-                  children: [
-                    c.jsx("label", {
-                      className:
-                        "block text-xs font-medium text-dark-text mb-1",
-                      children: "Nội dung / Ý tưởng Thumbnail",
-                    }),
-                    c.jsx("textarea", {
-                      value: p,
-                      onChange: (ie) => x(ie.target.value),
-                      placeholder: "Mô tả nội dung thumbnail bạn muốn tạo...",
-                      className:
-                        "w-full h-24 p-2 bg-primary text-dark-text rounded border border-border-color focus:border-accent outline-none resize-none",
-                    }),
-                  ],
-                }),
+              i === "story" ? c.jsxs("div", {
+                children: [
+                  c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("thumbnail.selectStory") }),
+                  c.jsxs("select", {
+                    value: f, onChange: (ie) => h(ie.target.value), className: "w-full p-2 bg-primary text-dark-text rounded border border-border-color focus:border-accent outline-none", children: [
+                      c.jsx("option", { value: "", children: tr("thumbnail.selectPlaceholder") }),
+                      t.map((ie) => c.jsxs("option", { value: ie.id, children: [ie.title.substring(0, 50), "..."] }, ie.id)),
+                    ]
+                  }),
+                ],
+              }) : c.jsxs("div", {
+                children: [
+                  c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("thumbnail.contentIdea") }),
+                  c.jsx("textarea", { value: p, onChange: (ie) => x(ie.target.value), placeholder: tr("thumbnail.contentPlaceholder"), className: "w-full h-24 p-2 bg-primary text-dark-text rounded border border-border-color focus:border-accent outline-none resize-none" }),
+                ],
+              }),
             ],
           }),
-          // Box 2: Cài đặt
           c.jsxs("div", {
             className: "bg-secondary p-4 rounded-lg shadow-md mb-4",
             children: [
-              c.jsx("h3", {
-                className: "text-sm font-bold text-light mb-3",
-                children: "Thiết lập Phong cách",
-              }),
+              c.jsx("h3", { className: "text-sm font-bold text-light mb-3", children: tr("thumbnail.styleSettings") }),
               c.jsxs("div", {
                 className: "grid grid-cols-2 gap-4",
                 children: [
                   c.jsxs("div", {
                     children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Phong cách Ảnh",
-                      }),
-                      c.jsx("select", {
-                        value: g,
-                        onChange: (ie) => v(ie.target.value),
-                        className:
-                          "w-full p-2 bg-primary text-dark-text rounded border border-border-color text-sm",
-                        children: style_New.map((ie) =>
-                          c.jsx(
-                            "option",
-                            {
-                              value: ie.value,
-                              children: ie.label,
-                            },
-                            ie.value
-                          )
-                        ),
-                      }),
-                    ],
+                      c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("thumbnail.imageStyle") }),
+                      c.jsx("select", { value: g, onChange: (ie) => v(ie.target.value), className: "w-full p-2 bg-primary text-dark-text rounded border border-border-color text-sm", children: style_New.map((ie) => c.jsx("option", { value: ie.value, children: isVi ? ie.vi : ie.en }, ie.value)) }),
+                    ]
                   }),
                   c.jsxs("div", {
                     children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Kiểu Thumbnail (Trend)",
-                      }),
-                      c.jsx("select", {
-                        value: b,
-                        onChange: (ie) => C(ie.target.value),
-                        className:
-                          "w-full p-2 bg-primary text-dark-text rounded border border-border-color text-sm",
-                        children: trend_New.map((ie) =>
-                          c.jsx(
-                            "option",
-                            {
-                              value: ie.value,
-                              children: ie.label,
-                            },
-                            ie.value
-                          )
-                        ),
-                      }),
-                    ],
+                      c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("thumbnail.trendStyle") }),
+                      c.jsx("select", { value: b, onChange: (ie) => C(ie.target.value), className: "w-full p-2 bg-primary text-dark-text rounded border border-border-color text-sm", children: trend_New.map((ie) => c.jsx("option", { value: ie.value, children: isVi ? ie.vi : ie.en }, ie.value)) }),
+                    ]
                   }),
                   c.jsxs("div", {
                     children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Tỷ lệ khung hình",
-                      }),
+                      c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("thumbnail.aspectRatio") }),
                       c.jsxs("div", {
-                        className:
-                          "flex bg-primary rounded border border-border-color p-1",
-                        children: [
-                          c.jsx("button", {
-                            onClick: () => w("LANDSCAPE"),
-                            className: `flex-1 text-xs py-1 rounded transition-colors ${S === "LANDSCAPE"
-                              ? "bg-accent text-white"
-                              : "text-dark-text hover:bg-hover-bg"
-                              }`,
-                            children: "16:9 (Ngang)",
-                          }),
-                          c.jsx("button", {
-                            onClick: () => w("PORTRAIT"),
-                            className: `flex-1 text-xs py-1 rounded transition-colors ${S === "PORTRAIT"
-                              ? "bg-accent text-white"
-                              : "text-dark-text hover:bg-hover-bg"
-                              }`,
-                            children: "9:16 (Dọc)",
-                          }),
-                        ],
+                        className: "flex bg-primary rounded border border-border-color p-1", children: [
+                          c.jsx("button", { onClick: () => w("LANDSCAPE"), className: `flex-1 text-xs py-1 rounded transition-colors ${S === "LANDSCAPE" ? "bg-accent text-white" : "text-dark-text hover:bg-hover-bg"}`, children: tr("thumbnail.landscape") }),
+                          c.jsx("button", { onClick: () => w("PORTRAIT"), className: `flex-1 text-xs py-1 rounded transition-colors ${S === "PORTRAIT" ? "bg-accent text-white" : "text-dark-text hover:bg-hover-bg"}`, children: tr("thumbnail.portrait") }),
+                        ]
                       }),
-                    ],
+                    ]
                   }),
                   c.jsxs("div", {
                     children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Ngôn ngữ trong ảnh",
-                      }),
+                      c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("thumbnail.language") }),
                       c.jsxs("select", {
-                        value: I,
-                        onChange: (ie) => H(ie.target.value),
-                        className:
-                          "w-full p-2 bg-primary text-dark-text rounded border border-border-color text-sm",
-                        children: [
-                          c.jsx("option", {
-                            value: "Vietnamese",
-                            children: "Tiếng Việt",
-                          }),
-                          c.jsx("option", {
-                            value: "English",
-                            children: "Tiếng Anh (Quốc tế)",
-                          }),
-                        ],
+                        value: I, onChange: (ie) => H(ie.target.value), className: "w-full p-2 bg-primary text-dark-text rounded border border-border-color text-sm", children: [
+                          c.jsx("option", { value: "Vietnamese", children: tr("thumbnail.langVi") }),
+                          c.jsx("option", { value: "English", children: tr("thumbnail.langEn") }),
+                        ]
                       }),
-                    ],
+                    ]
                   }),
                 ],
               }),
             ],
           }),
-          // Box 3: Prompt & Button (Sử dụng Flex-1 để lấp đầy không gian)
           c.jsxs("div", {
-            className:
-              "flex-1 flex flex-col bg-secondary p-4 rounded-lg shadow-md",
+            className: "flex-1 flex flex-col bg-secondary p-4 rounded-lg shadow-md",
             children: [
               c.jsxs("label", {
-                className:
-                  "block text-xs font-medium text-dark-text mb-1 flex justify-between",
+                className: "block text-xs font-medium text-dark-text mb-1 flex justify-between",
                 children: [
-                  c.jsx("span", {
-                    children: "Prompt gửi đi (Tự động tạo & Tối ưu)",
-                  }),
-                  c.jsx("span", {
-                    className:
-                      "text-accent text-xs cursor-pointer hover:underline",
-                    onClick: () => {
-                      navigator.clipboard.writeText(U);
-                      s("Đã sao chép prompt", "info");
-                    },
-                    children: "Sao chép",
-                  }),
+                  c.jsx("span", { children: tr("thumbnail.promptToSend") }),
+                  c.jsx("span", { className: "text-accent text-xs cursor-pointer hover:underline", onClick: () => { navigator.clipboard.writeText(U); s(tr("thumbnail.promptCopied"), "info"); }, children: tr("thumbnail.copy") }),
                 ],
               }),
-              c.jsx("textarea", {
-                value: U,
-                onChange: (ie) => B(ie.target.value),
-                className:
-                  "flex-1 w-full p-3 bg-primary text-dark-text rounded border border-border-color focus:border-accent outline-none resize-none text-xs font-mono",
-                placeholder:
-                  "Prompt sẽ xuất hiện ở đây sau khi bạn chọn câu chuyện...",
-              }),
-
-              // --- [BẮT ĐẦU CHÈN GIAO DIỆN COMPACT] ---
+              c.jsx("textarea", { value: U, onChange: (ie) => B(ie.target.value), className: "flex-1 w-full p-3 bg-primary text-dark-text rounded border border-border-color focus:border-accent outline-none resize-none text-xs font-mono", placeholder: tr("thumbnail.promptPlaceholder") }),
               c.jsxs("div", {
-                className:
-                  "mt-3 mb-3 p-2 bg-primary/30 rounded border border-border-color/50",
+                className: "mt-3 mb-3 p-2 bg-primary/30 rounded border border-border-color/50",
                 children: [
                   c.jsxs("div", {
-                    className: "flex items-center justify-between",
-                    children: [
+                    className: "flex items-center justify-between", children: [
                       c.jsxs("label", {
-                        className: "flex items-center cursor-pointer gap-2",
-                        children: [
+                        className: "flex items-center cursor-pointer gap-2", children: [
                           c.jsxs("div", {
-                            className: "relative",
-                            children: [
-                              c.jsx("input", {
-                                type: "checkbox",
-                                className: "sr-only peer",
-                                checked: useInputImage,
-                                onChange: (e) =>
-                                  setUseInputImage(e.target.checked),
-                                disabled: z,
-                              }),
-                              c.jsx("div", {
-                                className:
-                                  "block bg-gray-700 w-7 h-4 rounded-full peer-checked:bg-purple-600 transition",
-                              }),
-                              c.jsx("div", {
-                                className:
-                                  "absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition peer-checked:translate-x-full",
-                              }),
-                            ],
+                            className: "relative", children: [
+                              c.jsx("input", { type: "checkbox", className: "sr-only peer", checked: useInputImage, onChange: (e) => setUseInputImage(e.target.checked), disabled: z }),
+                              c.jsx("div", { className: "block bg-gray-700 w-7 h-4 rounded-full peer-checked:bg-purple-600 transition" }),
+                              c.jsx("div", { className: "absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition peer-checked:translate-x-full" }),
+                            ]
                           }),
-                          c.jsx("span", {
-                            className: "text-xs font-semibold text-gray-300",
-                            children: "Ảnh tham chiếu",
-                          }),
-                        ],
+                          c.jsx("span", { className: "text-xs font-semibold text-gray-300", children: tr("thumbnail.refImage") }),
+                        ]
                       }),
-                      useInputImage &&
-                      inputImageData &&
-                      c.jsx("button", {
-                        onClick: () => setInputImageData(null),
-                        className:
-                          "text-[10px] text-red-400 hover:text-red-300 hover:underline",
-                        children: "Xóa",
-                      }),
-                    ],
+                      useInputImage && inputImageData && c.jsx("button", { onClick: () => setInputImageData(null), className: "text-[10px] text-red-400 hover:text-red-300 hover:underline", children: tr("thumbnail.delete") }),
+                    ]
                   }),
-
-                  useInputImage &&
-                  c.jsxs("div", {
-                    className:
-                      "mt-2 relative w-full h-20 border border-dashed border-gray-600 rounded bg-black/20 flex flex-col items-center justify-center hover:bg-white/5 transition group overflow-hidden",
+                  useInputImage && c.jsxs("div", {
+                    className: "mt-2 relative w-full h-20 border border-dashed border-gray-600 rounded bg-black/20 flex flex-col items-center justify-center hover:bg-white/5 transition group overflow-hidden",
                     children: [
-                      inputImageData
-                        ? c.jsx("img", {
-                          src: inputImageData,
-                          className:
-                            "w-full h-full object-contain opacity-80 group-hover:opacity-100 transition",
-                        })
-                        : c.jsxs("div", {
-                          className:
-                            "text-center pointer-events-none flex items-center gap-2",
-                          children: [
-                            c.jsx(Ua, {
-                              className: "w-4 h-4 text-gray-500",
-                            }),
-                            c.jsx("span", {
-                              className: "text-[10px] text-gray-500",
-                              children: "Chọn ảnh...",
-                            }),
-                          ],
-                        }),
-                      !inputImageData &&
-                      c.jsx("input", {
-                        type: "file",
-                        accept: "image/*",
-                        className:
-                          "absolute inset-0 opacity-0 cursor-pointer",
-                        onChange: (e) => {
+                      inputImageData ? c.jsx("img", { src: inputImageData, className: "w-full h-full object-contain opacity-80 group-hover:opacity-100 transition" }) : c.jsxs("div", {
+                        className: "text-center pointer-events-none flex items-center gap-2", children: [
+                          c.jsx(Ua, { className: "w-4 h-4 text-gray-500" }),
+                          c.jsx("span", { className: "text-[10px] text-gray-500", children: tr("thumbnail.selectImage") }),
+                        ]
+                      }),
+                      !inputImageData && c.jsx("input", {
+                        type: "file", accept: "image/*", className: "absolute inset-0 opacity-0 cursor-pointer", onChange: (e) => {
                           const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () =>
-                              setInputImageData(reader.result);
-                            reader.readAsDataURL(file);
-                          }
-                        },
+                          if (file) { const reader = new FileReader(); reader.onloadend = () => setInputImageData(reader.result); reader.readAsDataURL(file); }
+                        }
                       }),
                     ],
                   }),
                 ],
               }),
-              // --- [KẾT THÚC CHÈN] ---
-
               c.jsxs("button", {
                 onClick: W,
                 disabled: z || !U.trim(),
-                className:
-                  "mt-4 w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]",
+                className: "mt-4 w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]",
                 children: [
-                  z
-                    ? c.jsx(Ut, {
-                      className: "w-5 h-5 text-white animate-spin",
-                    })
-                    : c.jsx("svg", {
-                      xmlns: "http://www.w3.org/2000/svg",
-                      className: "h-5 w-5",
-                      fill: "none",
-                      viewBox: "0 0 24 24",
-                      stroke: "currentColor",
-                      children: c.jsx("path", {
-                        strokeLinecap: "round",
-                        strokeLinejoin: "round",
-                        strokeWidth: "2",
-                        d: "M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z",
-                      }),
-                    }),
-                  z ? X || "Đang xử lý..." : "Tạo Thumbnail Ngay",
+                  z ? c.jsx(Ut, { className: "w-5 h-5 text-white animate-spin" }) : c.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-5 w-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" }) }),
+                  z ? (X || tr("thumbnail.processing")) : tr("thumbnail.createBtn"),
                 ],
               }),
             ],
           }),
         ],
       }),
-      // CỘT PHẢI (Kết quả - Full chiều cao)
       c.jsxs("div", {
-        className:
-          "lg:w-1/2 flex flex-col h-full bg-secondary p-4 rounded-lg shadow-md overflow-hidden",
+        className: "lg:w-1/2 flex flex-col h-full bg-secondary p-4 rounded-lg shadow-md overflow-hidden",
         children: [
           c.jsxs("h3", {
-            className:
-              "text-lg font-bold text-light mb-4 border-b border-border-color pb-2 flex justify-between items-center",
+            className: "text-lg font-bold text-light mb-4 border-b border-border-color pb-2 flex justify-between items-center",
             children: [
-              c.jsx("span", {
-                children: tr("common.results"),
-              }),
-              _ &&
-              c.jsxs("span", {
-                className:
-                  "text-xs font-normal text-green-500 flex items-center gap-1",
-                children: [
-                  c.jsx("span", {
-                    className: "w-2 h-2 rounded-full bg-green-500",
-                  }),
-                  " Hoàn thành",
-                ],
+              c.jsx("span", { children: tr("common.results") }),
+              _ && c.jsxs("span", {
+                className: "text-xs font-normal text-green-500 flex items-center gap-1", children: [
+                  c.jsx("span", { className: "w-2 h-2 rounded-full bg-green-500" }),
+                  tr("thumbnail.success").replace("!", ""),
+                ]
               }),
             ],
-          }), // Khung ảnh
+          }),
           c.jsxs("div", {
-            className:
-              "flex-1 flex items-center justify-center bg-black/20 rounded-lg border-2 border-dashed border-border-color relative overflow-hidden group",
+            className: "flex-1 flex items-center justify-center bg-black/20 rounded-lg border-2 border-dashed border-border-color relative overflow-hidden group",
             children: [
-              z
-                ? c.jsxs("div", {
-                  className: "flex flex-col items-center animate-fade-in",
-                  children: [
-                    c.jsxs("div", {
-                      className: "relative w-16 h-16 mb-4",
-                      children: [
-                        c.jsx("div", {
-                          className:
-                            "absolute inset-0 border-4 border-accent/30 rounded-full animate-pulse",
-                        }),
-                        c.jsx("div", {
-                          className:
-                            "absolute inset-0 border-4 border-t-accent rounded-full animate-spin",
-                        }),
-                      ],
-                    }),
-                    c.jsx("p", {
-                      className: "text-light font-bold text-lg",
-                      children: X,
-                    }),
-                    c.jsx("p", {
-                      className: "text-dark-text text-sm mt-2",
-                      children: "Đang kiểm tra...",
-                    }),
-                  ],
-                })
-                : _
-                  ? c.jsx("img", {
-                    src: _,
-                    alt: "Thumbnail Result",
-                    className: "w-full h-full object-contain shadow-2xl",
-                  })
-                  : c.jsxs("div", {
-                    className: "text-center text-gray-500",
-                    children: [
-                      c.jsx("svg", {
-                        xmlns: "http://www.w3.org/2000/svg",
-                        className: "h-16 w-16 mx-auto mb-2 opacity-30",
-                        fill: "none",
-                        viewBox: "0 0 24 24",
-                        stroke: "currentColor",
-                        children: c.jsx("path", {
-                          strokeLinecap: "round",
-                          strokeLinejoin: "round",
-                          strokeWidth: "1",
-                          d: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
-                        }),
-                      }),
-                      c.jsx("p", {
-                        className: "font-medium",
-                        children: "Chưa có ảnh nào được tạo",
-                      }),
-                      c.jsx("p", {
-                        className: "text-xs mt-1",
-                        children: "Chọn câu chuyện và nhấn nút Tạo bên trái",
-                      }),
-                    ],
-                  }), // Hover overlay tải về
-              _ &&
-              !z &&
-              c.jsxs("div", {
-                className:
-                  "absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-4 backdrop-blur-sm",
+              z ? c.jsxs("div", {
+                className: "flex flex-col items-center animate-fade-in", children: [
+                  c.jsxs("div", {
+                    className: "relative w-16 h-16 mb-4", children: [
+                      c.jsx("div", { className: "absolute inset-0 border-4 border-accent/30 rounded-full animate-pulse" }),
+                      c.jsx("div", { className: "absolute inset-0 border-4 border-t-accent rounded-full animate-spin" }),
+                    ]
+                  }),
+                  c.jsx("p", { className: "text-light font-bold text-lg", children: X }),
+                  c.jsx("p", { className: "text-dark-text text-sm mt-2", children: tr("thumbnail.checking") }),
+                ]
+              }) : _ ? c.jsx("img", { src: _, alt: "Thumbnail Result", className: "w-full h-full object-contain shadow-2xl" }) : c.jsxs("div", {
+                className: "text-center text-gray-500", children: [
+                  c.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-16 w-16 mx-auto mb-2 opacity-30", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "1", d: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" }) }),
+                  c.jsx("p", { className: "font-medium", children: tr("thumbnail.emptyState") }),
+                  c.jsx("p", { className: "text-xs mt-1", children: tr("thumbnail.emptyHint") }),
+                ]
+              }),
+              _ && !z && c.jsxs("div", {
+                className: "absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-4 backdrop-blur-sm",
                 children: [
                   c.jsxs("button", {
-                    onClick: Ce,
-                    className:
-                      "bg-white text-gray-900 font-bold py-3 px-8 rounded-full hover:bg-blue-50 flex items-center gap-2 transform hover:scale-105 transition-all shadow-lg",
-                    children: [
-                      c.jsx("svg", {
-                        xmlns: "http://www.w3.org/2000/svg",
-                        className: "h-5 w-5",
-                        fill: "none",
-                        viewBox: "0 0 24 24",
-                        stroke: "currentColor",
-                        children: c.jsx("path", {
-                          strokeLinecap: "round",
-                          strokeLinejoin: "round",
-                          strokeWidth: "2",
-                          d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
-                        }),
-                      }),
-                      "Tải về máy",
-                    ],
+                    onClick: Ce, className: "bg-white text-gray-900 font-bold py-3 px-8 rounded-full hover:bg-blue-50 flex items-center gap-2 transform hover:scale-105 transition-all shadow-lg", children: [
+                      c.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-5 w-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" }) }),
+                      tr("thumbnail.download"),
+                    ]
                   }),
-                  c.jsx("p", {
-                    className:
-                      "text-white/90 text-xs bg-black/70 px-4 py-2 rounded-xl text-center max-w-[90%] break-words leading-tight shadow-sm",
-                    children:
-                      "Vui lòng tải về máy ngay khi tạo xong, ảnh tạo xong không được lưu",
-                  }),
+                  c.jsx("p", { className: "text-white/90 text-xs bg-black/70 px-4 py-2 rounded-xl text-center max-w-[90%] break-words leading-tight shadow-sm", children: tr("thumbnail.downloadHint") }),
                 ],
               }),
             ],
@@ -35886,261 +35181,60 @@ const ak = async (t) => {
   Ga =
     "w-full p-3 bg-primary rounded-md border border-border-color focus:ring-2 focus:ring-accent focus:outline-none transition text-sm text-light placeholder:text-dark-text",
   pg = `${Ga} appearance-none`,
-  mk = ({
-    task: t,
-    index: e,
-    onUpdateTask: s,
-    onToggleSelect: i,
-    onRunTask: r,
-    onRemoveTask: f,
-    isRunning: h,
-    isProUser: p,
-  }) => {
-    const { showToast: x } = _t(),
-      g = () => {
-        switch (t.status) {
-          case "success":
-            return c.jsx("span", {
-              className:
-                "text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full",
-              children: t.message || "Thành công!",
-            });
-          case "processing":
-            return c.jsx("span", {
-              className:
-                "text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full",
-              children: t.message || "Đang xử lý...",
-            });
-          case "failed":
-            return c.jsx("span", {
-              className:
-                "text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full",
-              children: t.message || "Thất bại",
-            });
-          case "queued":
-            return c.jsx("span", {
-              className:
-                "text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full",
-              children: t.message || "Đang chờ...",
-            });
-          default:
-            const b =
-              t.error === "Đã hủy" || t.error === "Đã dừng"
-                ? t.error
-                : "Sẵn sàng";
-            return c.jsx("span", {
-              className: `text-xs font-bold px-2 py-0.5 rounded-full ${t.error
-                ? "text-gray-500 bg-gray-200"
-                : "text-gray-600 bg-gray-100"
-                }`,
-              children: t.message || b,
-            });
-        }
-      },
-      v = () => {
-        if (t.imageUrl) {
-          const b =
-            t.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, "_") ||
-            `whisk_${t.seed}`;
-          window.electronAPI.downloadImage({
-            imageDataUrl: t.imageUrl,
-            storyTitle: b,
-          });
-        } else x("Không tìm thấy ảnh để tải.", "error");
-      };
+  mk = ({ task: t, index: e, onUpdateTask: s, onToggleSelect: i, onRunTask: r, onRemoveTask: f, isRunning: h, isProUser: p }) => {
+    const { showToast: x } = _t();
+    const { t: tr } = so();
+    const isVi = tr("sidebar.dashboard") === "Tổng quan";
+    const trMsg = (m) => {
+      if (!m) return "";
+      const l = m.toLowerCase();
+      if (l.includes("sẵn sàng") || l.includes("ready")) return tr("common.status.ready");
+      if (l.includes("đang chờ") || l.includes("queued") || l.includes("pending")) return tr("common.status.queued");
+      if (l.includes("xử lý") || l.includes("processing")) return tr("common.status.processing");
+      if (l.includes("hoàn thành") || l.includes("thành công") || l.includes("success") || l.includes("completed")) return tr("common.status.success");
+      if (l.includes("thất bại") || l.includes("failed")) return tr("common.status.failed");
+      if (l.includes("đã dừng") || l.includes("stopped")) return tr("common.status.stopped");
+      return m;
+    };
+    const msg = trMsg(t.message);
+    const g = () => {
+      switch (t.status) {
+        case "success": return c.jsx("span", { className: "text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full", children: msg || tr("common.status.success") });
+        case "processing": return c.jsx("span", { className: "text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full", children: msg || tr("common.status.processing") });
+        case "failed": return c.jsx("span", { className: "text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full", children: msg || tr("common.status.failed") });
+        case "queued": return c.jsx("span", { className: "text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full", children: msg || tr("common.status.queued") });
+        default: return c.jsx("span", { className: `text-xs font-bold px-2 py-0.5 rounded-full ${t.error ? "text-gray-500 bg-gray-200" : "text-gray-600 bg-gray-100"}`, children: t.error === "Đã hủy" || t.error === "Đã dừng" ? tr("common.status.stopped") : (msg || tr("common.status.ready")) });
+      }
+    };
+    const v = () => {
+      if (t.imageUrl) {
+        const b = t.prompt.substring(0, 30).replace(/[^a-z0-9]/gi, "_") || `whisk_${t.seed}`;
+        window.electronAPI.downloadImage({ imageDataUrl: t.imageUrl, storyTitle: b });
+      } else x(isVi ? "Không tìm thấy ảnh để tải." : "Image not found.", "error");
+    };
     return c.jsxs("div", {
-      className:
-        "border border-border-color rounded-lg shadow-sm bg-secondary overflow-hidden flex flex-col",
+      className: "border border-border-color rounded-lg shadow-sm bg-secondary overflow-hidden flex flex-col",
       children: [
+        c.jsxs("div", { className: "flex items-center justify-between p-3 border-b border-border-color bg-primary", children: [c.jsxs("div", { className: "flex items-center gap-2", children: [c.jsx("input", { type: "checkbox", id: `check-${t.id}`, checked: t.isSelected, onChange: () => i(t.id), className: "h-4 w-4 rounded border-border-color text-accent focus:ring-accent" }), c.jsx("label", { htmlFor: `check-${t.id}`, className: "font-semibold text-light text-sm", children: `${tr("whisk.item.imageNum").replace("{num}", e + 1)}` })] }), g()] }),
         c.jsxs("div", {
-          className:
-            "flex items-center justify-between p-3 border-b border-border-color bg-primary",
+          className: "aspect-video w-full bg-primary flex items-center justify-center relative group",
           children: [
-            c.jsxs("div", {
-              className: "flex items-center gap-2",
-              children: [
-                c.jsx("input", {
-                  type: "checkbox",
-                  id: `check-${t.id}`,
-                  checked: t.isSelected,
-                  onChange: () => i(t.id),
-                  className:
-                    "h-4 w-4 rounded border-border-color text-accent focus:ring-accent",
-                }),
-                c.jsxs("label", {
-                  htmlFor: `check-${t.id}`,
-                  className: "font-semibold text-light text-sm",
-                  children: ["Hình ảnh #", e + 1],
-                }),
-              ],
-            }),
-            g(),
-          ],
+            t.status === "processing" && c.jsxs("div", { className: "flex flex-col items-center justify-center gap-2 text-dark-text", children: [c.jsx(Gm, { className: "h-10 w-10 animate-spin text-accent" }), c.jsx("span", { className: "font-bold", children: msg || tr("common.status.processing") })] }),
+            t.status === "success" && t.imageUrl && c.jsxs(c.Fragment, { children: [c.jsx("img", { src: t.imageUrl, alt: "Result", className: "w-full h-full object-contain" }), c.jsx("div", { className: "absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none", children: c.jsxs("button", { onClick: v, className: "bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-1 pointer-events-auto", children: [c.jsx(nb, { className: "h-4 w-4" }), tr("whisk.item.download")] }) })] }),
+            t.status === "success" && !t.imageUrl && c.jsxs("div", { className: "flex flex-col items-center gap-2 text-green-600 p-4", children: [c.jsx(Ov, { className: "h-10 w-10" }), c.jsx("span", { className: "text-sm font-bold", children: tr("common.status.success") }), c.jsx("p", { className: "text-xs text-center", children: isVi ? "(Ảnh cũ)" : "(Old Image)" })] }),
+            t.status === "failed" && c.jsxs("div", { className: "flex flex-col items-center gap-2 text-red-500 p-4", children: [c.jsx(jb, { className: "h-10 w-10" }), c.jsx("span", { className: "text-sm font-bold", children: msg || tr("common.status.failed") }), c.jsx("p", { className: "text-xs text-center", children: t.error })] }),
+            (t.status === "idle" || t.status === "queued") && c.jsxs("div", { className: "flex flex-col items-center gap-2 text-dark-text opacity-50", children: [c.jsx(Pu, { className: "h-10 w-10" }), c.jsx("span", { className: "font-bold", children: msg || tr("common.status.ready") })] }),
+          ]
         }),
-        c.jsxs("div", {
-          className:
-            "aspect-video w-full bg-primary flex items-center justify-center relative group",
-          children: [
-            t.status === "processing" &&
-            c.jsxs("div", {
-              className:
-                "flex flex-col items-center justify-center gap-2 text-dark-text",
-              children: [
-                c.jsx(Gm, {
-                  className: "h-10 w-10 animate-spin text-accent",
-                }),
-                c.jsx("span", {
-                  className: "font-bold",
-                  children: t.message || "Đang xử lý...",
-                }),
-              ],
-            }),
-            t.status === "success" &&
-            t.imageUrl &&
-            c.jsxs(c.Fragment, {
-              children: [
-                c.jsx("img", {
-                  src: t.imageUrl,
-                  alt: "Kết quả",
-                  className: "w-full h-full object-contain",
-                }),
-                c.jsx("div", {
-                  className:
-                    "absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
-                  children: c.jsxs("button", {
-                    onClick: v,
-                    className:
-                      "bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-1 pointer-events-auto",
-                    children: [
-                      c.jsx(nb, {
-                        className: "h-4 w-4",
-                      }),
-                      "Tải về",
-                    ],
-                  }),
-                }),
-              ],
-            }),
-            t.status === "success" &&
-            !t.imageUrl &&
-            c.jsxs("div", {
-              className:
-                "flex flex-col items-center gap-2 text-green-600 p-4",
-              children: [
-                c.jsx(Ov, {
-                  className: "h-10 w-10",
-                }),
-                c.jsx("span", {
-                  className: "text-sm font-bold",
-                  children: "Hoàn thành",
-                }),
-                c.jsx("p", {
-                  className: "text-xs text-center",
-                  children: "(Ảnh cũ)",
-                }),
-              ],
-            }),
-            t.status === "failed" &&
-            c.jsxs("div", {
-              className: "flex flex-col items-center gap-2 text-red-500 p-4",
-              children: [
-                c.jsx(jb, {
-                  className: "h-10 w-10",
-                }),
-                c.jsx("span", {
-                  className: "text-sm font-bold",
-                  children: t.message || "Thất bại",
-                }),
-                c.jsx("p", {
-                  className: "text-xs text-center",
-                  children: t.error,
-                }),
-              ],
-            }),
-            (t.status === "idle" || t.status === "queued") &&
-            c.jsxs("div", {
-              className:
-                "flex flex-col items-center gap-2 text-dark-text opacity-50",
-              children: [
-                c.jsx(Pu, {
-                  className: "h-10 w-10",
-                }),
-                c.jsx("span", {
-                  className: "font-bold",
-                  children: t.message || "Sẵn sàng",
-                }),
-              ],
-            }),
-          ],
-        }),
-        c.jsx("div", {
-          className: "p-3 space-y-3",
-          children: c.jsxs("div", {
-            children: [
-              c.jsx("label", {
-                htmlFor: `prompt-${t.id}`,
-                className: "block text-xs font-medium text-dark-text mb-1",
-                children: "Prompt",
-              }),
-              c.jsx("textarea", {
-                id: `prompt-${t.id}`,
-                value: t.prompt,
-                onChange: (b) =>
-                  s(t.id, {
-                    prompt: b.target.value,
-                  }),
-                placeholder:
-                  "Một người phụ nữ siêu thực mặc áo choàng làm bằng nước...",
-                rows: 4,
-                className: Ga,
-                disabled: h || t.status === "processing",
-              }),
-            ],
-          }),
-        }),
-        c.jsxs("div", {
-          className:
-            "flex items-center justify-end gap-2 p-3 border-t border-border-color",
-          children: [
-            c.jsx("button", {
-              type: "button",
-              onClick: () => f(t.id),
-              disabled: h || t.status === "processing",
-              className: `${Hn} ${sl} text-xs py-1 px-2`,
-              children: c.jsx($a, {
-                className: "h-4 w-4",
-              }),
-            }),
-            c.jsxs("button", {
-              type: "button",
-              onClick: () => r(t.id, e),
-              disabled: h || t.status === "processing" || !t.prompt || !p,
-              title: p
-                ? t.status === "success" || t.status === "failed"
-                  ? "Chạy Lại"
-                  : "Chạy"
-                : "Tính năng Pro: Yêu cầu nâng cấp gói",
-              className: `${Hn} ${Tx} text-xs py-1 px-2`,
-              children: [
-                t.status === "processing"
-                  ? c.jsx(Gm, {
-                    className: "mr-1 h-4 w-4 animate-spin",
-                  })
-                  : c.jsx(Ps, {
-                    className: "mr-1 h-4 w-4",
-                  }),
-                t.status === "success" || t.status === "failed"
-                  ? "Chạy Lại"
-                  : "Chạy",
-              ],
-            }),
-          ],
-        }),
-      ],
+        c.jsx("div", { className: "p-3 space-y-3", children: c.jsxs("div", { children: [c.jsx("label", { htmlFor: `prompt-${t.id}`, className: "block text-xs font-medium text-dark-text mb-1", children: "Prompt" }), c.jsx("textarea", { id: `prompt-${t.id}`, value: t.prompt, onChange: (b) => s(t.id, { prompt: b.target.value }), placeholder: tr("whisk.item.promptPlaceholder"), rows: 4, className: Ga, disabled: h || t.status === "processing" })] }) }),
+        c.jsxs("div", { className: "flex items-center justify-end gap-2 p-3 border-t border-border-color", children: [c.jsx("button", { type: "button", onClick: () => f(t.id), disabled: h || t.status === "processing", className: `${Hn} ${sl} text-xs py-1 px-2`, children: c.jsx($a, { className: "h-4 w-4" }) }), c.jsxs("button", { type: "button", onClick: () => r(t.id, e), disabled: h || t.status === "processing" || !t.prompt || !p, title: p ? (t.status === "success" || t.status === "failed" ? tr("whisk.item.retry") : tr("whisk.item.run")) : (isVi ? "Tính năng Pro: Yêu cầu nâng cấp gói" : "Pro feature: Upgrade required"), className: `${Hn} ${Tx} text-xs py-1 px-2`, children: [t.status === "processing" ? c.jsx(Gm, { className: "mr-1 h-4 w-4 animate-spin" }) : c.jsx(Ps, { className: "mr-1 h-4 w-4" }), t.status === "success" || t.status === "failed" ? tr("whisk.item.retry") : tr("whisk.item.run")] })] }),
+      ]
     });
   },
+
   pk = ({ setActiveView: t }) => {
-    // THAY ĐỔI 1: Thêm 'cookies' vào đây để lấy danh sách cookie
+    const { t: tr } = so();
+    const isVi = tr("sidebar.dashboard") === "Tổng quan";
     const {
       addWhiskImage: e,
       currentUser: s,
@@ -36152,658 +35246,256 @@ const ak = async (t) => {
       whiskAutoSaveConfig: x,
       setWhiskAutoSaveConfig: g,
       activeCookie: activeCookie,
-      cookies: cookieList, // Lấy danh sách cookies từ store
+      cookies: cookieList,
     } = jt(),
       { showToast: v } = _t(),
       { tasks: b, isRunning: T, autoRetry: autoRetryState } = f,
       S = A.useRef(b);
+
     A.useEffect(() => {
       S.current = b;
     }, [b]);
+
     const [E, R] = A.useState(!1),
       [G, H] = A.useState([]),
       L = "Gói Cá Nhân/1 Máy",
       V = A.useMemo(
-        () =>
-          !s ||
-            !s.subscription ||
-            s.user.status !== "active" ||
-            new Date(s.subscription.end_date) < new Date()
-            ? !1
-            : s.subscription.package_name !== L,
+        () => !s || !s.subscription || s.user.status !== "active" || new Date(s.subscription.end_date) < new Date() ? !1 : s.subscription.package_name !== L,
         [s]
       ),
       _ = () => {
-        v(
-          "Tính năng này yêu cầu Gói Pro hoặc cao hơn. Vui lòng nâng cấp.",
-          "info"
-        ),
-          t(je.PACKAGES);
+        v(isVi ? "Tính năng này yêu cầu Gói Pro hoặc cao hơn. Vui lòng nâng cấp." : "This feature requires Pro Plan. Please upgrade.", "info");
+        t(je.PACKAGES);
       },
-      P = A.useCallback(
-        (I) => {
-          h((de) => ({
-            ...de,
-            tasks: typeof I == "function" ? I(de.tasks) : I,
-          }));
-        },
-        [h]
-      ),
-      Q = A.useCallback(
-        (I) => {
-          h((de) => ({
-            ...de,
-            isRunning: I,
-          }));
-        },
-        [h]
-      ),
+      P = A.useCallback((I) => { h((de) => ({ ...de, tasks: typeof I == "function" ? I(de.tasks) : I })); }, [h]),
+      Q = A.useCallback((I) => { h((de) => ({ ...de, isRunning: I })); }, [h]),
       [ne, J] = A.useState(3),
       le = A.useRef(!1),
       [be, Me] = A.useState(V ? 3 : 1),
       [Re, $e] = A.useState("LANDSCAPE"),
       [se, U] = A.useState(() => Math.floor(Math.random() * 1e6)),
       [model, setModel] = A.useState("IMAGEN_3_5");
+
     const K = model === "GEM_PIX_2" ? 5 : 3;
+
+    A.useEffect(() => { Me(V ? (I) => (I > 0 ? I : 3) : 1); }, [V]);
+    const ee = () => { U(Math.floor(Math.random() * 1e6)); };
+
     A.useEffect(() => {
-      Me(V ? (I) => (I > 0 ? I : 3) : 1);
-    }, [V]);
-    const ee = () => {
-      U(Math.floor(Math.random() * 1e6));
-    };
-    A.useEffect(() => {
-      const I = window.electronAPI.onDownloadComplete(
-        ({ success: de, path: Ce, error: Le }) => {
-          de && Ce
-            ? v(`Đã lưu ảnh thủ công vào: ${Ce}`, "success")
-            : !de &&
-            Le &&
-            Le !== "Download canceled" &&
-            v(`Lỗi lưu ảnh: ${Le}`, "error");
-        }
-      );
+      const I = window.electronAPI.onDownloadComplete(({ success: de, path: Ce, error: Le }) => {
+        de && Ce ? v(isVi ? `Đã lưu ảnh thủ công vào: ${Ce}` : `Saved image to: ${Ce}`, "success") : !de && Le && Le !== "Download canceled" && v(`${isVi ? "Lỗi lưu ảnh" : "Save error"}: ${Le}`, "error");
+      });
       return () => I();
     }, [v]);
+
     const fe = A.useMemo(() => {
-      const I = i.map((Le) => ({
-        id: Le.id,
-        title: Le.title,
-      })),
-        de = new Map();
-      r.forEach((Le) => {
-        Le.storyId.startsWith("manual-") &&
-          (de.has(Le.storyId) || de.set(Le.storyId, Le.storyTitle));
-      });
-      const Ce = Array.from(de.entries()).map(([Le, _e]) => ({
-        id: Le,
-        title: _e,
-      }));
+      const I = i.map((Le) => ({ id: Le.id, title: Le.title })), de = new Map();
+      r.forEach((Le) => { Le.storyId.startsWith("manual-") && (de.has(Le.storyId) || de.set(Le.storyId, Le.storyTitle)); });
+      const Ce = Array.from(de.entries()).map(([Le, _e]) => ({ id: Le, title: _e }));
       return [...I, ...Ce].sort((Le, _e) => _e.id.localeCompare(Le.id));
-    }, [i, r]),
-      ke = (I) => {
-        if (!I) return;
-        const de = r.filter((Le) => Le.storyId === I);
-        if (de.length === 0) {
-          v("Không tìm thấy prompt nào cho câu chuyện này.", "info");
-          return;
-        }
-        const Ce = de.map((Le) => {
-          // --- LOGIC LÀM SẠCH PROMPT ---
-          let originalPrompt = Le.prompt || "";
-          let charBlock = "";
+    }, [i, r]);
 
-          // [FIX] Trích xuất block nhân vật nếu có để giữ tính đồng nhất
-          if (originalPrompt.includes("[CHARACTERS Description]")) {
-            const startIdx = originalPrompt.indexOf("[CHARACTERS Description]");
-            const endIdx = originalPrompt.indexOf("[END CHARACTERS Description]");
-            if (startIdx !== -1 && endIdx !== -1) {
-              charBlock = originalPrompt.substring(startIdx, endIdx + "[END CHARACTERS Description]".length);
+    const ke = (I) => {
+      if (!I) return;
+      const de = r.filter((Le) => Le.storyId === I);
+      if (de.length === 0) {
+        v(isVi ? "Không tìm thấy prompt nào cho câu chuyện này." : "No prompts found for this story.", "info");
+        return;
+      }
+      const Ce = de.map((Le) => {
+        let originalPrompt = Le.prompt || "";
+        let charBlock = "";
+        if (originalPrompt.includes("[CHARACTERS Description]")) {
+          const startIdx = originalPrompt.indexOf("[CHARACTERS Description]");
+          const endIdx = originalPrompt.indexOf("[END CHARACTERS Description]");
+          if (startIdx !== -1 && endIdx !== -1) {
+            charBlock = originalPrompt.substring(startIdx, endIdx + "[END CHARACTERS Description]".length);
+          }
+        }
+        let cleanPrompt = originalPrompt;
+        const startRegex = /SCENE\s+\d+:\s*/i;
+        const startMatch = cleanPrompt.match(startRegex);
+        if (startMatch) { cleanPrompt = cleanPrompt.substring(startMatch.index + startMatch[0].length).trim(); }
+        const endRegex = /(AUDIO|DIALOGUE|VISUAL FX):/i;
+        const endMatchIndex = cleanPrompt.search(endRegex);
+        if (endMatchIndex !== -1) { cleanPrompt = cleanPrompt.substring(0, endMatchIndex).trim(); }
+        if (charBlock) { cleanPrompt = charBlock + "\n\n" + cleanPrompt; }
+        return { id: crypto.randomUUID(), prompt: cleanPrompt, aspectRatio: Re, seed: se, status: "idle", imageUrl: null, error: null, workflowId: null, isSelected: !1, message: isVi ? "Sẵn sàng" : "Ready" };
+      });
+      P(Ce);
+      v(isVi ? `Đã tải ${Ce.length} prompt (Đã lọc Scene/Audio/Dialogue).` : `Loaded ${Ce.length} prompts.`, "success");
+    };
+
+    const w = async () => {
+      if (T) return;
+      const I = await window.electronAPI.importPromptsFromFile();
+      if (I.success && I.prompts) {
+        const de = I.prompts.map((Ce) => ({ id: crypto.randomUUID(), prompt: Ce, aspectRatio: Re, seed: se, status: "idle", imageUrl: null, error: null, workflowId: null, isSelected: !1, message: isVi ? "Sẵn sàng" : "Ready" }));
+        P((Ce) => [...Ce, ...de]);
+        v(isVi ? `Đã nhập ${de.length} prompt từ file TXT.` : `Imported ${de.length} prompts.`, "success");
+      } else I.error && I.error !== "No file selected" && v((isVi ? "Lỗi nhập file: " : "Import error: ") + I.error, "error");
+    };
+
+    const B = () => { P((I) => [...I, { id: crypto.randomUUID(), prompt: "", aspectRatio: Re, seed: se, status: "idle", imageUrl: null, error: null, workflowId: null, isSelected: !1, message: isVi ? "Sẵn sàng" : "Ready" }]); };
+    const W = (I) => { P((de) => de.filter((Ce) => Ce.id !== I)); };
+    const oe = (I) => { const de = S.current.find((Ce) => Ce.id === I); de && p(I, { isSelected: !de.isSelected }); };
+    const we = (I) => { P((de) => de.map((Ce) => ({ ...Ce, isSelected: I }))); };
+    const Be = () => { const I = S.current.filter((de) => de.isSelected).length; I !== 0 && (P((de) => de.filter((Ce) => !Ce.isSelected)), v(isVi ? `Đã xóa ${I} tác vụ.` : `Deleted ${I} tasks.`, "info")); };
+
+    const Ve = async () => {
+      const I = await window.electronAPI.selectDownloadDirectory();
+      I && (g((de) => ({ ...de, path: I })), v(isVi ? `Đặt thư mục lưu tự động: ${I}` : `Auto-save folder set to: ${I}`, "success"));
+    };
+
+    const dt = A.useCallback((I, de) => {
+      const Ce = I.target.files?.[0];
+      if (Ce) {
+        const Le = new FileReader();
+        Le.onloadend = () => {
+          const _e = Le.result, he = _e.match(/^data:(image\/.+);base64,(.+)$/);
+          if (he && he[1] && he[2]) {
+            H((Ye) => Ye.map((tt) => tt.id === de ? { ...tt, file: Ce, base64: he[2], mimeType: he[1], preview: _e } : tt));
+          } else {
+            console.error("Lỗi đọc file, không thể bóc tách mimeType/base64.");
+            v(isVi ? "Lỗi đọc file, vui lòng thử ảnh khác." : "Error reading file.", "error");
+          }
+        };
+        Le.readAsDataURL(Ce);
+      }
+      I.target.value = "";
+    }, [v]);
+
+    const QQ = A.useCallback(async (t) => {
+      if (activeCookie && activeCookie.value && activeCookie.bearerToken) return activeCookie;
+      try { const e = await window.electronAPI.fetch("https://tainguyenweb.com/apiveo/prf2.php", null, { method: "GET", headers: { Authorization: `Bearer ${t}` } }); if (e.success && e.cookie?.value) return e.cookie; } catch { }
+      try { const e = await window.electronAPI.fetch("https://tainguyenweb.com/apiveo/prf2.php", null, { method: "GET", headers: { Authorization: `Bearer ${t}` } }); if (e.success && e.cookie?.value) return e.cookie; } catch { }
+      throw new Error(isVi ? "Không lấy được Cookie. Kiểm tra tài khoản." : "Cannot fetch Cookie.");
+    }, [activeCookie]);
+
+    const Qe = A.useCallback((I) => { H((de) => de.map((Ce) => Ce.id === I ? { ...Ce, file: null, base64: "", mimeType: "", preview: "", mediaGenerationId: void 0 } : Ce)); }, []);
+    const Ee = () => { G.length < K && H((I) => [...I, { id: crypto.randomUUID(), file: null, base64: "", mimeType: "", preview: "" }]); };
+
+    const ut = async (I, de, Ce, Le) => {
+      const _e = S.current.find((he) => he.id === I);
+      if (_e) {
+        if (!_e.prompt.trim()) throw (p(I, { status: "failed", error: isVi ? "Prompt trống" : "Empty prompt", message: isVi ? "Prompt trống" : "Empty prompt" }), new Error("Empty prompt"));
+        _e.status !== "processing" && p(I, { status: "processing", imageUrl: null, error: null, message: E ? (isVi ? "Đang tải ảnh..." : "Uploading image...") : (isVi ? "Đang tạo ảnh..." : "Generating...") });
+        try {
+          let he;
+          if (E) {
+            if (!V) throw new Error(isVi ? 'Tính năng "Dùng ảnh input" yêu cầu Gói Pro.' : 'Input image feature requires Pro.');
+            const tt = G.filter((Je) => Je.file && Je.base64 && Je.mimeType);
+            if (tt.length === 0) throw new Error(isVi ? 'Chưa chọn ảnh nào.' : 'No images selected.');
+            he = [];
+            for (let Je = 0; Je < tt.length; Je++) {
+              if (le.current) throw new Ds(isVi ? "Đã dừng" : "Stopped");
+              const et = tt[Je];
+              p(I, { message: isVi ? `Đang tải ảnh ${Je + 1}/${tt.length}...` : `Uploading image ${Je + 1}/${tt.length}...` });
+              const ft = await ck(Ce, de, et.base64, et.mimeType);
+              he.push(ft), H((Kt) => Kt.map((sn) => sn.id === et.id ? { ...sn, mediaGenerationId: ft } : sn));
             }
+            p(I, { message: isVi ? "Đang tạo ảnh từ input..." : "Generating from input..." });
           }
-
-          let cleanPrompt = originalPrompt;
-
-          // 1. CẮT ĐẦU: Bỏ "SCENE X:"
-          const startRegex = /SCENE\s+\d+:\s*/i;
-          const startMatch = cleanPrompt.match(startRegex);
-          if (startMatch) {
-            cleanPrompt = cleanPrompt
-              .substring(startMatch.index + startMatch[0].length)
-              .trim();
-          }
-
-          // 2. CẮT ĐUÔI: Bỏ AUDIO, DIALOGUE, VISUAL FX
-          const endRegex = /(AUDIO|DIALOGUE|VISUAL FX):/i;
-          const endMatchIndex = cleanPrompt.search(endRegex);
-
-          if (endMatchIndex !== -1) {
-            cleanPrompt = cleanPrompt.substring(0, endMatchIndex).trim();
-          }
-
-          // [FIX] Gắn lại block nhân vật vào đầu prompt đã làm sạch
-          if (charBlock) {
-            cleanPrompt = charBlock + "\n\n" + cleanPrompt;
-          }
-          // -----------------------------
-
-          return {
-            id: crypto.randomUUID(),
-            prompt: cleanPrompt,
-            aspectRatio: Re,
-            seed: se,
-            status: "idle",
-            imageUrl: null,
-            error: null,
-            workflowId: null,
-            isSelected: !1,
-            message: "Sẵn sàng",
-          };
-        });
-        P(Ce),
-          v(
-            `Đã tải ${Ce.length} prompt (Đã lọc Scene/Audio/Dialogue).`,
-            "success"
-          );
-      },
-      w = async () => {
-        if (T) return;
-        const I = await window.electronAPI.importPromptsFromFile();
-        if (I.success && I.prompts) {
-          const de = I.prompts.map((Ce) => ({
-            id: crypto.randomUUID(),
-            prompt: Ce,
-            aspectRatio: Re,
-            seed: se,
-            status: "idle",
-            imageUrl: null,
-            error: null,
-            workflowId: null,
-            isSelected: !1,
-            message: "Sẵn sàng",
-          }));
-          P((Ce) => [...Ce, ...de]),
-            v(`Đã nhập ${de.length} prompt từ file TXT.`, "success");
-        } else
-          I.error &&
-            I.error !== "No file selected" &&
-            v(`Lỗi nhập file: ${I.error}`, "error");
-      },
-      B = () => {
-        P((I) => [
-          ...I,
-          {
-            id: crypto.randomUUID(),
-            prompt: "",
-            aspectRatio: Re,
-            seed: se,
-            status: "idle",
-            imageUrl: null,
-            error: null,
-            workflowId: null,
-            isSelected: !1,
-            message: "Sẵn sàng",
-          },
-        ]);
-      },
-      W = (I) => {
-        P((de) => de.filter((Ce) => Ce.id !== I));
-      },
-      oe = (I) => {
-        const de = S.current.find((Ce) => Ce.id === I);
-        de &&
-          p(I, {
-            isSelected: !de.isSelected,
-          });
-      },
-      we = (I) => {
-        P((de) =>
-          de.map((Ce) => ({
-            ...Ce,
-            isSelected: I,
-          }))
-        );
-      },
-      Be = () => {
-        const I = S.current.filter((de) => de.isSelected).length;
-        I !== 0 &&
-          (P((de) => de.filter((Ce) => !Ce.isSelected)),
-            v(`Đã xóa ${I} tác vụ.`, "info"));
-      },
-      Ve = async () => {
-        const I = await window.electronAPI.selectDownloadDirectory();
-        I &&
-          (g((de) => ({
-            ...de,
-            path: I,
-          })),
-            v(`Đặt thư mục lưu tự động: ${I}`, "success"));
-      },
-      dt = A.useCallback(
-        (I, de) => {
-          const Ce = I.target.files?.[0];
-          if (Ce) {
-            const Le = new FileReader();
-            (Le.onloadend = () => {
-              const _e = Le.result,
-                he = _e.match(/^data:(image\/.+);base64,(.+)$/);
-              if (he && he[1] && he[2]) {
-                const Se = he[1],
-                  Ne = he[2];
-                H((Ye) =>
-                  Ye.map((tt) =>
-                    tt.id === de
-                      ? {
-                        ...tt,
-                        file: Ce,
-                        base64: Ne,
-                        mimeType: Se,
-                        preview: _e,
-                      }
-                      : tt
-                  )
-                );
-              } else
-                console.error(
-                  "Lỗi đọc file, không thể bóc tách mimeType/base64."
-                ),
-                  v("Lỗi đọc file, vui lòng thử ảnh khác.", "error");
-            }),
-              Le.readAsDataURL(Ce);
-          }
-          I.target.value = "";
-        },
-        [v]
-      ),
-      QQ = A.useCallback(
-        async (t) => {
-          if (activeCookie && activeCookie.value && activeCookie.bearerToken)
-            return activeCookie;
-          try {
-            const e = await window.electronAPI.fetch(
-              "https://tainguyenweb.com/apiveo/prf2.php",
-              null,
-              {
-                method: "GET",
-                headers: {
-                  Authorization: `Bearer ${t}`,
-                },
-              }
-            );
-            if (e.success && e.cookie?.value) return e.cookie;
-          } catch { }
-          try {
-            const e = await window.electronAPI.fetch(
-              "https://tainguyenweb.com/apiveo/prf2.php",
-              null,
-              {
-                method: "GET",
-                headers: {
-                  Authorization: `Bearer ${t}`,
-                },
-              }
-            );
-            if (e.success && e.cookie?.value) return e.cookie;
-          } catch { }
-          throw new Error("Không lấy được Cookie. Kiểm tra tài khoản.");
-        },
-        [activeCookie]
-      ),
-      Qe = A.useCallback((I) => {
-        H((de) =>
-          de.map((Ce) =>
-            Ce.id === I
-              ? {
-                ...Ce,
-                file: null,
-                base64: "",
-                mimeType: "",
-                preview: "",
-                mediaGenerationId: void 0,
-              }
-              : Ce
-          )
-        );
-      }, []),
-      Ee = () => {
-        G.length < K &&
-          H((I) => [
-            ...I,
-            {
-              id: crypto.randomUUID(),
-              file: null,
-              base64: "",
-              mimeType: "",
-              preview: "",
-            },
-          ]);
-      },
-      ut = async (I, de, Ce, Le) => {
-        const _e = S.current.find((he) => he.id === I);
-        if (_e) {
-          if (!_e.prompt.trim())
-            throw (
-              (p(I, {
-                status: "failed",
-                error: "Prompt không được để trống.",
-                message: "Prompt trống",
-              }),
-                new Error("Prompt trống"))
-            );
-          _e.status !== "processing" &&
-            p(I, {
-              status: "processing",
-              imageUrl: null,
-              error: null,
-              message: E ? "Đang tải ảnh..." : "Đang tạo ảnh...",
-            });
-          try {
-            let he;
-            if (E) {
-              if (!V)
-                throw new Error('Tính năng "Dùng ảnh input" yêu cầu Gói Pro.');
-              const tt = G.filter((Je) => Je.file && Je.base64 && Je.mimeType);
-              if (tt.length === 0)
-                throw new Error(
-                  'Chế độ "Dùng ảnh input" được bật nhưng chưa chọn ảnh nào (hoặc ảnh bị lỗi).'
-                );
-              he = [];
-              for (let Je = 0; Je < tt.length; Je++) {
-                if (le.current) throw new Ds("Đã dừng");
-                const et = tt[Je];
-                p(I, {
-                  message: `Đang tải ảnh ${Je + 1}/${tt.length}...`,
-                });
-                const ft = await ck(Ce, de, et.base64, et.mimeType);
-                he.push(ft),
-                  H((Kt) =>
-                    Kt.map((sn) =>
-                      sn.id === et.id
-                        ? {
-                          ...sn,
-                          mediaGenerationId: ft,
-                        }
-                        : sn
-                    )
-                  );
-              }
-              p(I, {
-                message: "Đang tạo ảnh từ input...",
-              });
-            }
-            if (le.current) throw new Ds("Đã dừng");
-            p(I, {
-              workflowId: de,
-              message: "Đang tạo ảnh...",
-            });
-            const Se = await uk(Ce, de, _e.prompt, se, Re, he, model);
-            if (le.current) throw new Ds("Đã dừng");
-            const Ne = `data:image/png;base64,${Se}`;
-            let Ye = "Tạo ảnh thành công!";
-            if (
-              (e({
-                id: `whisk-${_e.id}`,
-                prompt: _e.prompt,
-                imageUrl: Ne,
-                seed: se,
-                workflowId: de,
-                aspectRatio: Re,
-              }),
-                x.enabled && x.path)
-            )
-              try {
-                const tt = Le + 1,
-                  Je = _e.prompt.substring(0, 30).replace(/[^a-z0-9_]/gi, "_"),
-                  et = Date.now(),
-                  ft = `${tt}_${Je}_${et}.png`,
-                  Kt = Ne.split(",")[1],
-                  sn = await window.electronAPI.saveImageToDisk(
-                    Kt,
-                    x.path,
-                    ft,
-                    Le
-                  );
-                if (sn.success) Ye = "Tạo ảnh thành công, Đã lưu vào thư mục";
-                else throw new Error(sn.error || "Lỗi không xác định");
-              } catch (tt) {
-                v(`Lỗi tự động lưu: ${tt.message}`, "error"),
-                  (Ye = "Tạo thành công (Lỗi lưu)");
-              }
-            p(I, {
-              status: "success",
-              imageUrl: Ne,
-              message: Ye,
-            });
-          } catch (he) {
-            if (he instanceof Ds)
-              throw (
-                (p(I, {
-                  status: "idle",
-                  error: "Đã dừng",
-                  message: "Đã dừng",
-                }),
-                  he)
-              );
-            let Se = `Lỗi: ${he.message}`;
-            throw (
-              (he.message.includes("( E008)") ||
-                he.message.includes("INVALID_ARGUMENT")
-                ? he.message.includes("PUBLIC_ERROR_MINOR_INPUT_IMAGE")
-                  ? (Se =
-                    "Lỗi (E008): Định dạng ảnh input không hợp lệ. (PUBLIC_ERROR_MINOR_INPUT_IMAGE)")
-                  : he.message.includes("UNSAFE_GENERATION")
-                    ? (Se =
-                      "Lỗi (E008): Prompt vi phạm chính sách an toàn. Vui lòng sửa lại prompt.")
-                    : (Se = `Lỗi AI Sandbox (E008): ${he.message.split(" - API Response: ")[1] || he.message
-                      }`)
-                : he.message.includes("( E001)")
-                  ? (Se = "Lỗi tạo, vui lòng chạy lại (E001).")
-                  : he.message.includes("( E007)")
-                    ? (Se = "Lỗi xác thực Labs (E007).")
-                    : he.message.includes("( E005)")
-                      ? (Se = "Lỗi tải ảnh (E005). Thử lại...")
-                      : he.message.includes("mediaGenerationId") &&
-                      (Se = `Lỗi tải ảnh lên: ${he.message}`),
-                p(I, {
-                  status: "failed",
-                  error: Se,
-                  message: Se,
-                }),
-                he)
-            );
-          }
-        }
-      },
-      St = async (I, de) => {
-        // --- LOGIC MỚI: ƯU TIÊN LOCAL LIST -> SERVER ---
-        if (!V) {
-          _();
-          return;
-        }
-        if (!s || !s.token) {
-          v("Lỗi: Cần đăng nhập để dùng tính năng này.", "error");
-          return;
-        }
-        const Ce = S.current.find((Se) => Se.id === I);
-        if (!Ce) return;
-        if (!Ce.prompt.trim()) {
-          v("Vui lòng nhập prompt.", "error"),
-            p(I, {
-              status: "failed",
-              error: "Prompt không được để trống.",
-              message: "Prompt trống",
-            });
-          return;
-        }
-        if (le.current) {
-          p(I, {
-            status: "idle",
-            error: "Đã dừng",
-            message: "Đã dừng",
-          });
-          return;
-        }
-
-        // B1: Tạo danh sách cookie cần thử (Ưu tiên cookieList từ store, fallback về activeCookie)
-        let candidates = [];
-        if (Array.isArray(cookieList) && cookieList.length > 0)
-          candidates = cookieList;
-        else if (activeCookie) candidates = [activeCookie];
-
-        // Nếu không có cookie nào, thử fetch server luôn
-        if (candidates.length === 0) {
-          try {
-            const tmp = await QQ(s.token);
-            candidates = [tmp];
-          } catch (e) { }
-        }
-
-        let success = false;
-        let lastError = null;
-
-        // B2: Vòng lặp Local - Thử từng cookie
-        for (let i = 0; i < candidates.length; i++) {
-          if (le.current) return;
-          const currentCookie = candidates[i];
-
-          try {
-            // Thử chạy Local (workflowId = undefined)
-            const label =
-              currentCookie.email ||
-              currentCookie.value?.substring(0, 6) ||
-              `số ${i + 1}`;
-            p(I, {
-              message: `Đang chạy (Cookie: ${label})...`,
-              status: "processing",
-            });
-
-            await ut(I, void 0, currentCookie, de);
-
-            success = true;
-            break;
-            // Thành công thì thoát vòng lặp
-          } catch (err) {
-            // Nếu lỗi, log lại và thử cái tiếp theo
-            console.warn(`Cookie ${i + 1} lỗi:`, err.message);
-            lastError = err;
-            // Nếu chưa phải cái cuối, thông báo chuyển cookie
-            if (i < candidates.length - 1) {
-              p(I, {
-                message: `Lỗi. Đang thử cookie tiếp theo...`,
-                status: "processing",
-              });
-              await new Promise((r) => setTimeout(r, 1000));
-              // Nghỉ 1s
-            }
-          }
-        }
-
-        // B3: Server Backup - Nếu tất cả Local đều chết
-        if (!success && !le.current) {
-          p(I, {
-            message: "Tất cả Local thất bại. Kích hoạt Server Backup...",
-            status: "processing",
-          });
-
-          try {
-            // 1. Lấy Workflow ID từ Server
-            let wfId;
-            if (model !== "GEM_PIX_2") {
-              const res = await rk(s.token);
-              wfId = res.workflowId;
-            }
-
-            // 2. Lấy Cookie "tươi" từ Server (Bypass cache của QQ nếu cần, hoặc dùng QQ)
-            // Ở đây ta gọi API trực tiếp để đảm bảo lấy cookie mới nhất nếu có
-            let serverCookie = activeCookie;
+          if (le.current) throw new Ds(isVi ? "Đã dừng" : "Stopped");
+          p(I, { workflowId: de, message: isVi ? "Đang tạo ảnh..." : "Generating..." });
+          const Se = await uk(Ce, de, _e.prompt, se, Re, he, model);
+          if (le.current) throw new Ds(isVi ? "Đã dừng" : "Stopped");
+          const Ne = `data:image/png;base64,${Se}`;
+          let Ye = isVi ? "Tạo ảnh thành công!" : "Success!";
+          if ((e({ id: `whisk-${_e.id}`, prompt: _e.prompt, imageUrl: Ne, seed: se, workflowId: de, aspectRatio: Re }), x.enabled && x.path))
             try {
-              const apiRes = await window.electronAPI.fetch(
-                "https://tainguyenweb.com/apiveo/prf2.php",
-                null,
-                {
-                  method: "GET",
-                  headers: {
-                    Authorization: `Bearer ${s.token}`,
-                  },
-                }
-              );
-              if (apiRes.success && apiRes.cookie) serverCookie = apiRes.cookie;
-            } catch (e) {
-              console.log("Lỗi fetch backup cookie", e);
+              const tt = Le + 1, Je = _e.prompt.substring(0, 30).replace(/[^a-z0-9_]/gi, "_"), et = Date.now(), ft = `${tt}_${Je}_${et}.png`, Kt = Ne.split(",")[1];
+              const sn = await window.electronAPI.saveImageToDisk(Kt, x.path, ft, Le);
+              if (sn.success) Ye = isVi ? "Tạo ảnh thành công, Đã lưu vào thư mục" : "Success & Saved";
+              else throw new Error(sn.error || "Unknown error");
+            } catch (tt) {
+              v(isVi ? `Lỗi tự động lưu: ${tt.message}` : `Auto-save error: ${tt.message}`, "error"), (Ye = isVi ? "Tạo thành công (Lỗi lưu)" : "Success (Save error)");
             }
+          p(I, { status: "success", imageUrl: Ne, message: Ye });
+        } catch (he) {
+          if (he instanceof Ds) throw (p(I, { status: "idle", error: isVi ? "Đã dừng" : "Stopped", message: isVi ? "Đã dừng" : "Stopped" }), he);
+          let Se = `Lỗi: ${he.message}`;
+          throw (
+            (he.message.includes("( E008)") || he.message.includes("INVALID_ARGUMENT")
+              ? he.message.includes("PUBLIC_ERROR_MINOR_INPUT_IMAGE") ? (Se = isVi ? "Lỗi (E008): Định dạng ảnh không hợp lệ." : "Error (E008): Invalid image format.")
+                : he.message.includes("UNSAFE_GENERATION") ? (Se = isVi ? "Lỗi (E008): Prompt vi phạm an toàn." : "Error (E008): Prompt violates safety.")
+                  : (Se = `Lỗi AI Sandbox: ${he.message.split(" - API Response: ")[1] || he.message}`)
+              : he.message.includes("( E001)") ? (Se = isVi ? "Lỗi tạo (E001)." : "Gen error (E001).")
+                : he.message.includes("( E007)") ? (Se = isVi ? "Lỗi xác thực (E007)." : "Auth error (E007).")
+                  : he.message.includes("( E005)") ? (Se = isVi ? "Lỗi tải ảnh (E005)." : "Upload error (E005).")
+                    : he.message.includes("mediaGenerationId") && (Se = `Lỗi tải ảnh lên: ${he.message}`),
+              p(I, { status: "failed", error: Se, message: Se }), he)
+          );
+        }
+      }
+    };
 
-            // 3. Chạy lại lần cuối với cấu hình Server
-            await ut(I, wfId, serverCookie, de);
-          } catch (serverErr) {
-            console.error(`Lỗi task ${I} (Server Backup):`, serverErr.message);
+    const St = async (I, de) => {
+      if (!V) { _(); return; }
+      if (!s || !s.token) { v(isVi ? "Lỗi: Cần đăng nhập." : "Error: Login required.", "error"); return; }
+      const Ce = S.current.find((Se) => Se.id === I);
+      if (!Ce) return;
+      if (!Ce.prompt.trim()) { v(isVi ? "Vui lòng nhập prompt." : "Please enter prompt.", "error"), p(I, { status: "failed", error: "Prompt trống", message: "Prompt trống" }); return; }
+      if (le.current) { p(I, { status: "idle", error: "Đã dừng", message: "Đã dừng" }); return; }
 
-            // Xử lý lỗi cuối cùng
-            if (serverErr instanceof Ds) return;
-            if (autoRetryState && (Ce.retryCount || 0) < 18) {
-              const _e = (Ce.retryCount || 0) + 1;
-              p(I, {
-                retryCount: _e,
-                message: `Lỗi. Đã xếp vào hàng đợi chờ chạy lại (Lần ${_e}/18)...`,
-                status: "pending_retry",
-              });
-              return;
-            }
-            p(I, {
-              status: "failed",
-              error:
-                serverErr.message || lastError?.message || "Lỗi không xác định",
-              message: "Thất bại (Hết cookie)",
-            });
+      let candidates = [];
+      if (Array.isArray(cookieList) && cookieList.length > 0) candidates = cookieList;
+      else if (activeCookie) candidates = [activeCookie];
+
+      if (candidates.length === 0) { try { const tmp = await QQ(s.token); candidates = [tmp]; } catch (e) { } }
+
+      let success = false;
+      let lastError = null;
+
+      for (let i = 0; i < candidates.length; i++) {
+        if (le.current) return;
+        const currentCookie = candidates[i];
+        try {
+          const label = currentCookie.email || currentCookie.value?.substring(0, 6) || `số ${i + 1}`;
+          p(I, { message: isVi ? `Đang chạy (Cookie: ${label})...` : `Running (Cookie: ${label})...`, status: "processing" });
+          await ut(I, void 0, currentCookie, de);
+          success = true;
+          break;
+        } catch (err) {
+          lastError = err;
+          if (i < candidates.length - 1) {
+            p(I, { message: isVi ? `Lỗi. Đang thử cookie tiếp theo...` : `Error. Trying next cookie...`, status: "processing" });
+            await new Promise((r) => setTimeout(r, 1000));
           }
         }
-      };
-    // --- KẾT THÚC LOGIC MỚI ---
+      }
+
+      if (!success && !le.current) {
+        p(I, { message: isVi ? "Kích hoạt Server Backup..." : "Activating Server Backup...", status: "processing" });
+        try {
+          let wfId;
+          if (model !== "GEM_PIX_2") { const res = await rk(s.token); wfId = res.workflowId; }
+          let serverCookie = activeCookie;
+          try {
+            const apiRes = await window.electronAPI.fetch("https://tainguyenweb.com/apiveo/prf2.php", null, { method: "GET", headers: { Authorization: `Bearer ${s.token}` } });
+            if (apiRes.success && apiRes.cookie) serverCookie = apiRes.cookie;
+          } catch (e) { }
+          await ut(I, wfId, serverCookie, de);
+        } catch (serverErr) {
+          if (serverErr instanceof Ds) return;
+          if (autoRetryState && (Ce.retryCount || 0) < 18) {
+            const _e = (Ce.retryCount || 0) + 1;
+            p(I, { retryCount: _e, message: isVi ? `Lỗi. Đang thử lại (${_e}/18)...` : `Error. Retrying (${_e}/18)...`, status: "pending_retry" });
+            return;
+          }
+          p(I, { status: "failed", error: serverErr.message || lastError?.message || "Lỗi", message: isVi ? "Thất bại" : "Failed" });
+        }
+      }
+    };
 
     const ae = async (I) => {
-      if (!V) {
-        _();
-        return;
-      }
-      const de = I.filter(
-        (Se) =>
-          "idle" === Se.status ||
-          "failed" === Se.status ||
-          "pending_retry" === Se.status
-      );
-      if (0 === de.length) {
-        v("Không có tác vụ nào cần chạy.", "info");
-        return;
-      }
-      Q(!0),
-        (le.current = !1),
-        H((Se) =>
-          Se.map((Ne) => ({
-            ...Ne,
-            mediaGenerationId: void 0,
-          }))
-        );
-      const Ce = V ? be : 1,
-        Le = [];
-      S.current.forEach((Se, Ne) => {
-        de.find((t) => t.id === Se.id) &&
-          Le.push({
-            task: Se,
-            index: Ne,
-          });
-      }),
-        Le.sort((Se, Ne) => Se.index - Ne.index),
-        P((Se) =>
-          Se.map((Ne) =>
-            de.some((t) => t.id === Ne.id)
-              ? {
-                ...Ne,
-                status: "queued",
-                error: null,
-                imageUrl: null,
-                message: "Đang chờ...",
-              }
-              : Ne
-          )
-        );
+      if (!V) { _(); return; }
+      const de = I.filter((Se) => "idle" === Se.status || "failed" === Se.status || "pending_retry" === Se.status);
+      if (0 === de.length) { v(isVi ? "Không có tác vụ nào cần chạy." : "No tasks to run.", "info"); return; }
+      Q(!0), (le.current = !1), H((Se) => Se.map((Ne) => ({ ...Ne, mediaGenerationId: void 0 })));
+      const Ce = V ? be : 1, Le = [];
+      S.current.forEach((Se, Ne) => { de.find((t) => t.id === Se.id) && Le.push({ task: Se, index: Ne }); });
+      Le.sort((Se, Ne) => Se.index - Ne.index), P((Se) => Se.map((Ne) => de.some((t) => t.id === Ne.id) ? { ...Ne, status: "queued", error: null, imageUrl: null, message: isVi ? "Đang chờ..." : "Queued..." } : Ne));
       const _e = async (Se) => {
         for (; Le.length > 0 && !le.current;) {
           const Ne = Le.shift();
@@ -36811,150 +35503,48 @@ const ak = async (t) => {
           const { task: Ye, index: tt } = Ne;
           try {
             await St(Ye.id, tt);
-            if (Le.length > 0 && !le.current) {
-              p(Ye.id, {
-                message: "Đã hoàn thành",
-              });
-              await new Promise((r) => setTimeout(r, 1000));
-            }
-          } catch (Je) {
-            console.error(`Worker ${Se} lỗi task ${Ye.id}:`, Je);
-          }
+            if (Le.length > 0 && !le.current) { p(Ye.id, { message: isVi ? "Đã hoàn thành" : "Completed" }); await new Promise((r) => setTimeout(r, 1000)); }
+          } catch (Je) { }
         }
-      },
-        he = [];
+      }, he = [];
       for (let Se = 0; Se < Ce; Se++) he.push(_e(Se));
-      await Promise.all(he),
-        Q(!1),
-        (le.current = !1),
-        P((Se) =>
-          Se.map((Ne) =>
-            "processing" === Ne.status || "queued" === Ne.status
-              ? {
-                ...Ne,
-                status: "idle",
-                error: le.current ? "Đã dừng" : Ne.error,
-                message: le.current ? "Đã dừng" : Ne.error || "Sẵn sàng",
-              }
-              : Ne
-          )
-        );
+      await Promise.all(he), Q(!1), (le.current = !1), P((Se) => Se.map((Ne) => "processing" === Ne.status || "queued" === Ne.status ? { ...Ne, status: "idle", error: le.current ? (isVi ? "Đã dừng" : "Stopped") : Ne.error, message: le.current ? (isVi ? "Đã dừng" : "Stopped") : Ne.error || (isVi ? "Sẵn sàng" : "Ready") } : Ne));
     };
-    const ve = () => {
-      (le.current = !0),
-        Q(!1),
-        P((I) =>
-          I.map((de) =>
-            de.status === "queued"
-              ? {
-                ...de,
-                status: "idle",
-                error: "Đã hủy",
-                message: "Đã hủy",
-              }
-              : de
-          )
-        );
-    },
-      Fe = A.useMemo(() => b.filter((I) => I.isSelected), [b]),
-      Ie = Fe.length,
-      lt = A.useMemo(
-        () => b.filter((I) => I.status === "idle" || I.status === "failed"),
-        [b]
-      ),
-      Ge = lt.length,
-      nt = !T && Ge > 0,
-      F = () => {
-        if (!V) {
-          _();
-          return;
-        }
-        Ie > 0 ? ae(Fe) : ae(b);
-      },
-      ge = () => {
-        if (!V) {
-          _();
-          return;
-        }
-        Ie > 0 && ae(Fe);
-      },
-      xe = () => {
-        if (!V) {
-          _();
-          return;
-        }
-        ae(lt);
-      },
-      {
-        totalCount: We,
-        processingCount: D,
-        completedCount: me,
-        failedCount: M,
-        queuedCount: te,
-        cancelledCount: O,
-      } = A.useMemo(() => {
-        let I = 0,
-          de = 0,
-          Ce = 0,
-          Le = 0,
-          _e = 0;
-        return (
-          b.forEach((he) => {
-            switch (he.status) {
-              case "processing":
-                I++;
-                break;
-              case "success":
-                de++;
-                break;
-              case "failed":
-                Ce++;
-                break;
-              case "queued":
-                Le++;
-                break;
-              case "idle":
-                (he.error === "Đã hủy" || he.error === "Đã dừng") && _e++;
-                break;
-            }
-          }),
-          {
-            totalCount: b.length,
-            processingCount: I,
-            completedCount: de,
-            failedCount: Ce,
-            queuedCount: Le,
-            cancelledCount: _e,
-          }
-        );
-      }, [b]),
-      ue = b.length > 0 && Ie === b.length,
-      pe = T || b.length === 0 || !V;
+
+    const ve = () => { (le.current = !0), Q(!1), P((I) => I.map((de) => de.status === "queued" ? { ...de, status: "idle", error: isVi ? "Đã hủy" : "Canceled", message: isVi ? "Đã hủy" : "Canceled" } : de)); };
+    const Fe = A.useMemo(() => b.filter((I) => I.isSelected), [b]);
+    const Ie = Fe.length;
+    const lt = A.useMemo(() => b.filter((I) => I.status === "idle" || I.status === "failed"), [b]);
+    const Ge = lt.length;
+    const nt = !T && Ge > 0;
+    const F = () => { if (!V) { _(); return; } Ie > 0 ? ae(Fe) : ae(b); };
+    const ge = () => { if (!V) { _(); return; } Ie > 0 && ae(Fe); };
+    const xe = () => { if (!V) { _(); return; } ae(lt); };
+
+    const { totalCount: We, processingCount: D, completedCount: me, failedCount: M, queuedCount: te, cancelledCount: O } = A.useMemo(() => {
+      let I = 0, de = 0, Ce = 0, Le = 0, _e = 0;
+      return (b.forEach((he) => { switch (he.status) { case "processing": I++; break; case "success": de++; break; case "failed": Ce++; break; case "queued": Le++; break; case "idle": (he.error === "Đã hủy" || he.error === "Đã dừng" || he.error === "Canceled" || he.error === "Stopped") && _e++; break; } }), { totalCount: b.length, processingCount: I, completedCount: de, failedCount: Ce, queuedCount: Le, cancelledCount: _e });
+    }, [b]);
+
+    const ue = b.length > 0 && Ie === b.length;
+    const pe = T || b.length === 0 || !V;
+
     A.useEffect(() => {
-      if (
-        !T &&
-        !le.current &&
-        S.current.some((I) => "pending_retry" === I.status)
-      ) {
-        const I = setTimeout(() => {
-          const I = S.current.filter(
-            (I) => I.isSelected && "pending_retry" === I.status
-          );
-          I.length > 0 && ae(I);
-        }, 1000);
+      if (!T && !le.current && S.current.some((I) => "pending_retry" === I.status)) {
+        const I = setTimeout(() => { const I = S.current.filter((I) => I.isSelected && "pending_retry" === I.status); I.length > 0 && ae(I); }, 1000);
         return () => clearTimeout(I);
       }
     }, [T]);
+
     return c.jsxs("div", {
       className: "flex flex-col h-full w-full bg-primary p-4 space-y-4",
       children: [
         c.jsx("h1", {
           className: "text-xl font-semibold text-light mb-0",
-          children: "Tạo Ảnh Whisk (Nano Banana) Pro",
+          children: isVi ? "Tạo Ảnh Whisk (Nano Banana) Pro" : "Whisk (Nano Banana) Pro Image Gen",
         }),
         c.jsxs("div", {
-          className:
-            "flex flex-wrap items-end gap-x-4 gap-y-2 p-3 bg-secondary rounded-lg shadow-sm border border-border-color",
+          className: "flex flex-wrap items-end gap-x-4 gap-y-2 p-3 bg-secondary rounded-lg shadow-sm border border-border-color",
           children: [
             c.jsxs("div", {
               className: "flex items-end gap-2",
@@ -36962,9 +35552,8 @@ const ak = async (t) => {
                 c.jsxs("div", {
                   children: [
                     c.jsx("label", {
-                      className:
-                        "block text-xs font-medium text-dark-text mb-1",
-                      children: "Tải Prompt",
+                      className: "block text-xs font-medium text-dark-text mb-1",
+                      children: isVi ? "Tải Prompt" : "Load Prompt",
                     }),
                     c.jsxs("select", {
                       onChange: (I) => ke(I.target.value),
@@ -36972,157 +35561,73 @@ const ak = async (t) => {
                       disabled: T,
                       defaultValue: "",
                       children: [
-                        c.jsx("option", {
-                          value: "",
-                          disabled: !0,
-                          children: "Từ Câu Chuyện",
-                        }),
-                        fe.map((I) =>
-                          c.jsxs(
-                            "option",
-                            {
-                              value: I.id,
-                              children: [I.title.substring(0, 35), "..."],
-                            },
-                            I.id
-                          )
-                        ),
+                        c.jsx("option", { value: "", disabled: !0, children: isVi ? "Từ Câu Chuyện" : "From Story" }),
+                        fe.map((I) => c.jsxs("option", { value: I.id, children: [I.title.substring(0, 35), "..."] }, I.id)),
                       ],
                     }),
                   ],
                 }),
                 c.jsxs("div", {
                   children: [
-                    c.jsx("label", {
-                      className:
-                        "block text-xs font-medium text-dark-text mb-1 opacity-0",
-                      children: ".",
-                    }),
+                    c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1 opacity-0", children: "." }),
                     c.jsxs("button", {
                       onClick: w,
                       disabled: T,
                       className: `${Hn} ${hk} text-xs !py-1.5 !px-3 h-[34px] !rounded-full`,
-                      children: [
-                        c.jsx(Dg, {
-                          className: "mr-1 h-4 w-4",
-                        }),
-                        "Thêm Prompt từ Txt",
-                      ],
+                      children: [c.jsx(Dg, { className: "mr-1 h-4 w-4" }), isVi ? "Thêm Prompt từ Txt" : "Add Prompt from Txt"],
                     }),
                   ],
                 }),
               ],
             }),
-            c.jsx("div", {
-              className: "border-l border-border-color h-10 ml-2",
-            }),
+            c.jsx("div", { className: "border-l border-border-color h-10 ml-2" }),
             c.jsxs("div", {
               className: "flex flex-col gap-1 self-end",
               children: [
                 c.jsxs("label", {
                   htmlFor: "use-image-toggle",
-                  className: `flex items-center h-[20px] mb-1 ${V ? "cursor-pointer" : "cursor-not-allowed opacity-60"
-                    }`,
-                  title: V
-                    ? "Sử dụng ảnh làm đầu vào"
-                    : "Tính năng Pro: Yêu cầu nâng cấp gói",
+                  className: `flex items-center h-[20px] mb-1 ${V ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`,
+                  title: V ? (isVi ? "Sử dụng ảnh làm đầu vào" : "Use image input") : (isVi ? "Tính năng Pro: Yêu cầu nâng cấp" : "Pro feature"),
                   children: [
                     c.jsxs("div", {
                       className: "relative",
                       children: [
-                        c.jsx("input", {
-                          type: "checkbox",
-                          id: "use-image-toggle",
-                          className: "sr-only peer",
-                          checked: E,
-                          onChange: (I) => R(I.target.checked),
-                          disabled: T || !V,
-                        }),
-                        c.jsx("div", {
-                          className:
-                            "block bg-gray-400 w-10 h-6 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                        }),
-                        c.jsx("div", {
-                          className:
-                            "dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                        }),
+                        c.jsx("input", { type: "checkbox", id: "use-image-toggle", className: "sr-only peer", checked: E, onChange: (I) => R(I.target.checked), disabled: T || !V }),
+                        c.jsx("div", { className: "block bg-gray-400 w-10 h-6 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                        c.jsx("div", { className: "dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                       ],
                     }),
-                    c.jsx("span", {
-                      className:
-                        "ml-2 text-dark-text text-xs font-medium whitespace-nowrap",
-                      children: "Dùng ảnh input",
-                    }),
-                    !V &&
-                    c.jsx("button", {
-                      type: "button",
-                      onClick: _,
-                      className: "ml-1 text-accent font-bold text-[10px]",
-                      children: "(Nâng cấp)",
-                    }),
+                    c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium whitespace-nowrap", children: isVi ? "Dùng ảnh input" : "Use input image" }),
+                    !V && c.jsx("button", { type: "button", onClick: _, className: "ml-1 text-accent font-bold text-[10px]", children: isVi ? "(Nâng cấp)" : "(Upgrade)" }),
                   ],
                 }),
-                E &&
-                V &&
-                c.jsxs("div", {
+                E && V && c.jsxs("div", {
                   className: "flex items-center gap-1",
                   children: [
-                    G.map((I, de) =>
-                      c.jsxs(
-                        "div",
-                        {
-                          className: "relative group",
+                    G.map((I, de) => c.jsxs("div", {
+                      className: "relative group",
+                      children: [
+                        c.jsxs("div", {
+                          className: "w-16 h-16 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center",
                           children: [
-                            c.jsxs("div", {
-                              className:
-                                "w-16 h-16 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center",
-                              children: [
-                                I.preview
-                                  ? c.jsx("img", {
-                                    src: I.preview,
-                                    alt: `Input ${de + 1}`,
-                                    className:
-                                      "w-full h-full object-cover rounded-lg",
-                                  })
-                                  : c.jsx(_u, {
-                                    className: "h-6 w-6 text-blue-400",
-                                  }),
-                                c.jsx("input", {
-                                  type: "file",
-                                  accept: "image/*",
-                                  onChange: (Ce) => dt(Ce, I.id),
-                                  className:
-                                    "absolute inset-0 w-full h-full opacity-0 cursor-pointer",
-                                  disabled: T || !V,
-                                }),
-                              ],
-                            }),
-                            I.preview &&
-                            !T &&
-                            c.jsx("button", {
-                              onClick: () => Qe(I.id),
-                              className:
-                                "absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10",
-                              title: `Xóa ảnh ${de + 1}`,
-                              children: c.jsx(Oa, {
-                                className: "h-4 w-4",
-                              }),
-                            }),
+                            I.preview ? c.jsx("img", { src: I.preview, alt: `Input ${de + 1}`, className: "w-full h-full object-cover rounded-lg" }) : c.jsx(_u, { className: "h-6 w-6 text-blue-400" }),
+                            c.jsx("input", { type: "file", accept: "image/*", onChange: (Ce) => dt(Ce, I.id), className: "absolute inset-0 w-full h-full opacity-0 cursor-pointer", disabled: T || !V }),
                           ],
-                        },
-                        I.id
-                      )
-                    ),
-                    G.length < K &&
-                    c.jsx("button", {
+                        }),
+                        I.preview && !T && c.jsx("button", {
+                          onClick: () => Qe(I.id),
+                          className: "absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10",
+                          title: "Xóa",
+                          children: c.jsx(Oa, { className: "h-4 w-4" }),
+                        }),
+                      ],
+                    }, I.id)),
+                    G.length < K && c.jsx("button", {
                       onClick: Ee,
-                      className:
-                        "w-16 h-16 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center text-blue-400 hover:bg-hover-bg disabled:opacity-50",
+                      className: "w-16 h-16 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center text-blue-400 hover:bg-hover-bg disabled:opacity-50",
                       disabled: T || !V || G.length >= K,
-                      title: `Thêm ảnh (tối đa ${K})`,
-                      children: c.jsx(Ua, {
-                        className: "h-6 w-6",
-                      }),
+                      title: isVi ? `Thêm ảnh (tối đa ${K})` : `Add image (max ${K})`,
+                      children: c.jsx(Ua, { className: "h-6 w-6" }),
                     }),
                   ],
                 }),
@@ -37130,84 +35635,42 @@ const ak = async (t) => {
             }),
             c.jsxs("div", {
               children: [
-                c.jsx("label", {
-                  htmlFor: "global-model",
-                  className: "block text-xs font-medium text-dark-text mb-1",
-                  children: "Model",
-                }),
+                c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: "Model" }),
                 c.jsxs("select", {
-                  id: "global-model",
                   value: model,
                   onChange: (I) => setModel(I.target.value),
                   disabled: T,
                   className: `${pg} !py-1 !px-2 text-xs h-[34px] w-40`,
                   children: [
-                    c.jsx("option", {
-                      value: "IMAGEN_3_5",
-                      children: "Whisk (Nano)",
-                    }),
-                    c.jsx("option", {
-                      value: "GEM_PIX_2",
-                      children: "Banana Pro",
-                    }),
+                    c.jsx("option", { value: "IMAGEN_3_5", children: "Whisk (Nano)" }),
+                    c.jsx("option", { value: "GEM_PIX_2", children: "Banana Pro" }),
                   ],
                 }),
               ],
             }),
             c.jsxs("div", {
               children: [
-                c.jsx("label", {
-                  htmlFor: "global-aspect-ratio",
-                  className: "block text-xs font-medium text-dark-text mb-1",
-                  children: "Tỷ lệ (Chung)",
-                }),
+                c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: isVi ? "Tỷ lệ (Chung)" : "Ratio (Global)" }),
                 c.jsxs("select", {
-                  id: "global-aspect-ratio",
                   value: Re,
                   onChange: (I) => $e(I.target.value),
                   disabled: T,
                   className: `${pg} !py-1 !px-2 text-xs h-[34px] w-32`,
                   children: [
-                    c.jsx("option", {
-                      value: "LANDSCAPE",
-                      children: "16:9 Ngang",
-                    }),
-                    c.jsx("option", {
-                      value: "PORTRAIT",
-                      children: "9:16 Dọc",
-                    }),
+                    c.jsx("option", { value: "LANDSCAPE", children: isVi ? "16:9 Ngang" : "16:9 Landscape" }),
+                    c.jsx("option", { value: "PORTRAIT", children: isVi ? "9:16 Dọc" : "9:16 Portrait" }),
                   ],
                 }),
               ],
             }),
             c.jsxs("div", {
               children: [
-                c.jsx("label", {
-                  htmlFor: "global-seed",
-                  className: "block text-xs font-medium text-dark-text mb-1",
-                  children: "Seed (Chung)",
-                }),
+                c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: isVi ? "Seed (Chung)" : "Seed (Global)" }),
                 c.jsxs("div", {
                   className: "flex gap-1",
                   children: [
-                    c.jsx("input", {
-                      id: "global-seed",
-                      type: "number",
-                      value: se,
-                      onChange: (I) => U(parseInt(I.target.value, 10) || 0),
-                      className: `${Ga} w-20 !p-2 text-xs h-[34px]`,
-                      disabled: T,
-                    }),
-                    c.jsx("button", {
-                      type: "button",
-                      onClick: ee,
-                      disabled: T,
-                      title: "Ngẫu nhiên",
-                      className: `${Hn} ${sl} p-2 h-[34px] w-auto !rounded-full`,
-                      children: c.jsx(Pu, {
-                        className: "h-4 w-4",
-                      }),
-                    }),
+                    c.jsx("input", { type: "number", value: se, onChange: (I) => U(parseInt(I.target.value, 10) || 0), className: `${Ga} w-20 !p-2 text-xs h-[34px]`, disabled: T }),
+                    c.jsx("button", { type: "button", onClick: ee, disabled: T, title: isVi ? "Ngẫu nhiên" : "Random", className: `${Hn} ${sl} p-2 h-[34px] w-auto !rounded-full`, children: c.jsx(Pu, { className: "h-4 w-4" }) }),
                   ],
                 }),
               ],
@@ -37218,112 +35681,44 @@ const ak = async (t) => {
                 c.jsxs("div", {
                   children: [
                     c.jsxs("label", {
-                      htmlFor: "concurrency-input",
-                      className:
-                        "block text-xs font-medium text-dark-text mb-1",
+                      className: "block text-xs font-medium text-dark-text mb-1",
                       children: [
-                        "Số luồng",
-                        !V &&
-                        c.jsx("button", {
-                          type: "button",
-                          onClick: _,
-                          className: "ml-1 text-accent font-bold text-[10px]",
-                          children: "(Nâng cấp)",
-                        }),
+                        isVi ? "Số luồng" : "Streams",
+                        !V && c.jsx("button", { type: "button", onClick: _, className: "ml-1 text-accent font-bold text-[10px]", children: isVi ? "(Nâng cấp)" : "(Upgrade)" }),
                       ],
                     }),
-                    c.jsx("input", {
-                      id: "concurrency-input",
-                      type: "number",
-                      value: be,
-                      onChange: (I) => {
-                        let de = parseInt(I.target.value, 10);
-                        isNaN(de) && (de = 1),
-                          Me(Math.max(1, Math.min(V ? 20 : 1, de)));
-                      },
-                      min: "1",
-                      max: V ? "10" : "1",
-                      className: `${Ga} w-16 !p-2 text-xs h-[34px]`,
-                      disabled: T || !V,
-                      title: V
-                        ? "Số luồng chạy song song (1-10)"
-                        : "Gói Cá Nhân chỉ hỗ trợ 1 luồng. Nâng cấp Pro để chạy 3-10 luồng.",
-                    }),
+                    c.jsx("input", { type: "number", value: be, onChange: (I) => { let de = parseInt(I.target.value, 10); isNaN(de) && (de = 1), Me(Math.max(1, Math.min(V ? 20 : 1, de))); }, min: "1", max: V ? "10" : "1", className: `${Ga} w-16 !p-2 text-xs h-[34px]`, disabled: T || !V }),
                   ],
                 }),
                 c.jsxs("div", {
                   className: "flex flex-col gap-1.5",
                   children: [
                     c.jsxs("label", {
-                      htmlFor: "whisk-auto-save-toggle",
                       className: "flex items-center cursor-pointer",
                       children: [
                         c.jsxs("div", {
                           className: "relative",
                           children: [
-                            c.jsx("input", {
-                              type: "checkbox",
-                              id: "whisk-auto-save-toggle",
-                              className: "sr-only peer",
-                              checked: x.enabled,
-                              onChange: () =>
-                                g((I) => ({
-                                  ...I,
-                                  enabled: !I.enabled,
-                                })),
-                              disabled: T,
-                            }),
-                            c.jsx("div", {
-                              className:
-                                "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                            }),
-                            c.jsx("div", {
-                              className:
-                                "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                            }),
+                            c.jsx("input", { type: "checkbox", className: "sr-only peer", checked: x.enabled, onChange: () => g((I) => ({ ...I, enabled: !I.enabled })), disabled: T }),
+                            c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                            c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                           ],
                         }),
-                        c.jsx("span", {
-                          className:
-                            "ml-2 text-dark-text text-[10px] font-bold uppercase",
-                          children: "Tự động lưu",
-                        }),
+                        c.jsx("span", { className: "ml-2 text-dark-text text-[10px] font-bold uppercase", children: isVi ? "Tự động lưu" : "Auto Save" }),
                       ],
                     }),
                     c.jsxs("label", {
-                      htmlFor: "whisk-auto-retry-toggle",
                       className: "flex items-center cursor-pointer",
                       children: [
                         c.jsxs("div", {
                           className: "relative",
                           children: [
-                            c.jsx("input", {
-                              type: "checkbox",
-                              id: "whisk-auto-retry-toggle",
-                              className: "sr-only peer",
-                              checked: !!autoRetryState,
-                              onChange: () =>
-                                h((I) => ({
-                                  ...I,
-                                  autoRetry: !I.autoRetry,
-                                })),
-                              disabled: T,
-                            }),
-                            c.jsx("div", {
-                              className:
-                                "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                            }),
-                            c.jsx("div", {
-                              className:
-                                "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                            }),
+                            c.jsx("input", { type: "checkbox", className: "sr-only peer", checked: !!autoRetryState, onChange: () => h((I) => ({ ...I, autoRetry: !I.autoRetry })), disabled: T }),
+                            c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                            c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                           ],
                         }),
-                        c.jsx("span", {
-                          className:
-                            "ml-2 text-dark-text text-[10px] font-bold uppercase",
-                          children: "Tự động thử lại",
-                        }),
+                        c.jsx("span", { className: "ml-2 text-dark-text text-[10px] font-bold uppercase", children: isVi ? "Tự động thử lại" : "Auto Retry" }),
                       ],
                     }),
                   ],
@@ -37331,106 +35726,40 @@ const ak = async (t) => {
                 c.jsxs("div", {
                   className: "flex items-center",
                   children: [
-                    c.jsx("p", {
-                      className:
-                        "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-28 truncate",
-                      title: x.path || "Chưa chọn thư mục",
-                      children: x.path || "Chưa chọn...",
-                    }),
-                    c.jsxs("button", {
-                      onClick: Ve,
-                      disabled: !x.enabled || T,
-                      className:
-                        "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50 flex items-center gap-1",
-                      children: [
-                        c.jsx(Iu, {
-                          className: "h-4 w-4",
-                        }),
-                        " ",
-                      ],
-                    }),
+                    c.jsx("p", { className: "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-28 truncate", title: x.path || "", children: x.path || (isVi ? "Chưa chọn..." : "Not selected...") }),
+                    c.jsx("button", { onClick: Ve, disabled: !x.enabled || T, className: "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50 flex items-center gap-1", children: c.jsx(Iu, { className: "h-4 w-4" }) }),
                   ],
                 }),
               ],
             }),
-            c.jsx("div", {
-              className: "flex-1",
-            }),
+            c.jsx("div", { className: "flex-1" }),
             c.jsx("div", {
               className: "flex items-end gap-2",
-              children: T
-                ? c.jsxs("button", {
-                  className: `${Hn} ${sl} text-xs !py-1.5 px-3 text-red-600 h-[34px] !rounded-full`,
-                  onClick: ve,
-                  children: [
-                    " ",
-                    c.jsx(ku, {
-                      className: "mr-1 h-4 w-4",
-                    }),
-                    " Dừng Tất Cả ",
-                  ],
-                })
-                : c.jsxs(c.Fragment, {
-                  children: [
-                    nt &&
-                    c.jsxs("button", {
-                      className: `${Hn} ${fk} text-xs !py-1.5 px-3 h-[34px] !rounded-full`,
-                      onClick: xe,
-                      disabled: T || !V,
-                      title: V
-                        ? "Chạy lại các prompt chưa thành công hoặc chưa chạy"
-                        : "Tính năng Pro: Yêu cầu nâng cấp gói",
-                      children: [
-                        c.jsx(_b, {
-                          className: "mr-1 h-4 w-4",
-                        }),
-                        " Chạy lại (",
-                        Ge,
-                        ")",
-                      ],
-                    }),
-                    c.jsx("button", {
-                      className: `${Hn} ${dk} text-xs !py-1.5 px-3 h-[34px] !rounded-full`,
-                      onClick: F,
-                      disabled: pe,
-                      title: V
-                        ? Ie > 0
-                          ? `Chạy lại ${Ie} mục đã chọn`
-                          : `Chạy tất cả ${b.length} mục`
-                        : "Tính năng Pro: Yêu cầu nâng cấp gói",
-                      children:
-                        Ie > 0
-                          ? c.jsxs(c.Fragment, {
-                            children: [
-                              " ",
-                              c.jsx(ja, {
-                                className: "mr-1 h-4 w-4",
-                              }),
-                              " Chạy Lại (",
-                              Ie,
-                              ") ",
-                            ],
-                          })
-                          : c.jsxs(c.Fragment, {
-                            children: [
-                              " ",
-                              c.jsx(Ps, {
-                                className: "mr-1 h-4 w-4",
-                              }),
-                              " Chạy Tất Cả (",
-                              b.length,
-                              ") ",
-                            ],
-                          }),
-                    }),
-                  ],
-                }),
+              children: T ? c.jsxs("button", {
+                className: `${Hn} ${sl} text-xs !py-1.5 px-3 text-red-600 h-[34px] !rounded-full`,
+                onClick: ve,
+                children: [c.jsx(ku, { className: "mr-1 h-4 w-4" }), isVi ? " Dừng Tất Cả " : " Stop All "],
+              }) : c.jsxs(c.Fragment, {
+                children: [
+                  nt && c.jsxs("button", {
+                    className: `${Hn} ${fk} text-xs !py-1.5 px-3 h-[34px] !rounded-full`,
+                    onClick: xe,
+                    disabled: T || !V,
+                    children: [c.jsx(_b, { className: "mr-1 h-4 w-4" }), isVi ? ` Chạy lại (${Ge})` : ` Retry (${Ge})`],
+                  }),
+                  c.jsx("button", {
+                    className: `${Hn} ${dk} text-xs !py-1.5 px-3 h-[34px] !rounded-full`,
+                    onClick: F,
+                    disabled: pe,
+                    children: Ie > 0 ? c.jsxs(c.Fragment, { children: [c.jsx(ja, { className: "mr-1 h-4 w-4" }), isVi ? ` Chạy Lại (${Ie}) ` : ` Retry (${Ie}) `] }) : c.jsxs(c.Fragment, { children: [c.jsx(Ps, { className: "mr-1 h-4 w-4" }), isVi ? ` Chạy Tất Cả (${b.length}) ` : ` Run All (${b.length}) `] }),
+                  }),
+                ],
+              }),
             }),
           ],
         }),
         c.jsxs("div", {
-          className:
-            "flex flex-wrap items-center gap-x-4 gap-y-2 p-2 bg-secondary rounded-lg shadow-sm border border-border-color text-xs font-bold",
+          className: "flex flex-wrap items-center gap-x-4 gap-y-2 p-2 bg-secondary rounded-lg shadow-sm border border-border-color text-xs font-bold",
           children: [
             c.jsxs("div", {
               className: "flex items-center gap-2",
@@ -37438,178 +35767,32 @@ const ak = async (t) => {
                 c.jsxs("div", {
                   className: "flex items-center gap-1",
                   children: [
-                    " ",
-                    c.jsx("input", {
-                      type: "checkbox",
-                      id: "select-all",
-                      checked: ue,
-                      onChange: (I) => we(I.target.checked),
-                      className:
-                        "h-4 w-4 rounded border-border-color text-accent focus:ring-accent",
-                    }),
-                    " ",
-                    c.jsx("label", {
-                      htmlFor: "select-all",
-                      className: "text-dark-text cursor-pointer",
-                      children: "Tất cả",
-                    }),
-                    " ",
+                    c.jsx("input", { type: "checkbox", id: "select-all", checked: ue, onChange: (I) => we(I.target.checked), className: "h-4 w-4 rounded border-border-color text-accent focus:ring-accent" }),
+                    c.jsx("label", { htmlFor: "select-all", className: "text-dark-text cursor-pointer", children: isVi ? "Tất cả" : "All" }),
                   ],
                 }),
-                c.jsxs("button", {
-                  onClick: ge,
-                  disabled: T || Ie === 0 || !V,
-                  title: V
-                    ? "Chạy các mục đã chọn"
-                    : "Tính năng Pro: Yêu cầu nâng cấp gói",
-                  className: `${Hn} ${Tx} !py-1 !px-2`,
-                  children: [
-                    c.jsx(Ps, {
-                      className: "mr-1 h-4 w-4",
-                    }),
-                    " Chạy (",
-                    Ie,
-                    ")",
-                  ],
-                }),
-                c.jsxs("button", {
-                  onClick: Be,
-                  disabled: T || Ie === 0,
-                  className: `${Hn} ${sl} !py-1 !px-2`,
-                  children: [
-                    " ",
-                    c.jsx($a, {
-                      className: "mr-1 h-4 w-4 text-red-600",
-                    }),
-                    " Xóa (",
-                    Ie,
-                    ") ",
-                  ],
-                }),
-                c.jsxs("button", {
-                  onClick: B,
-                  disabled: T,
-                  className: `${Hn} ${sl} !py-1 !px-2`,
-                  children: [
-                    " ",
-                    c.jsx(Ua, {
-                      className: "mr-1 h-4 w-4",
-                    }),
-                    " Thêm Prompt thủ công ",
-                  ],
-                }),
+                c.jsxs("button", { onClick: ge, disabled: T || Ie === 0 || !V, className: `${Hn} ${Tx} !py-1 !px-2`, children: [c.jsx(Ps, { className: "mr-1 h-4 w-4" }), isVi ? ` Chạy (${Ie})` : ` Run (${Ie})`] }),
+                c.jsxs("button", { onClick: Be, disabled: T || Ie === 0, className: `${Hn} ${sl} !py-1 !px-2`, children: [c.jsx($a, { className: "mr-1 h-4 w-4 text-red-600" }), isVi ? ` Xóa (${Ie}) ` : ` Delete (${Ie}) `] }),
+                c.jsxs("button", { onClick: B, disabled: T, className: `${Hn} ${sl} !py-1 !px-2`, children: [c.jsx(Ua, { className: "mr-1 h-4 w-4" }), isVi ? " Thêm Prompt thủ công " : " Add Manual Prompt "] }),
               ],
             }),
-            c.jsx("div", {
-              className: "flex-1",
-            }),
+            c.jsx("div", { className: "flex-1" }),
             c.jsxs("div", {
               className: "flex items-center gap-3 text-dark-text",
               children: [
-                " ",
-                c.jsxs("span", {
-                  children: [
-                    "Tổng: ",
-                    c.jsx("span", {
-                      className: "font-bold text-light",
-                      children: We,
-                    }),
-                  ],
-                }),
-                " ",
-                c.jsxs("span", {
-                  className: "text-blue-500",
-                  children: [
-                    "Chạy: ",
-                    c.jsx("span", {
-                      className: "font-bold",
-                      children: D,
-                    }),
-                  ],
-                }),
-                " ",
-                c.jsxs("span", {
-                  className: "text-green-500",
-                  children: [
-                    "Xong: ",
-                    c.jsx("span", {
-                      className: "font-bold",
-                      children: me,
-                    }),
-                  ],
-                }),
-                " ",
-                c.jsxs("span", {
-                  className: "text-red-500",
-                  children: [
-                    "Lỗi: ",
-                    c.jsx("span", {
-                      className: "font-bold",
-                      children: M,
-                    }),
-                  ],
-                }),
-                " ",
-                c.jsxs("span", {
-                  className: "text-yellow-500",
-                  children: [
-                    "Chờ: ",
-                    c.jsx("span", {
-                      className: "font-bold",
-                      children: te,
-                    }),
-                  ],
-                }),
-                " ",
-                c.jsxs("span", {
-                  className: "text-gray-500",
-                  children: [
-                    "Hủy: ",
-                    c.jsx("span", {
-                      className: "font-bold",
-                      children: O,
-                    }),
-                  ],
-                }),
-                " ",
+                c.jsxs("span", { children: [isVi ? "Tổng: " : "Total: ", c.jsx("span", { className: "font-bold text-light", children: We })] }),
+                c.jsxs("span", { className: "text-blue-500", children: [isVi ? "Chạy: " : "Running: ", c.jsx("span", { className: "font-bold", children: D })] }),
+                c.jsxs("span", { className: "text-green-500", children: [isVi ? "Xong: " : "Done: ", c.jsx("span", { className: "font-bold", children: me })] }),
+                c.jsxs("span", { className: "text-red-500", children: [isVi ? "Lỗi: " : "Error: ", c.jsx("span", { className: "font-bold", children: M })] }),
+                c.jsxs("span", { className: "text-yellow-500", children: [isVi ? "Chờ: " : "Queued: ", c.jsx("span", { className: "font-bold", children: te })] }),
+                c.jsxs("span", { className: "text-gray-500", children: [isVi ? "Hủy: " : "Canceled: ", c.jsx("span", { className: "font-bold", children: O })] }),
               ],
             }),
             c.jsxs("div", {
               className: "flex items-center gap-1",
               children: [
-                " ",
-                c.jsxs("button", {
-                  title: "2 Cột",
-                  onClick: () => J(2),
-                  className: `p-1.5 rounded-md ${ne === 2
-                    ? "bg-accent text-white"
-                    : "bg-primary text-dark-text hover:bg-hover-bg"
-                    }`,
-                  children: [
-                    " ",
-                    c.jsx(Ru, {
-                      className: "h-4 w-4",
-                    }),
-                    " ",
-                  ],
-                }),
-                " ",
-                c.jsxs("button", {
-                  title: "3 Cột",
-                  onClick: () => J(3),
-                  className: `p-1.5 rounded-md ${ne === 3
-                    ? "bg-accent text-white"
-                    : "bg-primary text-dark-text hover:bg-hover-bg"
-                    }`,
-                  children: [
-                    " ",
-                    c.jsx(Du, {
-                      className: "h-4 w-4",
-                    }),
-                    " ",
-                  ],
-                }),
-                " ",
+                c.jsxs("button", { title: isVi ? "2 Cột" : "2 Columns", onClick: () => J(2), className: `p-1.5 rounded-md ${ne === 2 ? "bg-accent text-white" : "bg-primary text-dark-text hover:bg-hover-bg"}`, children: [c.jsx(Ru, { className: "h-4 w-4" })] }),
+                c.jsxs("button", { title: isVi ? "3 Cột" : "3 Columns", onClick: () => J(3), className: `p-1.5 rounded-md ${ne === 3 ? "bg-accent text-white" : "bg-primary text-dark-text hover:bg-hover-bg"}`, children: [c.jsx(Du, { className: "h-4 w-4" })] }),
               ],
             }),
           ],
@@ -37617,32 +35800,10 @@ const ak = async (t) => {
         c.jsxs("div", {
           className: "flex-1 overflow-auto pr-2 -mr-2",
           children: [
-            b.length === 0 &&
-            c.jsx("div", {
-              className:
-                "flex items-center justify-center h-full text-dark-text",
-              children: c.jsx("p", {
-                children: "Thêm tác vụ hoặc tải prompt để bắt đầu.",
-              }),
-            }),
+            b.length === 0 && c.jsx("div", { className: "flex items-center justify-center h-full text-dark-text", children: c.jsx("p", { children: isVi ? "Thêm tác vụ hoặc tải prompt để bắt đầu." : "Add tasks or load prompts to start." }) }),
             c.jsx("div", {
               className: `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${ne} gap-4`,
-              children: b.map((I, de) =>
-                c.jsx(
-                  mk,
-                  {
-                    task: I,
-                    index: de,
-                    onUpdateTask: p,
-                    onToggleSelect: oe,
-                    onRunTask: St,
-                    onRemoveTask: W,
-                    isRunning: T,
-                    isProUser: V,
-                  },
-                  I.id
-                )
-              ),
+              children: b.map((I, de) => c.jsx(mk, { task: I, index: de, onUpdateTask: p, onToggleSelect: oe, onRunTask: St, onRemoveTask: W, isRunning: T, isProUser: V }, I.id)),
             }),
           ],
         }),
@@ -37650,71 +35811,64 @@ const ak = async (t) => {
     });
   },
   gk = [
-    "Kể chuyện",
-    "Hành động/Chiến đấu",
-    "Tình cảm/Lãng mạn",
-    "Hài hước/Vui nhộn",
-    "Kinh dị/Horror",
-    "Bí ẩn/Trinh thám",
-    "Fantasy/Thần thoại",
-    "Khoa học viễn tưởng",
-    "Drama/Chính kịch",
-    "Giáo dục/Học tập",
-    "Phiêu lưu/Thám hiểm",
-    "Đời thường/Slice of Life",
-    "Trailer phim",
-    "Phát triển dựa trên nội dung gốc",
+    { v: "Storytelling", vi: "Kể chuyện", en: "Storytelling" },
+    { v: "Action/Combat", vi: "Hành động/Chiến đấu", en: "Action/Combat" },
+    { v: "Romance", vi: "Tình cảm/Lãng mạn", en: "Romance" },
+    { v: "Comedy", vi: "Hài hước/Vui nhộn", en: "Comedy" },
+    { v: "Horror", vi: "Kinh dị/Horror", en: "Horror" },
+    { v: "Mystery", vi: "Bí ẩn/Trinh thám", en: "Mystery" },
+    { v: "Fantasy", vi: "Fantasy/Thần thoại", en: "Fantasy" },
+    { v: "Sci-Fi", vi: "Khoa học viễn tưởng", en: "Sci-Fi" },
+    { v: "Drama", vi: "Drama/Chính kịch", en: "Drama" },
+    { v: "Educational", vi: "Giáo dục/Học tập", en: "Educational" },
+    { v: "Adventure", vi: "Phiêu lưu/Thám hiểm", en: "Adventure" },
+    { v: "Slice of Life", vi: "Đời thường/Slice of Life", en: "Slice of Life" },
+    { v: "Movie Trailer", vi: "Trailer phim", en: "Movie Trailer" },
+    { v: "Develop from original content", vi: "Phát triển dựa trên nội dung gốc", en: "Develop from original content" }
   ],
   xk = [
-    {
-      value: "1000",
-      label: "1000 từ (~1.5 phút)",
-    },
-    {
-      value: "2000",
-      label: "2000 từ (~3 phút)",
-    },
-    {
-      value: "3500",
-      label: "3500 từ (~5 phút)",
-    },
+    { value: "1000", vi: "1000 từ (~1.5 phút)", en: "1000 words (~1.5 mins)" },
+    { value: "2000", vi: "2000 từ (~3 phút)", en: "2000 words (~3 mins)" },
+    { value: "3500", vi: "3500 từ (~5 phút)", en: "3500 words (~5 mins)" },
   ],
   yk = [
-    "ngôn ngữ prompt là tiếng anh",
-    "Siêu thực",
-    "Phim",
-    "Hoạt hình Disney",
-    "Anime",
-    "Pixar",
-    "Truyện tranh",
-    "Noir",
-    "Cyberpunk",
-    "Màu nước",
-    "Low-poly 3D",
-    "Hoạt hình Cartoon 2D",
-    "Hoạt hình Cartoon 3D",
-    "Disney",
-    "Pixel Art",
-    "Isometric",
-    "Paper Cutout",
-    "Claymation",
-    "Lịch sử",
+    { v: "Prompt language is English", vi: "ngôn ngữ prompt là tiếng anh", en: "Prompt language is English" },
+    { v: "Surreal", vi: "Siêu thực", en: "Surreal" },
+    { v: "Cinematic", vi: "Phim", en: "Cinematic" },
+    { v: "Disney Animation", vi: "Hoạt hình Disney", en: "Disney Animation" },
+    { v: "Anime", vi: "Anime", en: "Anime" },
+    { v: "Pixar", vi: "Pixar", en: "Pixar" },
+    { v: "Comic Book", vi: "Truyện tranh", en: "Comic Book" },
+    { v: "Noir", vi: "Noir", en: "Noir" },
+    { v: "Cyberpunk", vi: "Cyberpunk", en: "Cyberpunk" },
+    { v: "Watercolor", vi: "Màu nước", en: "Watercolor" },
+    { v: "Low-poly 3D", vi: "Low-poly 3D", en: "Low-poly 3D" },
+    { v: "2D Cartoon", vi: "Hoạt hình Cartoon 2D", en: "2D Cartoon" },
+    { v: "3D Cartoon", vi: "Hoạt hình Cartoon 3D", en: "3D Cartoon" },
+    { v: "Disney", vi: "Disney", en: "Disney" },
+    { v: "Pixel Art", vi: "Pixel Art", en: "Pixel Art" },
+    { v: "Isometric", vi: "Isometric", en: "Isometric" },
+    { v: "Paper Cutout", vi: "Paper Cutout", en: "Paper Cutout" },
+    { v: "Claymation", vi: "Claymation", en: "Claymation" },
+    { v: "Historical", vi: "Lịch sử", en: "Historical" }
   ],
   vk = [
-    "Hành động/Chiến đấu",
-    "Tình cảm/Lãng mạn",
-    "Hài hước/Vui nhộn",
-    "Kinh dị/Horror",
-    "Bí ẩn/Trinh thám",
-    "Fantasy/Thần thoại",
-    "Khoa học viễn tưởng",
-    "Drama/Chính kịch",
-    "Giáo dục/Học tập",
-    "Phiêu lưu/Thám hiểm",
-    "Đời thường/Slice of Life",
-    "Trailer phim",
+    { v: "Action/Combat", vi: "Hành động/Chiến đấu", en: "Action/Combat" },
+    { v: "Romance", vi: "Tình cảm/Lãng mạn", en: "Romance" },
+    { v: "Comedy", vi: "Hài hước/Vui nhộn", en: "Comedy" },
+    { v: "Horror", vi: "Kinh dị/Horror", en: "Horror" },
+    { v: "Mystery", vi: "Bí ẩn/Trinh thám", en: "Mystery" },
+    { v: "Fantasy", vi: "Fantasy/Thần thoại", en: "Fantasy" },
+    { v: "Sci-Fi", vi: "Khoa học viễn tưởng", en: "Sci-Fi" },
+    { v: "Drama", vi: "Drama/Chính kịch", en: "Drama" },
+    { v: "Educational", vi: "Giáo dục/Học tập", en: "Educational" },
+    { v: "Adventure", vi: "Phiêu lưu/Thám hiểm", en: "Adventure" },
+    { v: "Slice of Life", vi: "Đời thường/Slice of Life", en: "Slice of Life" },
+    { v: "Movie Trailer", vi: "Trailer phim", en: "Movie Trailer" }
   ],
   bk = ({ isOpen: t, onClose: e, config: s, setConfig: i }) => {
+    const { t: tr } = so();
+    const isVi = tr("sidebar.dashboard") === "Tổng quan";
     if (!t) return null;
     const r = (p) => {
       const x = s.promptStyle.includes(p)
@@ -37753,7 +35907,7 @@ const ak = async (t) => {
         children: [
           c.jsx("h2", {
             className: "text-2xl font-bold text-light mb-6",
-            children: "Cài đặt quy trình tự động",
+            children: tr("autoCreate.settings.title"),
           }),
           c.jsxs("div", {
             className: "space-y-6",
@@ -37763,7 +35917,7 @@ const ak = async (t) => {
                 children: [
                   c.jsx("legend", {
                     className: "text-lg font-semibold text-accent px-2",
-                    children: "1. Cài đặt Câu chuyện",
+                    children: tr("autoCreate.settings.storySection"),
                   }),
                   c.jsxs("div", {
                     className: "grid md:grid-cols-2 gap-4",
@@ -37773,7 +35927,7 @@ const ak = async (t) => {
                           c.jsx("label", {
                             className:
                               "block text-sm font-medium text-dark-text mb-1",
-                            children: "Phong cách",
+                            children: tr("autoCreate.settings.storyStyle"),
                           }),
                           c.jsx("select", {
                             value: s.storyStyle,
@@ -37784,15 +35938,7 @@ const ak = async (t) => {
                               })),
                             className:
                               "w-full p-2 bg-primary rounded-md border border-border-color",
-                            children: gk.map((p) =>
-                              c.jsx(
-                                "option",
-                                {
-                                  value: p,
-                                  children: p,
-                                },
-                                p
-                              )
+                            children: gk.map((item) => c.jsx("option", { value: item.v, children: isVi ? item.vi : item.en }, item.v)
                             ),
                           }),
                         ],
@@ -37802,7 +35948,7 @@ const ak = async (t) => {
                           c.jsx("label", {
                             className:
                               "block text-sm font-medium text-dark-text mb-1",
-                            children: "Độ dài (ước tính)",
+                            children: tr("autoCreate.settings.storyLength"),
                           }),
                           c.jsx("select", {
                             value: s.storyLength,
@@ -37813,16 +35959,7 @@ const ak = async (t) => {
                               })),
                             className:
                               "w-full p-2 bg-primary rounded-md border border-border-color",
-                            children: xk.map((p) =>
-                              c.jsx(
-                                "option",
-                                {
-                                  value: p.value,
-                                  children: p.label,
-                                },
-                                p.value
-                              )
-                            ),
+                            children: xk.map((item) => c.jsx("option", { value: item.value, children: isVi ? item.vi : item.en }, item.value)),
                           }),
                         ],
                       }),
@@ -37835,32 +35972,18 @@ const ak = async (t) => {
                 children: [
                   c.jsx("legend", {
                     className: "text-lg font-semibold text-accent px-2",
-                    children: "2. Cài đặt Prompt Video",
+                    children: tr("autoCreate.settings.promptSection"),
                   }),
                   c.jsxs("div", {
                     children: [
                       c.jsx("label", {
                         className:
                           "block text-sm font-medium text-dark-text mb-2",
-                        children: "Style (chọn nhiều)",
+                        children: tr("autoCreate.settings.promptStyle"),
                       }),
                       c.jsx("div", {
                         className: "flex flex-wrap gap-2",
-                        children: yk.map((p) =>
-                          c.jsx(
-                            "button",
-                            {
-                              type: "button",
-                              onClick: () => r(p),
-                              className: `px-3 py-1.5 rounded-full text-xs ${s.promptStyle.includes(p)
-                                ? "bg-accent text-white"
-                                : "bg-primary hover:bg-hover-bg"
-                                }`,
-                              children: p,
-                            },
-                            p
-                          )
-                        ),
+                        children: yk.map((item) => c.jsx("option", { value: item.v, children: isVi ? item.vi : item.en }, item.v)),
                       }),
                     ],
                   }),
@@ -37872,7 +35995,7 @@ const ak = async (t) => {
                           c.jsx("label", {
                             className:
                               "block text-sm font-medium text-dark-text mb-1",
-                            children: "Thể loại",
+                            children: tr("autoCreate.settings.promptGenre"),
                           }),
                           c.jsx("select", {
                             value: s.promptGenre,
@@ -37883,16 +36006,7 @@ const ak = async (t) => {
                               })),
                             className:
                               "w-full p-2 bg-primary rounded-md border border-border-color",
-                            children: vk.map((p) =>
-                              c.jsx(
-                                "option",
-                                {
-                                  value: p,
-                                  children: p,
-                                },
-                                p
-                              )
-                            ),
+                            children: vk.map((item) => c.jsx("option", { value: item.v, children: isVi ? item.vi : item.en }, item.v)),
                           }),
                         ],
                       }),
@@ -37901,7 +36015,7 @@ const ak = async (t) => {
                           c.jsx("label", {
                             className:
                               "block text-sm font-medium text-dark-text mb-1",
-                            children: "Loại Prompt",
+                            children: tr("autoCreate.settings.promptType"),
                           }),
                           c.jsxs("select", {
                             value: s.promptType,
@@ -37915,11 +36029,11 @@ const ak = async (t) => {
                             children: [
                               c.jsx("option", {
                                 value: "detailed",
-                                children: "Chi tiết (8 giây / prompt)",
+                                children: tr("autoCreate.settings.promptTypeDetailed"),
                               }),
                               c.jsx("option", {
                                 value: "comprehensive",
-                                children: "Tổng quan (1 prompt tóm tắt)",
+                                children: tr("autoCreate.settings.promptTypeComprehensive"),
                               }),
                             ],
                           }),
@@ -37934,7 +36048,7 @@ const ak = async (t) => {
                 children: [
                   c.jsx("legend", {
                     className: "text-lg font-semibold text-accent px-2",
-                    children: "3. Cài đặt Tạo Video",
+                    children: tr("autoCreate.settings.videoSection"),
                   }),
                   c.jsxs("div", {
                     className: "grid md:grid-cols-3 gap-4",
@@ -37944,7 +36058,7 @@ const ak = async (t) => {
                           c.jsx("label", {
                             className:
                               "block text-sm font-medium text-dark-text mb-1",
-                            children: "Model",
+                            children: tr("autoCreate.settings.videoModel"),
                           }),
                           c.jsxs("select", {
                             value: s.videoModel,
@@ -37970,8 +36084,7 @@ const ak = async (t) => {
                           s.videoAspectRatio === "PORTRAIT" &&
                           c.jsx("p", {
                             className: "text-xs text-yellow-500 mt-1",
-                            children:
-                              "Model được tự động chọn cho tỷ lệ dọc.",
+                            children: tr("autoCreate.settings.portraitWarning"),
                           }),
                         ],
                       }),
@@ -37980,7 +36093,7 @@ const ak = async (t) => {
                           c.jsx("label", {
                             className:
                               "block text-sm font-medium text-dark-text mb-1",
-                            children: "Tỷ lệ",
+                            children: tr("autoCreate.settings.videoAspectRatio"),
                           }),
                           c.jsxs("select", {
                             value: s.videoAspectRatio,
@@ -38005,7 +36118,7 @@ const ak = async (t) => {
                           c.jsx("label", {
                             className:
                               "block text-sm font-medium text-dark-text mb-1",
-                            children: "Số (1-10)",
+                            children: tr("autoCreate.settings.videoStreams"),
                           }),
                           c.jsx("input", {
                             type: "number",
@@ -38030,7 +36143,7 @@ const ak = async (t) => {
                           c.jsx("label", {
                             className:
                               "block text-sm font-medium text-dark-text mb-1",
-                            children: "Độ phân giải tải về",
+                            children: tr("autoCreate.settings.videoResolution"),
                           }),
                           c.jsxs("select", {
                             value: s.resolution || "720p",
@@ -38054,10 +36167,6 @@ const ak = async (t) => {
                                 value: "2k",
                                 children: "2k",
                               }),
-                              /*  c.jsx("option", {
-                                value: "4k",
-                                children: "4k",
-                              }),*/
                             ],
                           }),
                         ],
@@ -38098,7 +36207,7 @@ const ak = async (t) => {
                           c.jsx("div", {
                             className:
                               "ml-2 text-dark-text text-sm font-medium whitespace-nowrap",
-                            children: "Tự động lưu",
+                            children: tr("autoCreate.settings.autoSave"),
                           }),
                         ],
                       }),
@@ -38111,8 +36220,8 @@ const ak = async (t) => {
                             className:
                               "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg text-sm",
                             children: s.savePath
-                              ? "Đổi thư mục"
-                              : "Chọn thư mục",
+                              ? tr("autoCreate.settings.changeFolder")
+                              : tr("autoCreate.settings.selectFolder"),
                           }),
                           s.savePath &&
                           c.jsx("p", {
@@ -38135,7 +36244,7 @@ const ak = async (t) => {
               onClick: e,
               className:
                 "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg",
-              children: "Đóng",
+              children: tr("autoCreate.settings.closeBtn"),
             }),
           }),
         ],
@@ -38143,6 +36252,8 @@ const ak = async (t) => {
     });
   },
   Tk = ({ setActiveView: t }) => {
+    const { t: tr } = so();
+    const isVi = tr("sidebar.dashboard") === "Tổng quan";
     const {
       addStory: e,
       addPrompts: s,
@@ -38160,7 +36271,7 @@ const ak = async (t) => {
           id: Date.now(),
           text: "",
           status: "idle",
-          message: "Sẵn sàng",
+          message: tr("autoCreate.statusReady"),
         },
       ]),
       [T, S] = A.useState(!1),
@@ -38172,7 +36283,7 @@ const ak = async (t) => {
             id: Date.now(),
             text: "",
             status: "idle",
-            message: "Sẵn sàng",
+            message: tr("autoCreate.statusReady"),
           },
         ]);
       },
@@ -38208,22 +36319,22 @@ const ak = async (t) => {
         await p();
         const P = JSON.parse(localStorage.getItem("currentUser") || "null");
         if (!P || !P.subscription) {
-          g("Bạn cần nâng cấp gói để sử dụng tính năng này.", "error"),
+          g(isVi ? "Bạn cần nâng cấp gói để sử dụng tính năng này." : "You need to upgrade your plan to use this feature.", "error"),
             t(je.PACKAGES);
           return;
         }
         if (new Date(P.subscription.end_date) < new Date()) {
-          g("Gói đăng ký của bạn đã hết hạn. Vui lòng gia hạn.", "error"),
+          g(isVi ? "Gói đăng ký của bạn đã hết hạn. Vui lòng gia hạn." : "Your subscription has expired. Please renew.", "error"),
             t(je.PACKAGES);
           return;
         }
         S(!0);
         for (const ne of v) {
           if (!ne.text.trim()) continue;
-          L(ne.id, "running", "Bắt đầu xử lý ý tưởng...");
+          L(ne.id, "running", tr("autoCreate.statusProcessingIdea"));
           let J = null;
           try {
-            L(ne.id, "running", "Đang tạo câu chuyện...");
+            L(ne.id, "running", tr("autoCreate.statusCreatingStory"));
             const le = await bx(ne.text, f.storyLength, f.storyStyle);
             (J = {
               id: `auto-${Date.now()}`,
@@ -38232,8 +36343,8 @@ const ak = async (t) => {
               source: ne.text,
             }),
               e(J),
-              g(`Đã tạo xong câu chuyện cho ý tưởng #${ne.id}`, "success"),
-              L(ne.id, "running", "Đang tạo prompts video...");
+              g(isVi ? `Đã tạo xong câu chuyện cho ý tưởng #${ne.id}` : `Story created for idea #${ne.id}`, "success"),
+              L(ne.id, "running", tr("autoCreate.statusCreatingPrompts"));
             const be = [...f.promptStyle, f.promptGenre].join(", "),
               Re = parseInt(f.storyLength, 10) / 150,
               $e = Math.max(1, Math.round(Re)),
@@ -38248,20 +36359,20 @@ const ak = async (t) => {
                 [],
                 [],
                 $e,
-                "Tiếng Việt",
+                isVi ? "Tiếng Việt" : "English",
                 se,
                 x,
-                (oe) => L(ne.id, "running", `Đang tạo prompts: ${oe}`),
+                (oe) => L(ne.id, "running", `${tr("autoCreate.statusCreatingPrompts")} ${oe}`),
                 null
               ),
               ke = JSON.parse(ee.text ?? '{"prompts":[]}').prompts;
             if (ke.length === 0)
-              throw new Error("Không tạo được prompt nào từ câu chuyện.");
+              throw new Error(isVi ? "Không tạo được prompt nào từ câu chuyện." : "No prompts generated from the story.");
             const w = ke.map((oe) => ({
               id: `${J.id}-${Math.random()}`,
               text: oe,
               status: "queued",
-              message: "Sẵn sàng",
+              message: tr("autoCreate.statusReady"),
             })),
               B = w.map((oe) => ({
                 id: oe.id,
@@ -38270,8 +36381,8 @@ const ak = async (t) => {
                 storyTitle: J.title,
               }));
             s(B),
-              g(`Đã tạo ${w.length} prompt cho ý tưởng #${ne.id}`, "success"),
-              L(ne.id, "running", "Đang gửi video đến hàng đợi...");
+              g(isVi ? `Đã tạo ${w.length} prompt cho ý tưởng #${ne.id}` : `Generated ${w.length} prompts for idea #${ne.id}`, "success"),
+              L(ne.id, "running", tr("autoCreate.statusSendingToQueue"));
             const W = {
               enabled: f.autoSave,
               path: f.savePath,
@@ -38320,16 +36431,16 @@ const ak = async (t) => {
               L(
                 ne.id,
                 "completed",
-                'Hoàn thành! Video đang được tạo trong tab "Tạo Video Veo3".'
+                tr("autoCreate.statusCompleted")
               ),
               t(je.AUTO_BROWSER);
           } catch (le) {
-            const be = le.message || "Quy trình gặp lỗi.";
+            const be = le.message || (isVi ? "Quy trình gặp lỗi." : "Process encountered an error.");
             g(be, "error"),
               L(
                 ne.id,
                 J ? "partial" : "error",
-                `Lỗi: ${be}. Đã lưu các phần hoàn thành.`
+                `${tr("autoCreate.statusError")}: ${be}. ${J ? tr("autoCreate.statusPartial") : ""}`
               );
             continue;
           }
@@ -38366,12 +36477,11 @@ const ak = async (t) => {
               children: [
                 c.jsx("h1", {
                   className: "text-3xl font-bold text-light mb-2",
-                  children: "Tạo Tự Động",
+                  children: tr("autoCreate.title"),
                 }),
                 c.jsx("p", {
                   className: "text-dark-text mb-6",
-                  children:
-                    "Nhập một hoặc nhiều ý tưởng, cấu hình và để AI lo phần còn lại.",
+                  children: tr("autoCreate.desc"),
                 }),
               ],
             }),
@@ -38394,7 +36504,7 @@ const ak = async (t) => {
                         clipRule: "evenodd",
                       }),
                     }),
-                    "Cài đặt",
+                    tr("autoCreate.settingsBtn"),
                   ],
                 }),
                 c.jsxs("button", {
@@ -38416,7 +36526,7 @@ const ak = async (t) => {
                           clipRule: "evenodd",
                         }),
                       }),
-                    "Chạy tất cả ý tưởng",
+                    tr("autoCreate.runAllBtn"),
                   ],
                 }),
               ],
@@ -38439,15 +36549,14 @@ const ak = async (t) => {
                       c.jsxs("div", {
                         className: "flex-1",
                         children: [
-                          c.jsxs("label", {
+                          c.jsx("label", {
                             className: "block text-dark-text font-bold mb-2",
-                            children: ["Ý tưởng #", Q + 1],
+                            children: tr("autoCreate.ideaLabel").replace("{num}", Q + 1),
                           }),
                           c.jsx("textarea", {
                             value: P.text,
                             onChange: (ne) => H(P.id, ne.target.value),
-                            placeholder:
-                              "Một con mèo và một con chó trở thành bạn thân và cùng nhau phiêu lưu...",
+                            placeholder: tr("autoCreate.ideaPlaceholder"),
                             className:
                               "w-full h-20 p-2 bg-primary rounded-md border border-border-color focus:ring-2 focus:ring-accent",
                             disabled: T,
@@ -38467,7 +36576,7 @@ const ak = async (t) => {
                             onClick: () => K(P.id),
                             className:
                               "text-xs text-red-500 hover:underline mt-1",
-                            children: "Xóa ý tưởng",
+                            children: tr("autoCreate.deleteIdea"),
                           }),
                         ],
                       }),
@@ -38482,7 +36591,7 @@ const ak = async (t) => {
               disabled: T,
               className:
                 "w-full bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-2 px-4 rounded-lg border border-blue-200 disabled:opacity-50",
-              children: "+ Thêm ý tưởng",
+              children: tr("autoCreate.addIdea"),
             }),
           ],
         }),
@@ -38526,6 +36635,7 @@ const Nk = 1e4,
       cookies: localCookiesList,
     } = jt(),
       { showToast: T } = _t(),
+      { t: tr } = so(),
       upscaleLockRef = A.useRef(new Set()),
       [S, E] = A.useState(new Set()),
       [R, G] = A.useState(2),
@@ -38565,7 +36675,7 @@ const Nk = 1e4,
                   ? {
                     ...Ce,
                     status: "idle",
-                    message: "Đã dừng",
+                    message: tr("veo.stopped"),
                   }
                   : Ce
               );
@@ -38590,7 +36700,6 @@ const Nk = 1e4,
                 let Le = te.status || Ce.status;
                 let msg = te.message;
 
-                // --- LOGIC MỚI: Ẩn thông báo lỗi, chuyển thành "Đang xử lý" ---
                 const isErr =
                   Le === "failed" ||
                   Le === "error" ||
@@ -38600,24 +36709,21 @@ const Nk = 1e4,
 
                 if (isErr && O.autoRetry) {
                   const next = (Ce.retryCount || 0) + 1;
-                  // Không hiện thông báo lỗi cụ thể, chỉ hiện trạng thái
                   return {
                     ...Ce,
                     status: "pending_retry",
-                    message: `🔄 Đang xử lý... (Lần ${next})`,
+                    message: `🔄 ${tr("veo.processing")} (Lần ${next})`,
                     retryCount: next,
                   };
                 }
 
-                // Nếu lỗi mà không retry, cũng chỉ hiện "Lỗi" đơn giản
                 if (isErr) {
                   return {
                     ...Ce,
                     status: "failed",
-                    message: "Đang xử lý (Lỗi)...",
+                    message: `${tr("veo.processing")} (Lỗi)...`,
                   };
                 }
-                // -----------------------------------------------------------
 
                 const he = {
                   status: Le,
@@ -38679,40 +36785,25 @@ const Nk = 1e4,
             }
           ),
           M = window.electronAPI.onCookieUpdate((te) => {
-            console.log("Received cookie update:", te),
-              T("Token & Cookie đã cập nhật!", "info");
+            T("Token & Cookie đã cập nhật!", "info");
           });
         return () => {
           D(), me(), M();
         };
-      }, [x, r, T, P, autoRetryState, f, e, _, Q]);
+      }, [x, r, T, P, autoRetryState, f, e, _, Q, tr]);
     A.useEffect(() => {
-      // 1. Lọc ra các video đang bị treo ở trạng thái chờ thử lại
       const pendingRetries = L.filter((e) => "pending_retry" === e.status);
-
-      // Nếu không có video lỗi nào thì thôi
       if (pendingRetries.length === 0) return;
-
-      // 2. Kiểm tra xem hệ thống có đang bận xử lý các video khác không
       const isBusy = L.some((e) =>
         ["queued", "running", "submitting", "processing"].includes(e.status)
       );
 
-      // 3. Nếu hệ thống ĐANG RẢNH (tức là các video khác đã xong hết, chỉ còn lại mấy cái lỗi này)
       if (!isBusy) {
-        console.log(
-          `[Auto Retry] Phát hiện ${pendingRetries.length} video lỗi còn sót lại. Chạy lại ngay...`
-        );
-
-        // Cập nhật giao diện ngay lập tức
         x((I) => ({
           ...I,
           isRunning: true,
-          // Bật lại trạng thái Running để hiện nút dừng
           prompts: I.prompts.map(
-            (
-              de // Tìm những thằng đang pending_retry và chuyển ngay sang queued
-            ) =>
+            (de) =>
               pendingRetries.find((Ce) => Ce.id === de.id)
                 ? {
                   ...de,
@@ -38723,13 +36814,10 @@ const Nk = 1e4,
           ),
         }));
 
-        // Gửi lệnh xuống Main Process ngay lập tức (Không setTimeout)
-        // Gửi config auto-save nguyên bản (đã bỏ logic tắt khi chọn 1080p)
         const autoSaveConfigForMain = f;
 
         window.electronAPI.startBrowserAutomation({
           prompts: pendingRetries,
-          // Gửi danh sách cần thử lại
           authToken: e.token,
           model: "PORTRAIT" === P ? "veo_3_0_t2v_fast_portrait_ultra" : _,
           aspectRatio: P,
@@ -38763,81 +36851,27 @@ const Nk = 1e4,
       );
     }, [s, i]);
 
-    // --- [DISABLED] TỰ ĐỘNG THỬ LẠI UPSCALE 30S (API upscale đã tắt) ---
-    /*
-    A.useEffect(() => {
-      const waitingList = L.filter((x) => x.upsampleStatus === "waiting_retry");
-      if (waitingList.length === 0) return;
-      const timer = setTimeout(() => {
-        waitingList.forEach((item) => {
-          console.log(`[Auto Retry] Triggering upscale for ${item.id}`);
-          // Reset trạng thái về null để hàm we (triggerUpscale) chấp nhận
-          b(item.id, {
-            upsampleStatus: null,
-          });
-          // Gọi lại hàm nâng cấp (we là hàm triggerUpscale trong scope này)
-          setTimeout(() => we(item), 500);
-        });
-      }, 30000);
-      return () => clearTimeout(timer);
-    }, [L]);
-    */
-    // --- [END] DISABLED AUTO-RETRY ---// Logic Upscale Mới (DISABLED - Đã tắt API upscale)
-    /*
-    A.useEffect(() => {
-      if (f.resolution !== "1080p") return;
-
-      // Dọn dẹp Lock
-      L.forEach((p) => {
-        if (p.upsampleStatus && upscaleLockRef.current.has(p.id)) {
-          upscaleLockRef.current.delete(p.id);
-        }
-      });
-
-      // Lấy danh sách đang chạy thực tế (bao gồm cả lock)
-      const activeUpscales = L.filter(
-        (p) =>
-          p.upsampleStatus === "processing" ||
-          p.upsampleStatus === "pending" ||
-          p.upsampleStatus === "waiting_retry" ||
-          upscaleLockRef.current.has(p.id)
-      );
-
-      // Tìm ứng viên hợp lệ
-      const candidates = L.filter(
-        (p) =>
-          p.status === "success" &&
-          p.videoUrl &&
-          !p.upsampleStatus &&
-          !p.upsampledVideoUrl &&
-          p.mediaId &&
-          p.projectId &&
-          !upscaleLockRef.current.has(p.id)
-      );
-
-      if (candidates.length === 0) return;
-
-      // Duyệt và kích hoạt (Tối đa 2 luồng / 1 cookie)
-      for (const candidate of candidates) {
-        const currentCookieVal = candidate.cookie?.value || v?.value;
-        if (!currentCookieVal) continue;
-
-        const runningForThisCookie = activeUpscales.filter((p) => {
-          const pCookieVal = p.cookie?.value || v?.value;
-          return pCookieVal === currentCookieVal;
-        }).length;
-
-        if (runningForThisCookie < 2) {
-          upscaleLockRef.current.add(candidate.id);
-          // Khóa ngay lập tức
-          we(candidate);
-          // Gọi hàm upscale (we = triggerUpscale)
-          break;
-          // Break để đợi render sau
-        }
+    const getSmartCookieWK = (current) => {
+      if (current && current.value) {
+        localStorage.setItem(
+          "VEO_COOKIE_WK",
+          JSON.stringify({
+            d: current,
+            t: Date.now(),
+          })
+        );
+        return current;
       }
-    }, [L, f.resolution, v]);
-    */
+      try {
+        const c = JSON.parse(localStorage.getItem("VEO_COOKIE_WK"));
+        if (Date.now() - c.t < 1800000) return c.d;
+      } catch { }
+      return null;
+    };
+    const we = async (M) => {
+      return;
+    };
+
     const {
       successCount: Me,
       errorCount: Re,
@@ -38853,7 +36887,7 @@ const Nk = 1e4,
           errorCount: 0,
           pendingCount: 0,
           totalCount: 0,
-          statusMessage: "Sẵn sàng.",
+          statusMessage: tr("veo.ready") || "Sẵn sàng.",
           completedPercentage: 0,
         };
       const me = L.filter((I) => I.status === "success").length,
@@ -38862,12 +36896,12 @@ const Nk = 1e4,
           (I) => I.status === "idle" || I.status === "queued"
         ).length,
         O = me + M;
-      let ue = `Đang chờ ${te}/${D}...`;
+      let ue = `${tr("veo.pending") || "Đang chờ: "}${te}/${D}...`;
       V
-        ? (ue = `Đang xử lý ${O}/${D}...`)
+        ? (ue = `${tr("veo.processing") || "Đang xử lý "}${O}/${D}...`)
         : O > 0 && O < D && D > 0
-          ? (ue = "Đã dừng.")
-          : O === D && D > 0 && (ue = "Hoàn thành!");
+          ? (ue = tr("veo.stopped") || "Đã dừng.")
+          : O === D && D > 0 && (ue = tr("veo.success").replace(": ", "!") || "Hoàn thành!");
       const pe = D > 0 ? (me / D) * 100 : 0;
       return {
         successCount: me,
@@ -38877,13 +36911,14 @@ const Nk = 1e4,
         statusMessage: ue,
         completedPercentage: pe,
       };
-    }, [L, V]),
-      fe = (D) => {
-        x((me) => ({
-          ...me,
-          prompts: typeof D == "function" ? D(me.prompts) : D,
-        }));
-      },
+    }, [L, V, tr]);
+
+    const fe = (D) => {
+      x((me) => ({
+        ...me,
+        prompts: typeof D == "function" ? D(me.prompts) : D,
+      }));
+    },
       ke = (D) => {
         x((me) => ({
           ...me,
@@ -38923,289 +36958,8 @@ const Nk = 1e4,
             promptIndex: 0,
           })
           : T("Không có URL video.", "error");
-      }; // Ngắt
-    // Dấu chấm phẩy để ngắt code cũ
+      };
 
-    // --- LOGIC 1080P (WK) - THÔNG BÁO LỖI NGẮN GỌN ---
-
-    const getSmartCookieWK = (current) => {
-      if (current && current.value) {
-        localStorage.setItem(
-          "VEO_COOKIE_WK",
-          JSON.stringify({
-            d: current,
-            t: Date.now(),
-          })
-        );
-        return current;
-      }
-      try {
-        const c = JSON.parse(localStorage.getItem("VEO_COOKIE_WK"));
-        if (Date.now() - c.t < 1800000) return c.d;
-      } catch { }
-      return null;
-    };
-    const we = async (M) => {
-      console.warn("Upscale API is disabled.");
-      return;
-    };
-    const we_old = async (M) => {
-      const te = M.cookie || getSmartCookieWK(v);
-      if (!te) {
-        T("Lỗi cookie/cache.", "error");
-        return;
-      }
-      if (!M.mediaId || !M.projectId) {
-        T("Thiếu info.", "error");
-        return;
-      }
-
-      x((O) => ({
-        ...O,
-        isRunning: true,
-        prompts: O.prompts.map((ue) =>
-          ue.id === M.id
-            ? {
-              ...ue,
-              upsampleStatus: "pending",
-              message: "Gửi lệnh 1080p...",
-            }
-            : ue
-        ),
-      }));
-
-      try {
-        const { operationName: O, sceneId: ue } = await Sk(
-          te,
-          M.projectId,
-          M.mediaId,
-          P
-        );
-        getSmartCookieWK(te);
-        x((pe) => ({
-          ...pe,
-          prompts: pe.prompts.map((I) =>
-            I.id === M.id
-              ? {
-                ...I,
-                upsampleStatus: "processing",
-                upsampleOperationName: `${O}|${ue}`,
-                message: "Xử lý 1080p...",
-              }
-              : I
-          ),
-        }));
-        T("Đã gửi upscale.", "info");
-      } catch (O) {
-        const errRaw = O.message || "";
-        let shortMsg = "Lỗi gửi";
-        if (errRaw.includes("429") || errRaw.includes("RESOURCE_EXHAUSTED"))
-          shortMsg = "Lỗi Limit (429)";
-        else if (errRaw.includes("401")) shortMsg = "Lỗi Cookie (401)";
-        else if (errRaw.includes("500")) shortMsg = "Lỗi Server (500)";
-
-        if (p.autoRetry && (M.upsampleRetryCount || 0) < 20) {
-          const next = (M.upsampleRetryCount || 0) + 1;
-          x((ue) => ({
-            ...ue,
-            prompts: ue.prompts.map((pe) =>
-              pe.id === M.id
-                ? {
-                  ...pe,
-                  upsampleStatus: "waiting_retry",
-                  message: `⚠️ ${shortMsg}. Thử lại sau 30s...`,
-                  upsampleRetryCount: next,
-                }
-                : pe
-            ),
-          }));
-        } else {
-          x((ue) => ({
-            ...ue,
-            isRunning: ue.prompts.some((itm) =>
-              ["processing", "pending"].includes(itm.upsampleStatus)
-            ),
-            prompts: ue.prompts.map((pe) =>
-              pe.id === M.id
-                ? {
-                  ...pe,
-                  upsampleStatus: "failed",
-                  message: shortMsg,
-                }
-                : pe
-            ),
-          }));
-          T(shortMsg, "error");
-        }
-      }
-    };
-    // [DISABLED] ALL AUTOMATED UPSCALE TRIGGERS
-    /*
-    A.useEffect(() => {
-      const M = p.prompts.filter(
-        (te) => te.upsampleStatus === "processing" && te.upsampleOperationName
-      );
-      if (M.length === 0) return;
-      const te = setInterval(() => {
-        M.forEach((O) => {
-          const [ue, pe] = (O.upsampleOperationName || "").split("|");
-          const I = O.cookie || getSmartCookieWK(v);
-          if (!ue || !pe || !I) return;
-          Ck(I, ue, pe)
-            .then((de) => {
-              if (de.status === "MEDIA_GENERATION_STATUS_SUCCESSFUL") {
-                const Ce =
-                  de?.operation?.metadata?.video?.fifeUrl ||
-                  de?.operation?.metadata?.video?.servingBaseUri;
-                x((Le) => {
-                  const updated = Le.prompts.map((_e) =>
-                    _e.id === O.id
-                      ? {
-                          ..._e,
-                          upsampleStatus: "completed",
-                          upsampledVideoUrl: Ce,
-                          message: "Xong 1080p!",
-                        }
-                      : _e
-                  );
-                  return {
-                    ...Le,
-                    prompts: updated,
-                    isRunning: updated.some((itm) =>
-                      ["processing", "pending", "waiting_retry"].includes(
-                        itm.upsampleStatus
-                      )
-                    ),
-                  };
-                });
-                T(`Video #${O.id.slice(0, 5)} xong 1080p!`, "success");
-                if (f.enabled && f.resolution === "1080p" && Ce) {
-                  const suffix = f.allowOverwrite ? "_1080p" : "";
-                  const idx = p.prompts.findIndex((he) => he.id === O.id);
-                  window.electronAPI.downloadVideo({
-                    url: Ce,
-                    promptText: (O.text || "video") + suffix,
-                    savePath: f.path,
-                    promptIndex: idx,
-                  });
-                }
-              } else if (
-                de.status === "MEDIA_GENERATION_STATUS_FAILED" ||
-                de.error
-              ) {
-                const errRaw = de?.error?.message || "Lỗi server";
-                let shortMsg = "Lỗi Server";
-                if (errRaw.includes("429")) shortMsg = "Lỗi Limit (429)";
-
-                if (p.autoRetry && (O.upsampleRetryCount || 0) < 20) {
-                  const next = (O.upsampleRetryCount || 0) + 1;
-                  x((Le) => ({
-                    ...Le,
-                    prompts: Le.prompts.map((_e) =>
-                      _e.id === O.id
-                        ? {
-                            ..._e,
-                            upsampleStatus: "waiting_retry",
-                            message: `⚠️ ${shortMsg}. Đợi...`,
-                            upsampleRetryCount: next,
-                            upsampleOperationName: null,
-                          }
-                        : _e
-                    ),
-                  }));
-                } else {
-                  x((Le) => ({
-                    ...Le,
-                    prompts: Le.prompts.map((_e) =>
-                      _e.id === O.id
-                        ? {
-                            ..._e,
-                            upsampleStatus: "failed",
-                            message: shortMsg,
-                          }
-                        : _e
-                    ),
-                  }));
-                }
-              }
-            })
-            .catch(() => {
-              if (p.autoRetry)
-                x((Le) => ({
-                  ...Le,
-                  prompts: Le.prompts.map((_e) =>
-                    _e.id === O.id
-                      ? {
-                          ..._e,
-                          upsampleStatus: "waiting_retry",
-                          message: "Mạng lỗi...",
-                        }
-                      : _e
-                  ),
-                }));
-            });
-        });
-      }, 10000);
-      return () => clearInterval(te);
-    }, [p.prompts, v, f, p.autoRetry]);
-
-    A.useEffect(() => {
-      const w = p.prompts.filter((x) => x.upsampleStatus === "waiting_retry");
-      if (w.length === 0) return;
-      const t = setTimeout(() => {
-        w.forEach((i) => {
-          x((o) => ({
-            ...o,
-            isRunning: true,
-            prompts: o.prompts.map((pr) =>
-              pr.id === i.id
-                ? {
-                    ...pr,
-                    upsampleStatus: null,
-                  }
-                : pr
-            ),
-          }));
-          setTimeout(() => we(i), 500);
-        });
-      }, 30000);
-      return () => clearTimeout(t);
-    }, [p.prompts]);
-
-    A.useEffect(() => {
-      if (f.resolution !== "1080p") return;
-      const active = p.prompts.filter(
-        (te) =>
-          te.upsampleStatus === "processing" || te.upsampleStatus === "pending"
-      );
-      if (active.length >= 6) return;
-      const candidates = p.prompts.filter(
-        (O) =>
-          O.status === "success" &&
-          O.videoUrl &&
-          !O.upsampleStatus &&
-          !O.upsampledVideoUrl &&
-          O.mediaId &&
-          O.projectId
-      );
-
-      for (const item of candidates) {
-        const c = item.cookie || getSmartCookieWK(v);
-        if (!c || !c.value) continue;
-        const count = active.filter(
-          (r) => (r.cookie || getSmartCookieWK(v))?.value === c.value
-        ).length;
-        if (count < 3) {
-          we(item);
-          break;
-        }
-      }
-    }, [p.prompts, f.resolution, v]);
-    */
-
-    // --- KẾT THÚC WK ---
-
-    // --- KHAI BÁO LẠI CÁC HÀM BỊ XÓA ---
     const Be = (D) => {
       if (D.upsampledVideoUrl) {
         oe(D.upsampledVideoUrl, D.text);
@@ -39215,7 +36969,6 @@ const Nk = 1e4,
       ) {
         T("Đang xử lý...", "info");
       } else {
-        // we(D); // [DISABLED]
         console.warn("Upscale disabled via Be call");
       }
     },
@@ -39226,7 +36979,6 @@ const Nk = 1e4,
             ...f,
             path: D,
           });
-          T(`Lưu tại: ${D}`, "success");
         }
       },
       dt = async () => {
@@ -39251,7 +37003,7 @@ const Nk = 1e4,
               ? {
                 ...te,
                 status: "queued",
-                message: "Đang chờ...",
+                message: tr("veo.pending").replace(": ", "..."),
                 upsampleStatus: null,
                 upsampledVideoUrl: null,
                 upsampleOperationName: null,
@@ -39264,7 +37016,6 @@ const Nk = 1e4,
           ...M,
           originalIndex: p.prompts.findIndex((te) => te.id === M.id),
         }));
-        // Gửi config auto-save nguyên bản (đã bỏ logic tắt auto-save khi chọn 1080p)
         const autoSaveConfigForMain = f;
         window.electronAPI.startBrowserAutomation({
           activeCookie: v,
@@ -39296,15 +37047,11 @@ const Nk = 1e4,
         });
       },
       Ie = () => {
-        // Kiểm tra xem tất cả các item đang hiển thị có được chọn chưa
         const isAllVisibleSelected =
           We.length > 0 && We.every((item) => S.has(item.id));
-
         if (isAllVisibleSelected) {
-          // Nếu đã chọn hết danh sách lọc -> Bỏ chọn tất cả
           E(new Set());
         } else {
-          // Nếu chưa -> Chỉ chọn những item trong danh sách lọc (We)
           E(new Set(We.map((D) => D.id)));
         }
       },
@@ -39324,15 +37071,15 @@ const Nk = 1e4,
               ? {
                 ...p,
                 status: "idle",
-                message: "Đã dừng bởi người dùng",
+                message: tr("veo.stopped"),
               }
               : p
           ),
         }));
       },
       Ge = () => {
-        window.confirm(`Xóa tất cả ${L.length} prompt?`) &&
-          (fe([]), E(new Set()), T("Đã xóa tất cả prompts.", "info"));
+        window.confirm(tr("veo.deleteAll") + "?") &&
+          (fe([]), E(new Set()));
       },
       nt = () => {
         fe((D) => [
@@ -39341,7 +37088,7 @@ const Nk = 1e4,
             id: `prompt-${Date.now()}-${Math.random()}`,
             text: "",
             status: "idle",
-            message: "Sẵn sàng",
+            message: tr("veo.ready"),
           },
         ]);
       },
@@ -39360,7 +37107,7 @@ const Nk = 1e4,
             id: `prompt-${Date.now()}-${Math.random()}`,
             text: M,
             status: "idle",
-            message: "Sẵn sàng",
+            message: tr("veo.ready"),
           }));
           fe((M) => [...M, ...me]),
             T(`Đã nhập ${me.length} prompt từ file.`, "success");
@@ -39378,7 +37125,7 @@ const Nk = 1e4,
             id: `prompt-${Date.now()}-${Math.random()}`,
             text: O.prompt,
             status: "idle",
-            message: "Sẵn sàng",
+            message: tr("veo.ready"),
           }));
         te.length > 0
           ? (fe(te), E(new Set()))
@@ -39397,19 +37144,20 @@ const Nk = 1e4,
           );
         return L;
       }, [L, H, showPending]);
+
     return c.jsxs("div", {
       className: "animate-fade-in h-full flex flex-col",
       children: [
         c.jsx("h1", {
           className: "text-xl font-bold text-light mb-2",
-          children: "Tạo video bằng Veo3/Veo 3.1 / Text to Videos",
+          children: tr("veo.title"),
         }),
         c.jsx("p", {
           className: "text-dark-text mb-4",
-          children: "Tự động hóa quy trình tạo video hàng loạt.",
+          children: tr("veo.desc"),
         }),
         c.jsx("div", {
-          className: "bg-secondary p-3 rounded-lg shadow-md mb-3",
+          className: "bg-secondary p-3 rounded-lg shadow-md mb-3 flex-shrink-0",
           children: c.jsxs("div", {
             className: "flex flex-wrap items-end gap-x-4 gap-y-2",
             children: [
@@ -39418,7 +37166,7 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Model",
+                    children: tr("veo.model"),
                   }),
                   c.jsxs("select", {
                     value: _,
@@ -39429,11 +37177,11 @@ const Nk = 1e4,
                     children: [
                       c.jsx("option", {
                         value: "veo_3_0_t2v_fast_ultra",
-                        children: "Veo 3 / Veo 3.1",
+                        children: tr("veo.veo3"),
                       }),
                       c.jsx("option", {
                         value: "veo_3_0_t2v_fast_ultra",
-                        children: "Veo 3.1",
+                        children: tr("veo.veo31"),
                       }),
                     ],
                   }),
@@ -39443,7 +37191,7 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Tỷ lệ",
+                    children: tr("veo.aspectRatio"),
                   }),
                   c.jsxs("select", {
                     value: P,
@@ -39454,11 +37202,11 @@ const Nk = 1e4,
                     children: [
                       c.jsx("option", {
                         value: "LANDSCAPE",
-                        children: "16:9 Ngang",
+                        children: tr("veo.landscape"),
                       }),
                       c.jsx("option", {
                         value: "PORTRAIT",
-                        children: "9:16 Dọc",
+                        children: tr("veo.portrait"),
                       }),
                     ],
                   }),
@@ -39468,14 +37216,14 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Luồng (1-10)",
+                    children: tr("veo.streams"),
                   }),
                   c.jsx("input", {
                     type: "number",
                     value: Q,
                     onChange: (D) =>
                       B(
-                        Math.max(4, Math.min(20, parseInt(D.target.value) || 4))
+                        Math.max(1, Math.min(10, parseInt(D.target.value) || 4))
                       ),
                     min: "1",
                     max: "10",
@@ -39489,7 +37237,7 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Độ phân giải",
+                    children: tr("veo.resolution"),
                   }),
                   c.jsxs("select", {
                     value: f.resolution || "720p",
@@ -39504,20 +37252,16 @@ const Nk = 1e4,
                     children: [
                       c.jsx("option", {
                         value: "original",
-                        children: "720p",
+                        children: tr("veo.res720"),
                       }),
                       c.jsx("option", {
                         value: "1080p",
-                        children: "1080p",
+                        children: tr("veo.res1080"),
                       }),
                       c.jsx("option", {
                         value: "2k",
-                        children: "2k",
+                        children: tr("veo.res2k"),
                       }),
-                      /*  c.jsx("option", {
-                        value: "4k",
-                        children: "4k",
-                      }),*/
                     ],
                   }),
                 ],
@@ -39529,7 +37273,7 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Tải prompt từ Lịch sử",
+                    children: tr("veo.loadHistory"),
                   }),
                   c.jsxs("select", {
                     onChange: xe,
@@ -39539,7 +37283,7 @@ const Nk = 1e4,
                     children: [
                       c.jsx("option", {
                         value: "",
-                        children: "-- Chọn để thay thế --",
+                        children: tr("veo.selectReplace"),
                       }),
                       be.map((D) =>
                         c.jsx(
@@ -39559,7 +37303,7 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Thêm Prompt",
+                    children: tr("veo.addPromptTitle"),
                   }),
                   c.jsx("div", {
                     className: "flex items-center gap-2",
@@ -39582,7 +37326,7 @@ const Nk = 1e4,
                             d: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
                           }),
                         }),
-                        "TXT / json",
+                        tr("veo.addTxt"),
                       ],
                     }),
                   }),
@@ -39625,7 +37369,7 @@ const Nk = 1e4,
                       }),
                       c.jsx("span", {
                         className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "File cũ",
+                        children: tr("veo.oldFile"),
                       }),
                     ],
                   }),
@@ -39635,8 +37379,8 @@ const Nk = 1e4,
                       className:
                         "text-dark-text text-xs font-medium whitespace-nowrap",
                       children: f.allowOverwrite
-                        ? "TẮT (Không xóa file)"
-                        : "BẬT (Xóa file)",
+                        ? tr("veo.keepFile")
+                        : tr("veo.deleteFile"),
                     }),
                   }),
                 ],
@@ -39675,7 +37419,7 @@ const Nk = 1e4,
                       }),
                       c.jsx("span", {
                         className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "Tự động lưu",
+                        children: tr("veo.autoSave"),
                       }),
                     ],
                   }),
@@ -39685,15 +37429,15 @@ const Nk = 1e4,
                       c.jsx("p", {
                         className:
                           "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-32 truncate",
-                        title: f.path || "Chưa chọn thư mục",
-                        children: f.path || "Chưa chọn...",
+                        title: f.path || tr("veo.noFolder"),
+                        children: f.path || tr("veo.noFolder"),
                       }),
                       c.jsx("button", {
                         onClick: Ve,
                         disabled: !f.enabled || V,
                         className:
                           "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50",
-                        children: "Đổi",
+                        children: tr("veo.changeFolder"),
                       }),
                     ],
                   }),
@@ -39733,7 +37477,7 @@ const Nk = 1e4,
                       }),
                       c.jsx("span", {
                         className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "video/phần",
+                        children: tr("veo.videosPerFolder"),
                       }),
                     ],
                   }),
@@ -39788,7 +37532,7 @@ const Nk = 1e4,
                       }),
                       c.jsx("span", {
                         className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "Tự động thử lại",
+                        children: tr("veo.autoRetry"),
                       }),
                     ],
                   }),
@@ -39797,7 +37541,7 @@ const Nk = 1e4,
                     children: c.jsx("span", {
                       className:
                         "text-dark-text text-xs font-medium whitespace-nowrap",
-                      children: autoRetryState ? "BẬT" : "TẮT",
+                      children: autoRetryState ? tr("veo.on") : tr("veo.off"),
                     }),
                   }),
                 ],
@@ -39825,7 +37569,7 @@ const Nk = 1e4,
                           clipRule: "evenodd",
                         }),
                       }),
-                      "Dừng Tất cả",
+                      tr("veo.stopAll"),
                     ],
                   })
                   : c.jsxs("div", {
@@ -39848,7 +37592,7 @@ const Nk = 1e4,
                               clipRule: "evenodd",
                             }),
                           }),
-                          "Chạy tất cả",
+                          tr("veo.runAll"),
                         ],
                       }),
                       L.some(
@@ -39872,7 +37616,7 @@ const Nk = 1e4,
                               d: "M4 4v5h5M2.05 11A9 9 0 0012 20a9 9 0 009-9 9 9 0 00-9-9",
                             }),
                           }),
-                          "Chạy lại chưa xong",
+                          tr("veo.runUnfinished"),
                         ],
                       }),
                       Re > 0 &&
@@ -39894,9 +37638,7 @@ const Nk = 1e4,
                               d: "M4 4v5h5M2.05 11A9 9 0 0012 20a9 9 0 009-9 9 9 0 00-9-9",
                             }),
                           }),
-                          "Chạy lại ",
-                          Re,
-                          " lỗi",
+                          tr("veo.retryErrors").replace("{count}", Re),
                         ],
                       }),
                     ],
@@ -39920,11 +37662,8 @@ const Nk = 1e4,
                         c.jsx("input", {
                           type: "checkbox",
                           id: "select-all-prompts",
-                          // SỬA: Kiểm tra theo danh sách đã lọc (We)
-                          checked:
-                            We.length > 0 && We.every((item) => S.has(item.id)),
+                          checked: We.length > 0 && We.every((item) => S.has(item.id)),
                           onChange: Ie,
-                          // SỬA: Disabled nếu danh sách lọc rỗng
                           disabled: V || We.length === 0,
                           className:
                             "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
@@ -39933,31 +37672,21 @@ const Nk = 1e4,
                           htmlFor: "select-all-prompts",
                           className:
                             "ml-2 text-xs font-medium text-dark-text cursor-pointer",
-                          children: "Chọn tất cả",
+                          children: tr("veo.selectAll"),
                         }),
                       ],
                     }),
                     S.size > 0 &&
+                    !V &&
                     c.jsxs("button", {
                       onClick: ve,
-                      disabled: V,
                       className:
-                        "bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-1 px-2 rounded-md disabled:bg-gray-400 flex items-center gap-1 text-xs",
+                        "bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-3 rounded-full border border-cyan-700 flex items-center gap-1",
                       children: [
-                        c.jsx("svg", {
-                          xmlns: "http://www.w3.org/2000/svg",
+                        c.jsx(Ps, {
                           className: "h-3 w-3",
-                          viewBox: "0 0 20 20",
-                          fill: "currentColor",
-                          children: c.jsx("path", {
-                            fillRule: "evenodd",
-                            d: "M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z",
-                            clipRule: "evenodd",
-                          }),
                         }),
-                        "Chạy (",
-                        S.size,
-                        ")",
+                        tr("veo.runSelected").replace("{count}", S.size),
                       ],
                     }),
                     c.jsxs("button", {
@@ -39979,7 +37708,7 @@ const Nk = 1e4,
                             d: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
                           }),
                         }),
-                        "Xóa tất cả Prompt",
+                        tr("veo.deleteAll"),
                       ],
                     }),
                     c.jsxs("div", {
@@ -39997,11 +37726,10 @@ const Nk = 1e4,
                           htmlFor: "show-only-errors",
                           className:
                             "ml-2 text-xs font-medium text-dark-text cursor-pointer",
-                          children: "Hiển thị prompt Lỗi",
+                          children: tr("veo.showErrors"),
                         }),
                       ],
                     }),
-                    // --- BẮT ĐẦU CODE MỚI ---
                     c.jsxs("div", {
                       className: "flex items-center ml-4",
                       children: [
@@ -40017,7 +37745,7 @@ const Nk = 1e4,
                           htmlFor: "show-pending-only",
                           className:
                             "ml-2 text-xs font-medium text-dark-text cursor-pointer",
-                          children: "Chưa chạy / Đã dừng",
+                          children: tr("veo.showPending"),
                         }),
                       ],
                     }),
@@ -40031,7 +37759,7 @@ const Nk = 1e4,
                       children: [
                         c.jsx("button", {
                           onClick: () => G(2),
-                          title: "2 cột",
+                          title: tr("veo.col2"),
                           className: `p-1 rounded-md ${R === 2
                             ? "bg-accent text-white"
                             : "bg-primary hover:bg-hover-bg"
@@ -40052,7 +37780,7 @@ const Nk = 1e4,
                         }),
                         c.jsx("button", {
                           onClick: () => G(3),
-                          title: "3 cột",
+                          title: tr("veo.col3"),
                           className: `p-1 rounded-md ${R === 3
                             ? "bg-accent text-white"
                             : "bg-primary hover:bg-hover-bg"
@@ -40079,19 +37807,19 @@ const Nk = 1e4,
                     }),
                     c.jsxs("span", {
                       className: "font-bold text-blue-600",
-                      children: ["Tổng: ", se],
+                      children: [tr("veo.total"), se],
                     }),
                     c.jsxs("span", {
                       className: "font-semibold text-yellow-500",
-                      children: ["Đang chờ: ", $e],
+                      children: [tr("veo.pending"), $e],
                     }),
                     c.jsxs("span", {
                       className: "font-semibold text-green-600",
-                      children: ["Hoàn thành: ", Me],
+                      children: [tr("veo.success"), Me],
                     }),
                     c.jsxs("span", {
                       className: "font-semibold text-red-600",
-                      children: ["Thất bại: ", Re],
+                      children: [tr("veo.failed"), Re],
                     }),
                     c.jsxs("span", {
                       className: "font-semibold text-accent",
@@ -40118,7 +37846,7 @@ const Nk = 1e4,
           children: [
             c.jsx("div", {
               className: `grid grid-cols-1 md:grid-cols-${R} gap-4`,
-              children: We.map((D) => {
+              children: We.map((D, idx) => {
                 const me = [
                   "running",
                   "queued",
@@ -40166,7 +37894,7 @@ const Nk = 1e4,
                                 c.jsxs("label", {
                                   className:
                                     "block text-dark-text text-sm font-bold",
-                                  children: ["Prompt #", M + 1],
+                                  children: [tr("veo.promptNum").replace("{num}", M + 1)],
                                 }),
                               ],
                             }),
@@ -40189,7 +37917,7 @@ const Nk = 1e4,
                                 c.jsx("button", {
                                   onClick: () => ae(D.id),
                                   disabled: V,
-                                  title: "Chạy prompt này",
+                                  title: tr("veo.runThis"),
                                   className:
                                     "p-1 hover:bg-green-100 rounded-full disabled:opacity-50",
                                   children: c.jsx("svg", {
@@ -40204,7 +37932,7 @@ const Nk = 1e4,
                                 c.jsx("button", {
                                   onClick: () => F(D.id),
                                   disabled: V,
-                                  title: "Xóa",
+                                  title: tr("veo.delete"),
                                   className:
                                     "p-1 hover:bg-red-100 rounded-full disabled:opacity-50",
                                   children: c.jsx("svg", {
@@ -40265,38 +37993,9 @@ const Nk = 1e4,
                                             d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
                                           }),
                                         }),
-                                        "Tải về",
+                                        tr("veo.download"),
                                       ],
                                     }),
-                                    /*c.jsxs("button", {
-                                      onClick: () => Be(D),
-                                      className: `font-bold py-1.5 px-3 rounded-full text-xs flex items-center gap-1 pointer-events-auto ${ue}`,
-                                      disabled: te,
-                                      title: D.upsampledVideoUrl
-                                        ? "Tải video 1080p"
-                                        : "Nâng cấp lên 1080p",
-                                      children: [
-                                        te
-                                          ? c.jsx(Ut, {
-                                              className: "w-4 h-4",
-                                            })
-                                          : c.jsx("svg", {
-                                              xmlns:
-                                                "http://www.w3.org/2000/svg",
-                                              className: "h-4 w-4",
-                                              fill: "none",
-                                              viewBox: "0 0 24 24",
-                                              stroke: "currentColor",
-                                              children: c.jsx("path", {
-                                                strokeLinecap: "round",
-                                                strokeLinejoin: "round",
-                                                strokeWidth: "2",
-                                                d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
-                                              }),
-                                            }),
-                                        O,
-                                      ],
-                                    }),*/
                                   ],
                                 }),
                               ],
@@ -40312,8 +38011,8 @@ const Nk = 1e4,
                                       "mt-3 text-dark-text text-xs font-bold animate-pulse",
                                     children:
                                       D.status === "pending_retry"
-                                        ? "⏳ Đang chờ thử lại..."
-                                        : "🔄 Đang xử lý...",
+                                        ? tr("veo.waitingRetry")
+                                        : tr("veo.processing"),
                                   }),
                                 ],
                               })
@@ -40322,8 +38021,8 @@ const Nk = 1e4,
                                 children: c.jsx("p", {
                                   children:
                                     D.status === "error"
-                                      ? "Lỗi!"
-                                      : "Chờ chạy...",
+                                      ? tr("veo.error")
+                                      : tr("veo.resultHere"),
                                 }),
                               }),
                         }),
@@ -40333,7 +38032,7 @@ const Nk = 1e4,
                           className:
                             "w-full p-2 bg-primary rounded-md border border-border-color text-sm resize-y h-24",
                           readOnly: V,
-                          placeholder: "Nhập prompt để tạo video ở đây...",
+                          placeholder: tr("veo.promptPlaceholder"),
                         }),
                       ],
                     },
@@ -40362,7 +38061,7 @@ const Nk = 1e4,
                       clipRule: "evenodd",
                     }),
                   }),
-                  "Thêm Prompt mới",
+                  tr("veo.addNewPrompt"),
                 ],
               }),
             }),
@@ -40430,6 +38129,7 @@ const Nk = 1e4,
       deleteVideos: b,
     } = jt(),
       { showToast: T } = _t(),
+      { t: tr } = so(),
       [S, E] = A.useState("stories"),
       [R, G] = A.useState(new Set()),
       [H, K] = A.useState(""),
@@ -40504,7 +38204,7 @@ const Nk = 1e4,
       },
       J = () => {
         if (R.size === 0) return;
-        const w = `Bạn có chắc muốn xóa ${R.size} mục đã chọn?`;
+        const w = tr("historyTab.deleteConfirm").replace("{count}", R.size);
         if (window.confirm(w)) {
           const B = Array.from(R);
           try {
@@ -40522,9 +38222,9 @@ const Nk = 1e4,
                 b(B);
                 break;
             }
-            T(`Đã xóa ${B.length} mục.`, "success"), G(new Set());
+            T(tr("historyTab.deletedSuccess").replace("{count}", B.length), "success"), G(new Set());
           } catch (W) {
-            T(`Lỗi khi xóa: ${W}`, "error");
+            T(tr("historyTab.deleteError").replace("{error}", W), "error");
           }
         }
       },
@@ -40532,8 +38232,8 @@ const Nk = 1e4,
         const B = String(w || "");
         navigator.clipboard
           .writeText(B)
-          .then(() => T("Đã sao chép!", "success"))
-          .catch(() => T("Lỗi khi sao chép.", "error"));
+          .then(() => T(tr("historyTab.copied"), "success"))
+          .catch(() => T(tr("historyTab.copyError"), "error"));
       },
       be = (w) => {
         w && w.videoUrl
@@ -40543,7 +38243,7 @@ const Nk = 1e4,
             savePath: null,
             promptIndex: 0,
           })
-          : T("Video không hợp lệ hoặc không có URL để tải.", "error");
+          : T(tr("historyTab.noUrlError"), "error");
       },
       Me = (w) =>
         !w || !w.id
@@ -40567,11 +38267,11 @@ const Nk = 1e4,
                   children: [
                     c.jsx("h3", {
                       className: "text-md font-semibold text-light truncate",
-                      children: w.title || "Không có tiêu đề",
+                      children: w.title || tr("historyTab.noTitle"),
                     }),
                     c.jsx("p", {
                       className: "text-sm text-dark-text mt-1 line-clamp-2",
-                      children: w.content || "Không có nội dung",
+                      children: w.content || tr("historyTab.noContent"),
                     }),
                   ],
                 }),
@@ -40580,10 +38280,11 @@ const Nk = 1e4,
                   children: [
                     c.jsx(gg, {
                       onClick: (B) => le(w.content),
-                      title: "Sao chép nội dung",
+                      title: tr("historyTab.copyContent"),
                     }),
                     c.jsx(ka, {
                       onClick: (B) => e(w.id),
+                      title: tr("historyTab.delete")
                     }),
                   ],
                 }),
@@ -40620,6 +38321,7 @@ const Nk = 1e4,
                   "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10",
                 children: c.jsx(ka, {
                   onClick: (W) => p(w.id),
+                  title: tr("historyTab.delete")
                 }),
               }),
             ],
@@ -40660,7 +38362,7 @@ const Nk = 1e4,
                     : c.jsx("div", {
                       className:
                         "w-full h-full flex items-center justify-center text-dark-text text-sm",
-                      children: "Video không có sẵn",
+                      children: tr("historyTab.videoUnavailable"),
                     }),
                 ],
               }),
@@ -40672,7 +38374,7 @@ const Nk = 1e4,
                     onClick: (oe) => {
                       oe.stopPropagation(), be(w);
                     },
-                    title: "Tải xuống",
+                    title: tr("historyTab.download"),
                     className:
                       "p-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50",
                     disabled: !B,
@@ -40692,6 +38394,7 @@ const Nk = 1e4,
                   }),
                   c.jsx(ka, {
                     onClick: (oe) => v(w.id),
+                    title: tr("historyTab.delete")
                   }),
                 ],
               }),
@@ -40703,7 +38406,7 @@ const Nk = 1e4,
       se = (w) => {
         if (!w || !w.id) return null;
         const B = String(w.prompt || ""),
-          W = w.storyTitle || "Không rõ nguồn",
+          W = w.storyTitle || tr("historyTab.unknownSource"),
           oe = R.has(w.id);
         return c.jsxs(
           "div",
@@ -40728,7 +38431,7 @@ const Nk = 1e4,
                   }),
                   c.jsxs("p", {
                     className: "text-xs mt-1 opacity-75 truncate",
-                    children: ["Từ: ", W],
+                    children: [tr("historyTab.from"), W],
                   }),
                 ],
               }),
@@ -40737,10 +38440,11 @@ const Nk = 1e4,
                 children: [
                   c.jsx(gg, {
                     onClick: (we) => le(B),
-                    title: "Sao chép prompt",
+                    title: tr("historyTab.copyPrompt"),
                   }),
                   c.jsx(ka, {
                     onClick: (we) => r(w.id),
+                    title: tr("historyTab.delete")
                   }),
                 ],
               }),
@@ -40766,7 +38470,7 @@ const Nk = 1e4,
                     c.jsx("label", {
                       htmlFor: "video-prompt-story-filter-tab2",
                       className: "block text-dark-text font-bold mb-1 text-sm",
-                      children: "Lọc theo câu chuyện",
+                      children: tr("historyTab.filterStory"),
                     }),
                     c.jsxs("select", {
                       id: "video-prompt-story-filter-tab2",
@@ -40777,7 +38481,7 @@ const Nk = 1e4,
                       children: [
                         c.jsx("option", {
                           value: "",
-                          children: "-- Vui lòng chọn một câu chuyện --",
+                          children: tr("historyTab.selectStoryPlaceholder"),
                         }),
                         (L || [])
                           .filter((W) => W && W.id)
@@ -40800,8 +38504,7 @@ const Nk = 1e4,
                 ? w.length === 0
                   ? c.jsx("p", {
                     className: "text-dark-text text-center py-8",
-                    children:
-                      "Không có prompt video nào được tìm thấy cho câu chuyện này.",
+                    children: tr("historyTab.noPromptsFound"),
                   })
                   : c.jsx("div", {
                     className: "space-y-3",
@@ -40809,15 +38512,14 @@ const Nk = 1e4,
                   })
                 : c.jsx("p", {
                   className: "text-dark-text text-center py-8",
-                  children:
-                    "Vui lòng chọn một câu chuyện để xem lịch sử prompt video.",
+                  children: tr("historyTab.selectStoryToView"),
                 }),
             ],
           });
         if (w.length === 0)
           return c.jsx("p", {
             className: "text-dark-text text-center py-8",
-            children: "Chưa có mục nào trong lịch sử.",
+            children: tr("historyTab.emptyHistory"),
           });
         switch (S) {
           case "stories":
@@ -40858,22 +38560,22 @@ const Nk = 1e4,
                   onChange: ne,
                   disabled: w === 0,
                 }),
-                c.jsxs("label", {
+                c.jsx("label", {
                   htmlFor: `select-all-${S}`,
                   className:
                     "text-sm font-medium text-dark-text cursor-pointer",
-                  children: ["Chọn tất cả (", w, ")"],
+                  children: tr("historyTab.selectAll").replace("{count}", w),
                 }),
               ],
             }),
             R.size > 0 &&
             c.jsx("div", {
               className: "flex items-end gap-2 ml-auto",
-              children: c.jsxs("button", {
+              children: c.jsx("button", {
                 onClick: J,
                 className:
                   "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg text-sm",
-                children: ["Xóa (", R.size, ")"],
+                children: tr("historyTab.deleteCount").replace("{count}", R.size),
               }),
             }),
           ],
@@ -40891,22 +38593,22 @@ const Nk = 1e4,
       ke = [
         {
           id: "stories",
-          label: "Câu chuyện",
+          label: tr("historyTab.tabs.stories"),
           count: fe.stories,
         },
         {
           id: "thumbnails",
-          label: "Thumbnail",
+          label: tr("historyTab.tabs.thumbnails"),
           count: fe.thumbnails,
         },
         {
           id: "videos",
-          label: "Videos",
+          label: tr("historyTab.tabs.videos"),
           count: fe.videos,
         },
         {
           id: "prompts",
-          label: "Prompts Video",
+          label: tr("historyTab.tabs.prompts"),
           count: fe.prompts,
         },
       ];
@@ -40915,11 +38617,11 @@ const Nk = 1e4,
       children: [
         c.jsx("h1", {
           className: "text-3xl font-bold text-light mb-2",
-          children: "Lịch sử Tạo",
+          children: tr("historyTab.title"),
         }),
         c.jsx("p", {
           className: "text-dark-text mb-6",
-          children: "Xem lại tất cả nội dung bạn đã tạo.",
+          children: tr("historyTab.desc"),
         }),
         c.jsx("div", {
           className: "mb-6",
@@ -40969,25 +38671,25 @@ const Nk = 1e4,
     });
   },
   xg = [
-    "Lấy kịch bản đầy đủ của video.",
-    "Tóm tắt video thành 5 gạch đầu dòng chính.",
-    "Viết lại dưới dạng kịch bản cho video.",
-    "Chuyển kịch bản thành một bài thuyết trình.",
-    "Tạo ý tưởng video dựa trên kịch bản.",
-    "Viết lại thành dạng tin tức",
-    "Viết lại kịch bản thành một bài blog.",
-    "Chuyển kịch bản sang phong cách hài hước.",
-    "Chuyển kịch bản sang phong cách kinh dị.",
-    "Chuyển kịch bản sang phong cách hành động.",
-    "Tạo tiêu đề hấp dẫn cho video.",
-    "Tạo mô tả video thu hút người xem.",
-    "Tạo các thẻ (tags) phù hợp cho video.",
-    "Viết lời kêu gọi hành động (CTA) cho video.",
-    "Tạo phụ đề cho video.",
-    "Tạo kịch bản cho video tiếp theo dựa trên nội dung này.",
-    "Phân tích cảm xúc của kịch bản.",
-    "Dựa trên video này, đề xuất các chủ đề video liên quan.",
-    "Phân tích các ý chính của video.",
+    { vi: "Lấy kịch bản đầy đủ của video.", en: "Get the full video script." },
+    { vi: "Tóm tắt video thành 5 gạch đầu dòng chính.", en: "Summarize the video into 5 main bullet points." },
+    { vi: "Viết lại dưới dạng kịch bản cho video.", en: "Rewrite as a video script." },
+    { vi: "Chuyển kịch bản thành một bài thuyết trình.", en: "Convert the script into a presentation." },
+    { vi: "Tạo ý tưởng video dựa trên kịch bản.", en: "Generate video ideas based on the script." },
+    { vi: "Viết lại thành dạng tin tức", en: "Rewrite in news format." },
+    { vi: "Viết lại kịch bản thành một bài blog.", en: "Rewrite the script into a blog post." },
+    { vi: "Chuyển kịch bản sang phong cách hài hước.", en: "Convert the script to a humorous style." },
+    { vi: "Chuyển kịch bản sang phong cách kinh dị.", en: "Convert the script to a horror style." },
+    { vi: "Chuyển kịch bản sang phong cách hành động.", en: "Convert the script to an action style." },
+    { vi: "Tạo tiêu đề hấp dẫn cho video.", en: "Create an engaging title for the video." },
+    { vi: "Tạo mô tả video thu hút người xem.", en: "Create an attractive video description." },
+    { vi: "Tạo các thẻ (tags) phù hợp cho video.", en: "Generate suitable tags for the video." },
+    { vi: "Viết lời kêu gọi hành động (CTA) cho video.", en: "Write a Call to Action (CTA) for the video." },
+    { vi: "Tạo phụ đề cho video.", en: "Create subtitles for the video." },
+    { vi: "Tạo kịch bản cho video tiếp theo dựa trên nội dung này.", en: "Create a script for the next video based on this content." },
+    { vi: "Phân tích cảm xúc của kịch bản.", en: "Analyze the sentiment of the script." },
+    { vi: "Dựa trên video này, đề xuất các chủ đề video liên quan.", en: "Suggest related video topics based on this video." },
+    { vi: "Phân tích các ý chính của video.", en: "Analyze the main points of the video." }
   ],
   Ak = () => {
     const {
@@ -41000,7 +38702,7 @@ const Nk = 1e4,
 
     const [r, f] = A.useState("script");
     const [h, p] = A.useState("");
-    const [x, g] = A.useState(xg[0]);
+    const [x, g] = A.useState(xg[0].vi || xg[0]);
     const [v, b] = A.useState("");
     const [T, S] = A.useState(!1);
     const [E, R] = A.useState("");
@@ -41471,19 +39173,20 @@ const Nk = 1e4,
                 }),
                 c.jsx("div", {
                   className: "flex flex-wrap gap-2 mt-3",
-                  children: xg.map((P) =>
-                    c.jsx(
+                  children: xg.map((P, idx) => {
+                    const textValue = tr("sidebar.dashboard") === "Tổng quan" ? P.vi : P.en;
+                    return c.jsx(
                       "button",
                       {
                         type: "button",
-                        onClick: () => g(P),
+                        onClick: () => g(textValue),
                         className:
                           "text-xs bg-primary hover:bg-hover-bg text-dark-text font-semibold py-1 px-3 rounded-full",
-                        children: P,
+                        children: textValue,
                       },
-                      P
-                    )
-                  ),
+                      idx
+                    );
+                  })
                 }),
               ],
             }),
@@ -41692,27 +39395,27 @@ const Nk = 1e4,
   },
   Mk = ({ onKeySaved: t }) => {
     const [e, s] = A.useState(""),
-      { showToast: i } = _t();
+      { showToast: i } = _t(),
+      { t: tr } = so();
     A.useEffect(() => {
       const f = yx();
       f && s(f);
     }, []);
     const r = () => {
       e.trim()
-        ? (BM(e.trim()), i("API Key đã được lưu thành công!", "success"), t())
-        : i("Vui lòng nhập một API Key hợp lệ.", "error");
+        ? (BM(e.trim()), i(tr("apiKeySettings.successMsg"), "success"), t())
+        : i(tr("apiKeySettings.errorMsg"), "error");
     };
     return c.jsxs("div", {
       className: "animate-fade-in max-w-2xl mx-auto pt-10",
       children: [
         c.jsx("h1", {
           className: "text-3xl font-bold text-light mb-2",
-          children: "Cài đặt API Key",
+          children: tr("apiKeySettings.title"),
         }),
         c.jsx("p", {
           className: "text-dark-text mb-6",
-          children:
-            "Vui lòng nhập API Key Google Gemini của bạn để bắt đầu sử dụng ứng dụng.",
+          children: tr("apiKeySettings.desc"),
         }),
         c.jsxs("div", {
           className: "bg-secondary p-6 rounded-lg shadow-md",
@@ -41720,14 +39423,14 @@ const Nk = 1e4,
             c.jsx("label", {
               htmlFor: "api-key-input",
               className: "block text-dark-text font-bold mb-2",
-              children: "Google Gemini API Key",
+              children: tr("apiKeySettings.label"),
             }),
             c.jsx("input", {
               id: "api-key-input",
               type: "password",
               value: e,
               onChange: (f) => s(f.target.value),
-              placeholder: "Dán API Key của bạn tại đây",
+              placeholder: tr("apiKeySettings.placeholder"),
               className:
                 "w-full p-3 bg-primary rounded-md border border-border-color focus:ring-2 focus:ring-accent focus:outline-none transition",
             }),
@@ -41735,7 +39438,7 @@ const Nk = 1e4,
               onClick: r,
               className:
                 "mt-4 w-full flex justify-center items-center bg-accent hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-400",
-              children: "Lưu và Tiếp tục",
+              children: tr("apiKeySettings.saveBtn"),
             }),
           ],
         }),
@@ -41744,7 +39447,7 @@ const Nk = 1e4,
           children: c.jsxs("a", {
             className: "text-sm text-accent hover:underline",
             children: [
-              "Không có API Key? Lấy cái này:  ",
+              tr("apiKeySettings.noKeyHint"),
               c.jsx("b", {
                 children: "AIzaSyCbW-aN1VKlXnrGd0yUtDX0naAbrAKBR_Y",
               }),
@@ -42175,6 +39878,7 @@ const Nk = 1e4,
   Rk = () => {
     const { currentUser: t, login: e } = jt(),
       { showToast: s } = _t(),
+      { t: tr } = so(),
       [i, r] = A.useState(null),
       [f, h] = A.useState([]),
       [p, x] = A.useState(!0),
@@ -42190,17 +39894,17 @@ const Nk = 1e4,
             P.success
               ? (r(P.data), E(P.data.user.username))
               : (console.error("Profile fetch error:", P.message),
-                s(P.message || "Không thể tải dữ liệu hồ sơ.", "error")),
-              Q.success && h(Q.data);
+                s(P.message || tr("profile.fetchError"), "error"));
+            Q.success && h(Q.data);
           })
           .catch((P) => {
             console.error("Fetch profile/history error:", P),
-              s("Không thể tải dữ liệu hồ sơ.", "error");
+              s(tr("profile.fetchError"), "error");
           })
           .finally(() => {
             x(!1);
           });
-    }, [t, s]);
+    }, [t, s, tr]);
     const L = async (P) => {
       if ((P.preventDefault(), !t || !S.trim())) return;
       const Q = await wm(
@@ -42215,13 +39919,13 @@ const Nk = 1e4,
           user: Q.user,
           token: t.token,
         }),
-          s("Cập nhật tên thành công!", "success"),
+          s(tr("profile.updateSuccess"), "success"),
           v(!1))
-        : s(Q.message || "Cập nhật thất bại.", "error");
+        : s(Q.message || tr("profile.updateFailed"), "error");
     },
       V = async (P) => {
         if ((P.preventDefault(), !t || !R || !H)) {
-          s("Vui lòng điền đầy đủ mật khẩu.", "error");
+          s(tr("profile.pwdIncomplete"), "error");
           return;
         }
         const Q = await wm(
@@ -42233,8 +39937,8 @@ const Nk = 1e4,
           t.token
         );
         Q.success
-          ? (s("Đổi mật khẩu thành công!", "success"), T(!1), G(""), K(""))
-          : s(Q.message || "Đổi mật khẩu thất bại.", "error");
+          ? (s(tr("profile.pwdSuccess"), "success"), T(!1), G(""), K(""))
+          : s(Q.message || tr("profile.pwdFailed"), "error");
       },
       _ = (P) => {
         const Q = {
@@ -42242,8 +39946,9 @@ const Nk = 1e4,
           pending: "bg-yellow-100 text-yellow-800",
           failed: "bg-red-100 text-red-800",
           cancelled: "bg-gray-100 text-gray-800",
-        },
-          ne = P.charAt(0).toUpperCase() + P.slice(1);
+        };
+        const rawTranslation = tr(`profile.status.${P}`);
+        const ne = (rawTranslation && rawTranslation !== `profile.status.${P}`) ? rawTranslation : (P.charAt(0).toUpperCase() + P.slice(1));
         return c.jsx("span", {
           className: `px-2 py-1 text-xs font-semibold rounded-full ${Q[P] || "bg-gray-100"
             }`,
@@ -42289,7 +39994,7 @@ const Nk = 1e4,
                         children: [
                           c.jsx("label", {
                             className: "font-bold",
-                            children: "Tên hiển thị",
+                            children: tr("profile.displayName"),
                           }),
                           c.jsx("input", {
                             type: "text",
@@ -42307,13 +40012,13 @@ const Nk = 1e4,
                             type: "submit",
                             className:
                               "flex-1 bg-accent text-white py-2 rounded-lg",
-                            children: "Lưu",
+                            children: tr("profile.saveBtn"),
                           }),
                           c.jsx("button", {
                             type: "button",
                             onClick: () => v(!1),
                             className: "flex-1 bg-gray-200 py-2 rounded-lg",
-                            children: "Hủy",
+                            children: tr("profile.cancelBtn"),
                           }),
                         ],
                       }),
@@ -42336,10 +40041,10 @@ const Nk = 1e4,
                             children: [
                               c.jsx("span", {
                                 className: "font-semibold",
-                                children: "Gói cước:",
+                                children: tr("profile.planLabel"),
                               }),
                               " ",
-                              i.subscription?.package_name || "Miễn phí",
+                              i.subscription?.package_name || tr("profile.freePlan"),
                             ],
                           }),
                           i.subscription &&
@@ -42347,7 +40052,7 @@ const Nk = 1e4,
                             children: [
                               c.jsx("span", {
                                 className: "font-semibold",
-                                children: "Ngày hết hạn:",
+                                children: tr("profile.expiryLabel"),
                               }),
                               " ",
                               new Date(
@@ -42360,7 +40065,7 @@ const Nk = 1e4,
                       c.jsx("button", {
                         onClick: () => v(!0),
                         className: "mt-4 text-sm text-accent hover:underline",
-                        children: "Chỉnh sửa thông tin",
+                        children: tr("profile.editInfoBtn"),
                       }),
                     ],
                   }),
@@ -42371,7 +40076,7 @@ const Nk = 1e4,
               children: [
                 c.jsx("h2", {
                   className: "text-xl font-bold text-light mb-4",
-                  children: "Đổi mật khẩu",
+                  children: tr("profile.changePwdTitle"),
                 }),
                 b
                   ? c.jsxs("form", {
@@ -42382,7 +40087,7 @@ const Nk = 1e4,
                         children: [
                           c.jsx("label", {
                             className: "font-bold",
-                            children: "Mật khẩu hiện tại",
+                            children: tr("profile.currentPwd"),
                           }),
                           c.jsx("input", {
                             type: "password",
@@ -42398,7 +40103,7 @@ const Nk = 1e4,
                         children: [
                           c.jsx("label", {
                             className: "font-bold",
-                            children: "Mật khẩu mới",
+                            children: tr("profile.newPwd"),
                           }),
                           c.jsx("input", {
                             type: "password",
@@ -42417,13 +40122,13 @@ const Nk = 1e4,
                             type: "submit",
                             className:
                               "flex-1 bg-accent text-white py-2 rounded-lg",
-                            children: "Xác nhận",
+                            children: tr("profile.confirmBtn"),
                           }),
                           c.jsx("button", {
                             type: "button",
                             onClick: () => T(!1),
                             className: "flex-1 bg-gray-200 py-2 rounded-lg",
-                            children: "Hủy",
+                            children: tr("profile.cancelBtn"),
                           }),
                         ],
                       }),
@@ -42433,7 +40138,7 @@ const Nk = 1e4,
                     onClick: () => T(!0),
                     className:
                       "bg-primary hover:bg-gray-200 text-dark-text font-bold py-2 px-4 rounded-lg",
-                    children: "Đổi mật khẩu",
+                    children: tr("profile.changePwdTitle"),
                   }),
               ],
             }),
@@ -42442,7 +40147,7 @@ const Nk = 1e4,
               children: [
                 c.jsx("h3", {
                   className: "text-2xl font-bold text-light mb-4",
-                  children: "Lịch sử giao dịch",
+                  children: tr("profile.txnHistoryTitle"),
                 }),
                 c.jsx("div", {
                   className: "overflow-x-auto",
@@ -42450,7 +40155,7 @@ const Nk = 1e4,
                     f.length === 0
                       ? c.jsx("p", {
                         className: "text-dark-text text-center p-4",
-                        children: "Bạn chưa có giao dịch nào.",
+                        children: tr("profile.noTxn"),
                       })
                       : c.jsxs("table", {
                         className: "w-full text-sm text-left",
@@ -42463,27 +40168,27 @@ const Nk = 1e4,
                                 c.jsx("th", {
                                   scope: "col",
                                   className: "px-6 py-3",
-                                  children: "Gói",
+                                  children: tr("profile.table.plan"),
                                 }),
                                 c.jsx("th", {
                                   scope: "col",
                                   className: "px-6 py-3",
-                                  children: "Mô tả/Mã GD",
+                                  children: tr("profile.table.desc"),
                                 }),
                                 c.jsx("th", {
                                   scope: "col",
                                   className: "px-6 py-3",
-                                  children: "Số tiền",
+                                  children: tr("profile.table.amount"),
                                 }),
                                 c.jsx("th", {
                                   scope: "col",
                                   className: "px-6 py-3",
-                                  children: "Ngày",
+                                  children: tr("profile.table.date"),
                                 }),
                                 c.jsx("th", {
                                   scope: "col",
                                   className: "px-6 py-3",
-                                  children: "Trạng thái",
+                                  children: tr("profile.table.status"),
                                 }),
                               ],
                             }),
@@ -42520,7 +40225,7 @@ const Nk = 1e4,
                                       className: "px-6 py-4 text-dark-text",
                                       children: new Date(
                                         P.transaction_date
-                                      ).toLocaleString("vi-VN"),
+                                      ).toLocaleDateString("vi-VN"),
                                     }),
                                     c.jsx("td", {
                                       className: "px-6 py-4",
@@ -42541,8 +40246,7 @@ const Nk = 1e4,
         })
         : c.jsx("div", {
           className: "text-center text-dark-text",
-          children:
-            "Không thể tải thông tin người dùng. Vui lòng thử đăng nhập lại.",
+          children: tr("profile.fetchError"),
         });
   },
   Ik = ({
@@ -42554,6 +40258,8 @@ const Nk = 1e4,
   }) => {
     const { currentUser: f } = jt(),
       { showToast: h } = _t(),
+      { t: tr } = so(),
+      isVi = tr("sidebar.dashboard") === "Tổng quan",
       [p, x] = A.useState(!1),
       [g, v] = A.useState(!1),
       [b, C] = A.useState(1);
@@ -42573,7 +40279,7 @@ const Nk = 1e4,
             ? b > 1 && S && S[b]
               ? {
                 id: S[b].id,
-                name: `${s.name} (${b} Tháng)`,
+                name: `${s.name} (${tr("packages.payment.months").replace("{count}", b)})`,
                 price: S[b].price,
                 originalPricePerMonth: s.price,
               }
@@ -42582,7 +40288,7 @@ const Nk = 1e4,
                 originalPricePerMonth: s.price,
               }
             : null,
-        [s, b, S]
+        [s, b, S, tr]
       ),
       { transactionCode: G, vietQrUrl: q } = A.useMemo(() => {
         if (!P || !f || !i)
@@ -42630,7 +40336,7 @@ const Nk = 1e4,
               Z = await G0(D, f.token);
             Z.success ? v(!0) : h(Z.message || "Có lỗi xảy ra", "error");
           } catch {
-            h("Không thể gửi yêu cầu.", "error");
+            h(isVi ? "Không thể gửi yêu cầu." : "Cannot send request.", "error");
           } finally {
             x(!1);
           }
@@ -42678,12 +40384,12 @@ const Nk = 1e4,
                   }),
                   c.jsx("h2", {
                     className: "text-3xl font-bold text-gray-600 mb-2",
-                    children: "Yêu cầu đã được gửi thành công!",
+                    children: tr("packages.payment.successTitle"),
                   }),
                   c.jsxs("p", {
                     className: "text-gray-600 text-lg mb-8 max-w-xl",
                     children: [
-                      "Hệ thống đang xử lý giao dịch cho gói ",
+                      tr("packages.payment.processingNote"), " ",
                       c.jsx("br", {}),
                       c.jsx("span", {
                         className:
@@ -42713,7 +40419,7 @@ const Nk = 1e4,
                               d: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
                             }),
                           }),
-                          "Hướng dẫn tiếp theo:",
+                          tr("packages.payment.nextSteps"),
                         ],
                       }),
                       c.jsxs("ol", {
@@ -42722,16 +40428,15 @@ const Nk = 1e4,
                         children: [
                           c.jsxs("li", {
                             children: [
-                              "Vui lòng chờ ",
+                              tr("packages.payment.step1"),
                               c.jsx("b", {
-                                children: "5-15 phút",
+                                children: tr("packages.payment.step1b"),
                               }),
-                              " để hệ thống tự động xác nhận.",
+                              tr("packages.payment.step1c"),
                             ],
                           }),
                           c.jsx("li", {
-                            children:
-                              "Kiểm tra hộp thư đến (hoặc mục Spam) để nhận email xác nhận kích hoạt.",
+                            children: tr("packages.payment.step2"),
                           }),
                           c.jsxs("li", {
                             className:
@@ -42739,17 +40444,17 @@ const Nk = 1e4,
                             children: [
                               c.jsx("span", {
                                 className: "font-bold text-yellow-300",
-                                children: "Quan trọng:",
+                                children: tr("packages.payment.important") + " ",
                               }),
-                              " Sau khi nhận mail, vui lòng ",
+                              tr("packages.payment.step3"),
                               c.jsx("b", {
-                                children: "Đăng xuất",
+                                children: tr("packages.payment.step3b"),
                               }),
-                              " và ",
+                              tr("packages.payment.step3c"),
                               c.jsx("b", {
-                                children: "Đăng nhập lại",
+                                children: tr("packages.payment.step3d"),
                               }),
-                              " để cập nhật gói cước mới.",
+                              tr("packages.payment.step3e"),
                             ],
                           }),
                         ],
@@ -42760,7 +40465,7 @@ const Nk = 1e4,
                     className: "mt-10 text-sm text-gray-600 text-center",
                     children: [
                       c.jsx("p", {
-                        children: "Cần hỗ trợ ngay lập tức?",
+                        children: tr("packages.payment.support"),
                       }),
                       c.jsxs("p", {
                         className: "text-gray-600 font-bold text-lg mt-1",
@@ -42778,7 +40483,7 @@ const Nk = 1e4,
                     onClick: L,
                     className:
                       "w-full max-w-xs mt-8 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition-colors border border-gray-600",
-                    children: "Đóng cửa sổ",
+                    children: tr("packages.payment.closeWindow"),
                   }),
                 ],
               })
@@ -42793,12 +40498,11 @@ const Nk = 1e4,
                         style: {
                           color: "#ffffff",
                         },
-                        children: "Xác nhận thanh toán",
+                        children: tr("packages.payment.title"),
                       }),
                       c.jsx("p", {
                         className: "text-sm text-white mb-6",
-                        children:
-                          "Chọn thời hạn sử dụng và quét mã để kích hoạt.",
+                        children: tr("packages.payment.desc"),
                       }),
                       E.length > 1 &&
                       c.jsxs("div", {
@@ -42807,7 +40511,7 @@ const Nk = 1e4,
                           c.jsx("p", {
                             className:
                               "text-xs font-bold text-white uppercase mb-3 tracking-wider",
-                            children: "Thời hạn đăng ký:",
+                            children: tr("packages.payment.durationTitle"),
                           }),
                           c.jsx("div", {
                             className: "grid grid-cols-3 gap-3",
@@ -42832,37 +40536,31 @@ const Nk = 1e4,
                                     }`,
                                   children: [
                                     D.percent > 0 &&
-                                    c.jsxs("div", {
+                                    c.jsx("div", {
                                       className:
                                         "absolute -top-3 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-md border border-red-400 whitespace-nowrap z-20",
-                                      children: [
-                                        "Giảm thêm ",
-                                        D.percent,
-                                        "%",
-                                      ],
+                                      children: tr("packages.payment.extraDiscount").replace("{percent}", D.percent),
                                     }),
-                                    c.jsxs("span", {
+                                    c.jsx("span", {
                                       className: `text-lg font-bold ${se
                                         ? "text-gray-600"
                                         : "text-gray-500"
                                         }`,
-                                      children: [k, " Tháng"],
+                                      children: tr("packages.payment.months").replace("{count}", k),
                                     }),
                                     k > 1
                                       ? c.jsxs("span", {
                                         className:
                                           "text-[11px] text-white mt-1 font-medium",
                                         children: [
-                                          (Z / k).toLocaleString(
-                                            "vi-VN"
-                                          ),
-                                          "/tháng",
+                                          (Z / k).toLocaleString("vi-VN"),
+                                          tr("packages.payment.perMonth"),
                                         ],
                                       })
                                       : c.jsx("span", {
                                         className:
                                           "text-[11px] text-white mt-1 font-medium",
-                                        children: "Gói tiêu chuẩn",
+                                        children: tr("packages.payment.standardPlan"),
                                       }),
                                     se &&
                                     c.jsx("div", {
@@ -42909,21 +40607,17 @@ const Nk = 1e4,
                                       c.jsx("p", {
                                         className:
                                           "text-sm text-gray-600 font-medium",
-                                        children: "Gói dịch vụ",
+                                        children: tr("packages.payment.servicePlan"),
                                       }),
                                       c.jsx("p", {
                                         className:
                                           "font-bold text-gray-600 text-xl",
                                         children: s.name,
                                       }),
-                                      c.jsxs("p", {
+                                      c.jsx("p", {
                                         className:
                                           "text-xs text-accent mt-1 font-bold bg-accent/10 px-2 py-0.5 rounded inline-block border border-accent/20",
-                                        children: [
-                                          "Thời hạn ",
-                                          b,
-                                          " tháng",
-                                        ],
+                                        children: tr("packages.payment.durationLabel").replace("{count}", b),
                                       }),
                                     ],
                                   }),
@@ -42933,14 +40627,14 @@ const Nk = 1e4,
                                       c.jsx("p", {
                                         className:
                                           "text-sm text-gray-600 font-medium",
-                                        children: "Tổng thanh toán",
+                                        children: tr("packages.payment.totalPayment"),
                                       }),
                                       c.jsxs("p", {
                                         className:
                                           "font-bold text-accent text-3xl drop-shadow-sm",
                                         children: [
                                           P.price.toLocaleString("vi-VN"),
-                                          "đ",
+                                          tr("packages.planData.currency"),
                                         ],
                                       }),
                                     ],
@@ -42956,10 +40650,8 @@ const Nk = 1e4,
                                     className:
                                       "text-xl text-gray-600 line-through",
                                     children: [
-                                      (s.price * b).toLocaleString(
-                                        "vi-VN"
-                                      ),
-                                      "đ",
+                                      (s.price * b).toLocaleString("vi-VN"),
+                                      tr("packages.planData.currency"),
                                     ],
                                   }),
                                   c.jsxs("span", {
@@ -42978,12 +40670,7 @@ const Nk = 1e4,
                                           clipRule: "evenodd",
                                         }),
                                       }),
-                                      "Tiết kiệm ",
-                                      (
-                                        s.price * b -
-                                        P.price
-                                      ).toLocaleString("vi-VN"),
-                                      "đ",
+                                      tr("packages.payment.saveLabel").replace("{amount}", (s.price * b - P.price).toLocaleString("vi-VN") + tr("packages.planData.currency")),
                                     ],
                                   }),
                                 ],
@@ -42999,7 +40686,7 @@ const Nk = 1e4,
                                     children: [
                                       c.jsx("span", {
                                         className: "text-gray-600",
-                                        children: "Ngân hàng:",
+                                        children: tr("packages.payment.bank"),
                                       }),
                                       c.jsx("span", {
                                         className:
@@ -43013,7 +40700,7 @@ const Nk = 1e4,
                                     children: [
                                       c.jsx("span", {
                                         className: "text-gray-600",
-                                        children: "Chủ tài khoản:",
+                                        children: tr("packages.payment.accountHolder"),
                                       }),
                                       c.jsx("span", {
                                         className:
@@ -43028,21 +40715,21 @@ const Nk = 1e4,
                                     children: [
                                       c.jsx("span", {
                                         className: "text-gray-600",
-                                        children: "Số tài khoản:",
+                                        children: tr("packages.payment.accountNumber"),
                                       }),
                                       c.jsx("span", {
                                         className:
-                                          "text-gray-600 font-bold",
+                                          "text-gray-600 font-bold cursor-pointer",
                                         onClick: () => {
                                           navigator.clipboard.writeText(
                                             i.vietqr_account_number || ""
                                           ),
                                             h(
-                                              "Đã sao chép số tài khoản!",
+                                              tr("packages.payment.copiedAccount"),
                                               "success"
                                             );
                                         },
-                                        title: "Sao chép số tài khoản",
+                                        title: tr("packages.payment.copiedAccount"),
                                         children: i.vietqr_account_number,
                                       }),
                                     ],
@@ -43060,11 +40747,11 @@ const Nk = 1e4,
                             className:
                               "text-sm font-bold text-gray-600 mb-2 flex items-center gap-2",
                             children: [
-                              "Nội dung chuyển khoản ",
+                              tr("packages.payment.transferContent"),
                               c.jsx("span", {
                                 className:
                                   "text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded uppercase font-bold",
-                                children: "Bắt buộc",
+                                children: tr("packages.payment.required"),
                               }),
                             ],
                           }),
@@ -43073,9 +40760,9 @@ const Nk = 1e4,
                               "font-mono text-red-600 bg-yellow-50 p-3 rounded-lg border-2 border-yellow-400 text-center font-extrabold text-xl break-all cursor-pointer hover:bg-yellow-100 transition-all active:scale-95 flex items-center justify-center gap-2 group shadow-sm",
                             onClick: () => {
                               navigator.clipboard.writeText(G),
-                                h("Đã sao chép nội dung!", "success");
+                                h(tr("common.copied"), "success");
                             },
-                            title: "Nhấn để sao chép nội dung",
+                            title: tr("packages.payment.clickToCopy"),
                             children: [
                               G,
                               c.jsx("svg", {
@@ -43097,8 +40784,7 @@ const Nk = 1e4,
                           c.jsx("p", {
                             className:
                               "text-xs text-gray-400 mt-1.5 italic text-center",
-                            children:
-                              "*Vui lòng nhập chính xác nội dung trên để hệ thống tự động kích hoạt.",
+                            children: tr("packages.payment.exactContentNote"),
                           }),
                         ],
                       }),
@@ -43110,7 +40796,7 @@ const Nk = 1e4,
                     children: [
                       c.jsx("div", {
                         className: "mb-4 font-bold text-white text-lg",
-                        children: "Quét mã QR để thanh toán",
+                        children: tr("packages.payment.scanQr"),
                       }),
                       c.jsxs("div", {
                         className: "relative group mb-6",
@@ -43147,18 +40833,12 @@ const Nk = 1e4,
                               "w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl flex items-center justify-center transition-all shadow-lg hover:shadow-green-500/40 transform hover:-translate-y-1 active:translate-y-0 text-lg border border-green-500",
                             children: p
                               ? c.jsx(Ut, {})
-                              : "TÔI ĐÃ THANH TOÁN",
+                              : tr("packages.payment.iHavePaid"),
                           }),
-                          c.jsxs("p", {
+                          c.jsx("p", {
                             className:
                               "text-xs text-gray-600 mt-4 px-2 font-medium leading-relaxed text-center",
-                            children: [
-                              "Sau khi chuyển khoản thành công hãy nhấn ",
-                              c.jsx("b", {
-                                children: "Tôi đã thanh toán",
-                              }),
-                              " ở trên để xác nhận đơn hàng.",
-                            ],
+                            children: tr("packages.payment.afterPaymentNote"),
                           }),
                         ],
                       }),
@@ -43173,20 +40853,19 @@ const Nk = 1e4,
   Dk = () => {
     const { showToast: t } = _t(),
       { currentUser: e, refreshCurrentUser: s } = jt(),
+      { t: tr } = so(),
+      isVi = tr("sidebar.dashboard") === "Tổng quan",
       [i, r] = A.useState([]),
       [f, h] = A.useState(!1),
       [p, x] = A.useState(null),
       [g, v] = A.useState(null),
       [b, T] = A.useState([]),
-      [S, E] = A.useState(!1),
-      R = 150000,
-      G = 250000,
-      H = 250000;
+      [S, E] = A.useState(!1);
     A.useEffect(() => {
       B0().then((_) => {
         _.success
           ? v(_.data)
-          : t("Không thể tải thông tin thanh toán.", "error");
+          : t(isVi ? "Không thể tải thông tin thanh toán." : "Cannot load payment info.", "error");
       }),
         e &&
         (E(!0),
@@ -43194,132 +40873,112 @@ const Nk = 1e4,
             .then((_) => {
               _.success && T(_.data);
             })
-            .catch(() => t("Không thể tải lịch sử giao dịch.", "error"))
+            .catch(() => t(isVi ? "Không thể tải lịch sử giao dịch." : "Cannot load transaction history.", "error"))
             .finally(() => E(!1)));
-    }, [e, t]),
-      A.useEffect(() => {
-        (() => {
-          const HM = {
-            "cá nhân pro": {
-              3: {
-                id: "9_cn_pro_3m",
-                price: 1350000, // 350k * 3 * 0.9 (Giảm 10%)
-              },
-              6: {
-                id: "9_cn_pro_6m",
-                price: 2700000, // 350k * 6 * 0.85 (Giảm 15%)
-              },
-            },
-            "team pro": {
-              3: {
-                id: "11_team_3m",
-                price: 5400000, // 990k * 3 * 0.9
-              },
-              6: {
-                id: "14_team_6m",
-                price: 9000000, // 990k * 6 * 0.85
-              },
-            },
-            "doanh nghiệp": {
-              3: {
-                id: "5_enterprise_3m",
-                price: 14850000, // 5.5tr * 3 * 0.9
-              },
-              6: {
-                id: "13_enterprise_6m",
-                price: 28050000, // 5.5tr * 6 * 0.85
-              },
-            },
+    }, [e, t, isVi]);
+    A.useEffect(() => {
+      (() => {
+        const HM = {
+          "cá nhân pro": {
+            3: { id: "9_cn_pro_3m", price: 1350000 },
+            6: { id: "9_cn_pro_6m", price: 2700000 },
           },
-            P = [
-              "Tạo không giới hạn video Veo 3 Text to Video/ Video từ Ảnh /Video Đồng nhất",
-              "Tạo không giới hạn Ảnh/Whisk/Nano",
-              "Tải video 720p/1080p",
-              "Số luồng lên đến 20 Luồng",
-              "Tất cả các chức năng tools",
-            ],
-            // Giá gói năm tính dựa trên gói tháng Pro (350k * 12 * 0.8 - Giảm 20%)
-            Q = 4950000,
-            ne = 4200000, // Giá gốc tham chiếu (350k * 12)
-            J = [
-              {
-                id: "1_1m_ca_nhan",
-                name: "Gói Cá Nhân/1 Máy",
-                price: 350000, // Giá rẻ để entry
-                originalPrice: 400000,
-                durationLabel: "/ tháng",
-                description: "Gói cơ bản cho nhu cầu tạo video text-to-video.",
-                features: [
-                  "Tạo không giới hạn video Veo 3 Text to Video",
-                  "Các chức năng Tạo Prompt/Câu chuyện/Thumbnail",
-                  "Tải video 720p",
-                  "Số luồng tối đa 1", // Giới hạn luồng thấp
-                ],
-              },
-              {
-                id: "7_ca_nhan_pro",
-                name: "Gói Cá Nhân Pro",
-                price: 450000, // MỐC CHUẨN
-                durationLabel: "/ tháng",
-                description:
-                  "Gói chuyên nghiệp với đầy đủ tính năng và hiệu suất cao.",
-                features: P,
-                multiMonth: HM["cá nhân pro"],
-              },
-              {
-                id: "6_small_team_1m",
-                name: "Gói Team Pro/5 Máy",
-                price: 1800000, // Rất hời cho team 5 người
-                originalPrice: 2750000, // Giá trị thực (350k * 5)
-                durationLabel: "/ tháng",
-                description: "Gói mở rộng 5 máy cùng lúc cho Team.",
-                features: [...P, "Sử dụng số lượng 5 máy cùng lúc."],
-                multiMonth: HM["team pro"],
-              },
-              {
-                id: "2_1y",
-                name: "Gói 1 Năm Pro/1 Máy",
-                price: Q, // 4.500.000
-                originalPrice: ne, // 5.400.000
-                durationLabel: "/ năm",
-                description:
-                  "Lựa chọn tiết kiệm nhất cho người dùng lâu dài (Giảm 20%).",
-                isFeatured: !0,
-                features: P,
-              },
-              {
-                id: "3_enterprise",
-                name: "Gói Doanh nghiệp",
-                price: 7500000, // Giá cao cho scale lớn
-                originalPrice: 15000000, // Giá trị thực (350k * 30)
-                durationLabel: "/ tháng",
-                description: "Giải pháp toàn diện cho công ty.",
-                features: [
-                  ...P,
-                  "Tối đa 30 máy cùng lúc.",
-                  "Không giới hạn Video được tạo trong tháng.",
-                  "Sử dụng Sever riêng cho tốc độ tạo video tối ưu.",
-                  "Giảm 10% khi thanh toán theo năm.",
-                ],
-                subFeatures: [
-                  "Liên hệ Hỗ trợ để mua gói Doanh nghiệp theo năm.",
-                ],
-                multiMonth: HM["doanh nghiệp"],
-              },
-            ],
-            le = J.find((U) => U.id === "7_ca_nhan_pro"),
-            be = J.find((U) => U.id === "1_1m_ca_nhan"),
-            Me = J.find((U) => U.id === "6_small_team_1m"),
-            Re = J.find((U) => U.id === "2_1y"),
-            $e = J.find((U) => U.id === "3_enterprise"),
-            se = [be, le, Me, Re, $e].filter(Boolean);
-          r(se);
-        })();
-      }, [H]);
+          "team pro": {
+            3: { id: "11_team_3m", price: 5400000 },
+            6: { id: "14_team_6m", price: 9000000 },
+          },
+          "doanh nghiệp": {
+            3: { id: "5_enterprise_3m", price: 14850000 },
+            6: { id: "13_enterprise_6m", price: 28050000 },
+          },
+        },
+          P = [
+            tr("packages.planData.personalPro.f1"),
+            tr("packages.planData.personalPro.f2"),
+            tr("packages.planData.personalPro.f3"),
+            tr("packages.planData.personalPro.f4"),
+            tr("packages.planData.personalPro.f5")
+          ],
+          Q = 4950000,
+          ne = 4200000,
+          J = [
+            {
+              id: "1_1m_ca_nhan",
+              name: tr("packages.planData.personal.name"),
+              price: 350000,
+              originalPrice: 400000,
+              durationLabel: tr("packages.planData.monthLabel"),
+              description: tr("packages.planData.personal.desc"),
+              features: [
+                tr("packages.planData.personal.f1"),
+                tr("packages.planData.personal.f2"),
+                tr("packages.planData.personal.f3"),
+                tr("packages.planData.personal.f4")
+              ],
+            },
+            {
+              id: "7_ca_nhan_pro",
+              name: tr("packages.planData.personalPro.name"),
+              price: 450000,
+              durationLabel: tr("packages.planData.monthLabel"),
+              description: tr("packages.planData.personalPro.desc"),
+              features: P,
+              multiMonth: HM["cá nhân pro"],
+            },
+            {
+              id: "6_small_team_1m",
+              name: tr("packages.planData.team.name"),
+              price: 1800000,
+              originalPrice: 2750000,
+              durationLabel: tr("packages.planData.monthLabel"),
+              description: tr("packages.planData.team.desc"),
+              features: [...P, tr("packages.planData.team.f6")],
+              multiMonth: HM["team pro"],
+            },
+            {
+              id: "2_1y",
+              name: tr("packages.planData.yearly.name"),
+              price: Q,
+              originalPrice: ne,
+              durationLabel: tr("packages.planData.yearLabel"),
+              description: tr("packages.planData.yearly.desc"),
+              isFeatured: !0,
+              features: P,
+            },
+            {
+              id: "3_enterprise",
+              name: tr("packages.planData.enterprise.name"),
+              price: 7500000,
+              originalPrice: 15000000,
+              durationLabel: tr("packages.planData.monthLabel"),
+              description: tr("packages.planData.enterprise.desc"),
+              features: [
+                ...P,
+                tr("packages.planData.enterprise.f6"),
+                tr("packages.planData.enterprise.f7"),
+                tr("packages.planData.enterprise.f8"),
+                tr("packages.planData.enterprise.f9")
+              ],
+              subFeatures: [
+                tr("packages.planData.enterprise.sub1")
+              ],
+              multiMonth: HM["doanh nghiệp"],
+            },
+          ],
+          le = J.find((U) => U.id === "7_ca_nhan_pro"),
+          be = J.find((U) => U.id === "1_1m_ca_nhan"),
+          Me = J.find((U) => U.id === "6_small_team_1m"),
+          Re = J.find((U) => U.id === "2_1y"),
+          $e = J.find((U) => U.id === "3_enterprise"),
+          se = [be, le, Me, Re, $e].filter(Boolean);
+        r(se);
+      })();
+    }, [tr]);
+
     const K = (_) => {
       x(_), h(!0);
     },
-      L = (_) => _.toLocaleString("vi-VN") + " đ",
+      L = (_) => _.toLocaleString("vi-VN") + tr("packages.planData.currency"),
       V = (_) => {
         const P = {
           completed: "bg-green-100 text-green-800",
@@ -43327,7 +40986,7 @@ const Nk = 1e4,
           failed: "bg-red-100 text-red-800",
           cancelled: "bg-gray-100 text-gray-800",
         },
-          Q = _.charAt(0).toUpperCase() + _.slice(1);
+          Q = tr(`packages.status.${_}`) || _;
         return c.jsx("span", {
           className: `px-2 py-1 text-xs font-semibold rounded-full ${P[_] || "bg-gray-100"
             }`,
@@ -43342,12 +41001,11 @@ const Nk = 1e4,
           children: [
             c.jsx("h1", {
               className: "text-4xl font-bold text-light mb-2",
-              children: "Chọn gói phù hợp với bạn",
+              children: tr("packages.title"),
             }),
             c.jsx("p", {
               className: "text-dark-text mb-10",
-              children:
-                "Mở khóa toàn bộ tiềm năng sáng tạo với các gói cước của chúng tôi.",
+              children: tr("packages.subtitle"),
             }),
           ],
         }),
@@ -43358,11 +41016,10 @@ const Nk = 1e4,
           children: [
             c.jsx("p", {
               className: "font-bold",
-              children: "Thông báo",
+              children: tr("packages.noticeTitle"),
             }),
             c.jsx("p", {
-              children:
-                "Chương trình 'Ưu đãi mở bán' đã kết thúc, giá sẽ trở về mức niêm yết ban đầu. Cảm ơn quý khách đã tin tưởng và sử dụng.",
+              children: tr("packages.noticeDesc"),
             }),
           ],
         }),
@@ -43385,7 +41042,7 @@ const Nk = 1e4,
                       children: c.jsx("span", {
                         className:
                           "bg-accent text-white text-xs font-bold px-3 py-1 rounded-full uppercase",
-                        children: "Tiết kiệm nhất -10%",
+                        children: tr("packages.bestValue"),
                       }),
                     }),
                     c.jsx("h2", {
@@ -43416,7 +41073,7 @@ const Nk = 1e4,
                         }),
                         c.jsx("p", {
                           className: "text-sm text-accent font-semibold",
-                          children: "Không cần tài khoản Veo 3",
+                          children: tr("packages.noVeoAccount"),
                         }),
                       ],
                     }),
@@ -43458,7 +41115,7 @@ const Nk = 1e4,
                         ? "bg-accent hover:bg-indigo-500 text-white"
                         : "bg-white hover:bg-gray-100 text-accent border border-gray-300"
                         }`,
-                      children: "Chọn gói",
+                      children: tr("packages.selectPlan"),
                     }),
                   ],
                 },
@@ -43555,13 +41212,13 @@ const Nk = 1e4,
                       }),
                       c.jsx("p", {
                         className: "text-sm text-accent font-semibold mb-2",
-                        children: "Giảm 10% khi thanh toán theo năm",
+                        children: tr("packages.annualDiscount"),
                       }),
                       c.jsx("button", {
                         onClick: () => K(_),
                         className:
                           "w-full md:w-auto font-bold py-3 px-6 rounded-lg bg-accent hover:bg-indigo-500 text-white transition-colors mt-2",
-                        children: "Chọn gói doanh nghiệp",
+                        children: tr("packages.selectEnterprise"),
                       }),
                     ],
                   }),
@@ -43575,7 +41232,7 @@ const Nk = 1e4,
           children: [
             c.jsx("h3", {
               className: "text-2xl font-bold text-light mb-4",
-              children: "Lịch sử giao dịch của bạn",
+              children: tr("packages.historyTitle"),
             }),
             c.jsx("div", {
               className: "overflow-x-auto",
@@ -43587,7 +41244,7 @@ const Nk = 1e4,
                 : b.length === 0
                   ? c.jsx("p", {
                     className: "text-dark-text text-center p-4",
-                    children: "Bạn chưa có giao dịch nào.",
+                    children: tr("packages.noTransactions"),
                   })
                   : c.jsxs("table", {
                     className: "w-full text-sm text-left",
@@ -43600,32 +41257,32 @@ const Nk = 1e4,
                             c.jsx("th", {
                               scope: "col",
                               className: "px-6 py-3",
-                              children: "Gói",
+                              children: tr("packages.table.plan"),
                             }),
                             c.jsx("th", {
                               scope: "col",
                               className: "px-6 py-3",
-                              children: "Mô tả/Mã GD",
+                              children: tr("packages.table.desc"),
                             }),
                             c.jsx("th", {
                               scope: "col",
                               className: "px-6 py-3",
-                              children: "Số tiền",
+                              children: tr("packages.table.amount"),
                             }),
                             c.jsx("th", {
                               scope: "col",
                               className: "px-6 py-3",
-                              children: "Ngày Giao Dịch",
+                              children: tr("packages.table.date"),
                             }),
                             c.jsx("th", {
                               scope: "col",
                               className: "px-6 py-3",
-                              children: "Ngày Hết Hạn",
+                              children: tr("packages.table.expiry"),
                             }),
                             c.jsx("th", {
                               scope: "col",
                               className: "px-6 py-3",
-                              children: "Trạng thái",
+                              children: tr("packages.table.status"),
                             }),
                           ],
                         }),
@@ -43651,8 +41308,7 @@ const Nk = 1e4,
                                   className: "px-6 py-4 text-dark-text",
                                   children: [
                                     parseInt(_.amount).toLocaleString("vi-VN"),
-                                    " ",
-                                    _.currency,
+                                    tr("packages.planData.currency"),
                                   ],
                                 }),
                                 c.jsx("td", {
@@ -43748,16 +41404,17 @@ const Nk = 1e4,
     }),
   _a = ({ href: t, label: e, icon: s }) => {
     const { showToast: i } = _t();
+    const { t: tr } = so();
     if (!t) return null;
     const r = (h) => {
       h.stopPropagation();
       try {
         const p = t.startsWith("mailto:") ? t.substring(7) : t;
         window.electronAPI.copyText(p),
-          i(`Đã sao chép liên kết ${e}!`, "success");
+          i(tr("support.copied").replace("{name}", e), "success");
       } catch (p) {
         console.error("Failed to copy:", p),
-          i("Không thể sao chép.", "error");
+          i(tr("support.copyError"), "error");
       }
     },
       f = (h) => {
@@ -43766,16 +41423,16 @@ const Nk = 1e4,
             typeof window.electronAPI.openExternalLink == "function"
             ? window.electronAPI.openExternalLink(t).catch((p) => {
               console.error("Failed to open external link:", p),
-                i("Không thể mở liên kết.", "error");
+                i(tr("support.openError"), "error");
             })
             : (console.error("electronAPI.openExternalLink is not available."),
-              i("Chức năng mở liên kết không khả dụng.", "error"));
+              i(tr("support.notAvailable"), "error"));
       };
     return c.jsxs("div", {
       className:
         "flex items-center gap-4 p-4 bg-primary rounded-lg transition-transform hover:scale-[1.02] cursor-pointer",
       onClick: f,
-      title: `Mở ${e}`,
+      title: tr("support.openLink").replace("{name}", e),
       children: [
         c.jsx("div", {
           className: "flex-shrink-0 w-8 h-8 flex items-center justify-center",
@@ -43797,7 +41454,7 @@ const Nk = 1e4,
         }),
         c.jsx("button", {
           onClick: r,
-          title: `Sao chép liên kết ${e}`,
+          title: tr("support.copyLink").replace("{name}", e),
           className: "p-2 rounded-full hover:bg-gray-200 transition-colors",
           children: c.jsx("svg", {
             xmlns: "http://www.w3.org/2000/svg",
@@ -43818,6 +41475,7 @@ const Nk = 1e4,
   },
   Vk = () => {
     const { showToast: t } = _t(),
+      { t: tr } = so(),
       [e, s] = A.useState(null),
       [i, r] = A.useState(!0);
     return (
@@ -43826,15 +41484,15 @@ const Nk = 1e4,
           .then((f) => {
             f.success
               ? s(f.data)
-              : t(f.message || "Không thể tải thông tin hỗ trợ.", "error");
+              : t(f.message || tr("support.errorLoad"), "error");
           })
           .catch(() => {
-            t("Lỗi kết nối khi tải thông tin hỗ trợ.", "error");
+            t(tr("support.errorConnection"), "error");
           })
           .finally(() => {
             r(!1);
           });
-      }, [t]),
+      }, [t, tr]),
       i
         ? c.jsx("div", {
           className: "flex justify-center items-center h-full",
@@ -43846,12 +41504,11 @@ const Nk = 1e4,
             children: [
               c.jsx("h1", {
                 className: "text-3xl font-bold text-light mb-2 text-center",
-                children: "Thông tin Hỗ trợ",
+                children: tr("support.title"),
               }),
               c.jsx("p", {
                 className: "text-dark-text mb-8 text-center",
-                children:
-                  "Nếu bạn có bất kỳ câu hỏi hoặc cần trợ giúp, vui lòng liên hệ với chúng tôi qua các kênh dưới đây.",
+                children: tr("support.desc"),
               }),
               c.jsxs("div", {
                 className: "bg-secondary p-6 rounded-lg shadow-lg space-y-4",
@@ -43882,7 +41539,7 @@ const Nk = 1e4,
           })
           : c.jsx("div", {
             className: "text-center text-dark-text pt-10",
-            children: "Không có thông tin hỗ trợ nào được cấu hình.",
+            children: tr("support.empty"),
           })
     );
   },
@@ -43890,6 +41547,7 @@ const Nk = 1e4,
   Fk = () => {
     const { videos: t } = jt(),
       { showToast: e } = _t(),
+      { t: tr } = so(),
       [s, i] = A.useState("local"),
       [r, f] = A.useState([]),
       [h, p] = A.useState([]),
@@ -43901,10 +41559,10 @@ const Nk = 1e4,
       [K, L] = A.useState(10);
     A.useEffect(() => {
       const se = window.electronAPI.onMergeProgress((U) => {
-        v && S(`Đang xử lý: ${Math.round(U.percent || 0)}%`);
+        v && S(tr("mergeVideos.processingPercent").replace("{percent}", Math.round(U.percent || 0)));
       });
       return () => se();
-    }, [v]);
+    }, [v, tr]);
     const V = A.useMemo(
       () =>
         t
@@ -43941,13 +41599,13 @@ const Nk = 1e4,
             const fe = new Set(ee.map((w) => w.path)),
               ke = U.filter((w) => !fe.has(w.path));
             return [...ee, ...ke];
-          }),
-            e(`Đã thêm ${U.length} video.`, "success");
+          });
+          e(tr("mergeVideos.addedVideos").replace("{count}", U.length), "success");
         }
       },
       J = async () => {
         const se = await window.electronAPI.selectDownloadDirectory();
-        se && (g(se), e(`Video sẽ được lưu tại: ${se}`, "info"));
+        se && (g(se), e(tr("mergeVideos.saveLocationInfo").replace("{path}", se), "info"));
       },
       le = (se) => {
         f((U) =>
@@ -43972,31 +41630,28 @@ const Nk = 1e4,
       },
       Re = async () => {
         if (Q.length < 2) {
-          e("Vui lòng chọn ít nhất 2 video để ghép.", "error");
+          e(tr("mergeVideos.minVideosError"), "error");
           return;
         }
         if ((b(!0), R(!1), G === "all")) {
-          S("Đang bắt đầu ghép tất cả...");
+          S(tr("mergeVideos.startingMergeAll"));
           try {
             const se = await window.electronAPI.mergeVideos({
               videoPaths: Q.map((U) => U.path),
               savePath: x,
             });
             se.success && se.path
-              ? e(`Ghép video thành công! Đã lưu tại: ${se.path}`, "success")
+              ? e(tr("mergeVideos.mergeSuccess").replace("{path}", se.path), "success")
               : se.error &&
               e(se.error, se.error === "Hủy ghép" ? "info" : "error");
           } catch (se) {
-            e(`Lỗi nghiêm trọng khi ghép video: ${se.message}`, "error");
+            e(tr("mergeVideos.mergeError").replace("{error}", se.message), "error");
           }
         } else {
           const se = K;
           if (isNaN(se) || se < 2) {
-            e(
-              "Số lượng video mỗi nhóm phải là một số lớn hơn hoặc bằng 2.",
-              "error"
-            ),
-              b(!1);
+            e(tr("mergeVideos.batchSizeError"), "error");
+            b(!1);
             return;
           }
           const U = [];
@@ -44004,25 +41659,22 @@ const Nk = 1e4,
             U.push(Q.slice(ee, ee + se));
           for (let ee = 0; ee < U.length; ee++) {
             if (E) {
-              e("Đã dừng quá trình ghép hàng loạt.", "info");
+              e(tr("mergeVideos.stoppedBatchMerge"), "info");
               break;
             }
             const fe = U[ee];
             if (fe.length < 2) {
-              e(`Bỏ qua nhóm ${ee + 1} vì chỉ có 1 video.`, "info");
+              e(tr("mergeVideos.skipGroup").replace("{group}", ee + 1), "info");
               continue;
             }
-            S(`Đang ghép nhóm ${ee + 1}/${U.length} (${fe.length} video)...`);
+            S(tr("mergeVideos.mergingGroup").replace("{current}", ee + 1).replace("{total}", U.length).replace("{count}", fe.length));
             try {
               const ke = await window.electronAPI.mergeVideos({
                 videoPaths: fe.map((w) => w.path),
                 savePath: x,
               });
               if (ke.success && ke.path)
-                e(
-                  `Nhóm ${ee + 1} ghép thành công! Đã lưu tại: ${ke.path}`,
-                  "success"
-                );
+                e(tr("mergeVideos.groupMergeSuccess").replace("{group}", ee + 1).replace("{path}", ke.path), "success");
               else if (ke.error) {
                 if (
                   (e(ke.error, ke.error === "Hủy ghép" ? "info" : "error"),
@@ -44032,10 +41684,7 @@ const Nk = 1e4,
                 break;
               }
             } catch (ke) {
-              e(
-                `Lỗi nghiêm trọng khi ghép nhóm ${ee + 1}: ${ke.message}`,
-                "error"
-              );
+              e(tr("mergeVideos.groupMergeError").replace("{group}", ee + 1).replace("{error}", ke.message), "error");
               break;
             }
           }
@@ -44053,12 +41702,11 @@ const Nk = 1e4,
           children: [
             c.jsx("h1", {
               className: "text-3xl font-bold text-light mb-2",
-              children: "Ghép Video",
+              children: tr("mergeVideos.title"),
             }),
             c.jsx("p", {
               className: "text-dark-text mb-6",
-              children:
-                "Chọn các video đã tạo để ghép thành một video dài hơn.",
+              children: tr("mergeVideos.desc"),
             }),
             c.jsx("div", {
               className: "bg-secondary p-4 rounded-lg shadow-md mb-6",
@@ -44071,24 +41719,21 @@ const Nk = 1e4,
                       c.jsxs("div", {
                         children: [
                           c.jsx("label", {
-                            className:
-                              "block text-xs font-medium text-dark-text mb-1",
-                            children: "Thư mục lưu",
+                            className: "block text-xs font-medium text-dark-text mb-1",
+                            children: tr("mergeVideos.saveFolder"),
                           }),
                           c.jsxs("div", {
                             className: "flex items-center",
                             children: [
                               c.jsx("span", {
-                                className:
-                                  "text-sm text-dark-text truncate px-3 py-2 border border-r-0 border-border-color rounded-l-lg bg-gray-50 w-64",
+                                className: "text-sm text-dark-text truncate px-3 py-2 border border-r-0 border-border-color rounded-l-lg bg-gray-50 w-64",
                                 title: x,
-                                children: x || "Mặc định (hỏi mỗi lần)",
+                                children: x || tr("mergeVideos.defaultAskEveryTime"),
                               }),
                               c.jsx("button", {
                                 onClick: J,
-                                className:
-                                  "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-r-lg text-sm flex-shrink-0 border border-yellow-500",
-                                children: "Chọn",
+                                className: "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-r-lg text-sm flex-shrink-0 border border-yellow-500",
+                                children: tr("mergeVideos.selectBtn"),
                               }),
                             ],
                           }),
@@ -44100,13 +41745,11 @@ const Nk = 1e4,
                           c.jsxs("div", {
                             children: [
                               c.jsx("label", {
-                                className:
-                                  "block text-xs font-medium text-dark-text mb-1",
-                                children: "Chế độ ghép",
+                                className: "block text-xs font-medium text-dark-text mb-1",
+                                children: tr("mergeVideos.mergeMode"),
                               }),
                               c.jsxs("div", {
-                                className:
-                                  "flex items-center gap-4 p-2 bg-primary rounded-md border border-border-color",
+                                className: "flex items-center gap-4 p-2 bg-primary rounded-md border border-border-color",
                                 children: [
                                   c.jsxs("div", {
                                     className: "flex items-center",
@@ -44118,14 +41761,12 @@ const Nk = 1e4,
                                         value: "all",
                                         checked: G === "all",
                                         onChange: () => H("all"),
-                                        className:
-                                          "h-4 w-4 text-accent focus:ring-accent",
+                                        className: "h-4 w-4 text-accent focus:ring-accent",
                                       }),
                                       c.jsx("label", {
                                         htmlFor: "merge-all",
-                                        className:
-                                          "ml-2 text-sm text-dark-text",
-                                        children: "Ghép tất cả",
+                                        className: "ml-2 text-sm text-dark-text cursor-pointer",
+                                        children: tr("mergeVideos.mergeAll"),
                                       }),
                                     ],
                                   }),
@@ -44139,14 +41780,12 @@ const Nk = 1e4,
                                         value: "batch",
                                         checked: G === "batch",
                                         onChange: () => H("batch"),
-                                        className:
-                                          "h-4 w-4 text-accent focus:ring-accent",
+                                        className: "h-4 w-4 text-accent focus:ring-accent",
                                       }),
                                       c.jsx("label", {
                                         htmlFor: "merge-batch",
-                                        className:
-                                          "ml-2 text-sm text-dark-text",
-                                        children: "Ghép theo nhóm",
+                                        className: "ml-2 text-sm text-dark-text cursor-pointer",
+                                        children: tr("mergeVideos.mergeBatch"),
                                       }),
                                     ],
                                   }),
@@ -44159,19 +41798,16 @@ const Nk = 1e4,
                             children: [
                               c.jsx("label", {
                                 htmlFor: "batch-size",
-                                className:
-                                  "block text-xs font-medium text-dark-text mb-1",
-                                children: "Số video / nhóm",
+                                className: "block text-xs font-medium text-dark-text mb-1",
+                                children: tr("mergeVideos.videosPerBatch"),
                               }),
                               c.jsx("input", {
                                 type: "number",
                                 id: "batch-size",
                                 value: K,
-                                onChange: (se) =>
-                                  L(parseInt(se.target.value, 10) || 10),
+                                onChange: (se) => L(parseInt(se.target.value, 10) || 10),
                                 min: "2",
-                                className:
-                                  "p-2 text-sm bg-primary rounded-md border border-border-color w-24 h-[38px]",
+                                className: "p-2 text-sm bg-primary rounded-md border border-border-color w-24 h-[38px]",
                               }),
                             ],
                           }),
@@ -44191,13 +41827,10 @@ const Nk = 1e4,
                           }),
                           c.jsxs("button", {
                             onClick: $e,
-                            className:
-                              "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2",
+                            className: "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2",
                             children: [
-                              c.jsx(Ut, {
-                                className: "w-4 h-4",
-                              }),
-                              " Dừng",
+                              c.jsx(Ut, { className: "w-4 h-4" }),
+                              ` ${tr("mergeVideos.stopBtn")}`,
                             ],
                           }),
                         ],
@@ -44205,8 +41838,7 @@ const Nk = 1e4,
                       : c.jsxs("button", {
                         onClick: Re,
                         disabled: r.length < 2,
-                        className:
-                          "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 disabled:bg-gray-400 text-base",
+                        className: "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 disabled:bg-gray-400 text-base",
                         children: [
                           c.jsx("svg", {
                             xmlns: "http://www.w3.org/2000/svg",
@@ -44222,8 +41854,8 @@ const Nk = 1e4,
                             }),
                           }),
                           G === "all"
-                            ? `Ghép ${r.length} video`
-                            : "Bắt đầu ghép nhóm",
+                            ? tr("mergeVideos.mergeCountBtn").replace("{count}", r.length)
+                            : tr("mergeVideos.startBatchMergeBtn"),
                         ],
                       }),
                   }),
@@ -44236,31 +41868,23 @@ const Nk = 1e4,
           className: "flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden",
           children: [
             c.jsxs("div", {
-              className:
-                "lg:w-2/3 flex flex-col bg-secondary p-4 rounded-lg shadow-inner",
+              className: "lg:w-2/3 flex flex-col bg-secondary p-4 rounded-lg shadow-inner",
               children: [
                 c.jsxs("div", {
-                  className:
-                    "mb-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center",
+                  className: "mb-4 border-b border-gray-200 flex-shrink-0 flex justify-between items-center",
                   children: [
                     c.jsxs("nav", {
                       className: "-mb-px flex space-x-6",
                       children: [
                         c.jsx("button", {
                           onClick: () => i("local"),
-                          className: `whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm ${s === "local"
-                            ? "border-accent text-accent"
-                            : "border-transparent text-dark-text hover:text-light hover:bg-white/5"
-                            }`,
-                          children: "Thêm từ máy tính",
+                          className: `whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm ${s === "local" ? "border-accent text-accent" : "border-transparent text-dark-text hover:text-light hover:bg-white/5"}`,
+                          children: tr("mergeVideos.addFromLocal"),
                         }),
                         c.jsx("button", {
                           onClick: () => i("history"),
-                          className: `whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm ${s === "history"
-                            ? "border-accent text-accent"
-                            : "border-transparent text-dark-text hover:text-light hover:bg-white/5"
-                            }`,
-                          children: "Thêm từ Lịch sử",
+                          className: `whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm ${s === "history" ? "border-accent text-accent" : "border-transparent text-dark-text hover:text-light hover:bg-white/5"}`,
+                          children: tr("mergeVideos.addFromHistory"),
                         }),
                       ],
                     }),
@@ -44273,14 +41897,12 @@ const Nk = 1e4,
                           checked: P,
                           onChange: be,
                           disabled: _.length === 0,
-                          className:
-                            "form-checkbox h-5 w-5 text-accent rounded border-gray-300 focus:ring-accent",
+                          className: "form-checkbox h-5 w-5 text-accent rounded border-gray-300 focus:ring-accent cursor-pointer",
                         }),
                         c.jsx("label", {
                           htmlFor: "select-all-checkbox",
-                          className:
-                            "ml-2 text-sm text-dark-text cursor-pointer",
-                          children: "Chọn tất cả",
+                          className: "ml-2 text-sm text-dark-text cursor-pointer",
+                          children: tr("mergeVideos.selectAll"),
                         }),
                       ],
                     }),
@@ -44292,42 +41914,27 @@ const Nk = 1e4,
                     s === "local" &&
                     c.jsx("button", {
                       onClick: ne,
-                      className:
-                        "w-full bg-primary hover:bg-hover-bg text-accent font-bold py-3 px-4 rounded-lg border-2 border-dashed border-border-color mb-4",
-                      children: "+ Thêm Video từ máy tính...",
+                      className: "w-full bg-primary hover:bg-hover-bg text-accent font-bold py-3 px-4 rounded-lg border-2 border-dashed border-border-color mb-4",
+                      children: tr("mergeVideos.addVideoLocalBtn"),
                     }),
-                    _.length === 0 &&
-                    s === "local" &&
-                    c.jsx("p", {
-                      className: "text-dark-text text-center py-8",
-                      children: "Chưa có video nào được thêm.",
-                    }),
-                    _.length === 0 &&
-                    s === "history" &&
-                    c.jsx("p", {
-                      className: "text-dark-text text-center py-8",
-                      children:
-                        "Chưa có video nào trong lịch sử có đường dẫn file.",
-                    }),
+                    _.length === 0 && s === "local" && c.jsx("p", { className: "text-dark-text text-center py-8", children: tr("mergeVideos.noLocalVideos") }),
+                    _.length === 0 && s === "history" && c.jsx("p", { className: "text-dark-text text-center py-8", children: tr("mergeVideos.noHistoryVideos") }),
                     _.map((se) =>
                       c.jsxs(
                         "div",
                         {
-                          className:
-                            "bg-primary p-2 rounded-md flex items-center gap-3 hover:bg-hover-bg",
+                          className: "bg-primary p-2 rounded-md flex items-center gap-3 hover:bg-hover-bg",
                           children: [
                             c.jsx("input", {
                               type: "checkbox",
                               id: `list-checkbox-${se.id}`,
                               checked: r.some((U) => U.id === se.id),
                               onChange: () => le(se),
-                              className:
-                                "form-checkbox h-5 w-5 text-accent rounded border-gray-300 focus:ring-accent",
+                              className: "form-checkbox h-5 w-5 text-accent rounded border-gray-300 focus:ring-accent cursor-pointer",
                             }),
                             c.jsx("label", {
                               htmlFor: `list-checkbox-${se.id}`,
-                              className:
-                                "flex-1 text-sm text-dark-text truncate cursor-pointer",
+                              className: "flex-1 text-sm text-dark-text truncate cursor-pointer",
                               title: se.promptText || nl(se.path),
                               children: se.promptText || nl(se.path),
                             }),
@@ -44341,13 +41948,11 @@ const Nk = 1e4,
               ],
             }),
             c.jsxs("div", {
-              className:
-                "lg:w-1/3 flex flex-col bg-secondary p-4 rounded-lg shadow-inner",
+              className: "lg:w-1/3 flex flex-col bg-secondary p-4 rounded-lg shadow-inner",
               children: [
-                c.jsxs("h3", {
-                  className:
-                    "text-lg font-bold text-light mb-4 border-b border-border-color pb-2",
-                  children: ["Danh sách sẽ ghép (", r.length, " video)"],
+                c.jsx("h3", {
+                  className: "text-lg font-bold text-light mb-4 border-b border-border-color pb-2",
+                  children: tr("mergeVideos.mergeListTitle").replace("{count}", r.length),
                 }),
                 c.jsx("div", {
                   className: "flex-1 overflow-y-auto space-y-2",
@@ -44355,27 +41960,23 @@ const Nk = 1e4,
                     r.length === 0
                       ? c.jsx("p", {
                         className: "text-dark-text text-center py-8",
-                        children: "Chưa chọn video nào.",
+                        children: tr("mergeVideos.noVideoSelected"),
                       })
                       : Q.map((se, U) =>
                         c.jsxs(
                           "div",
                           {
-                            className:
-                              "bg-primary p-2 rounded-md flex items-center justify-between gap-2",
+                            className: "bg-primary p-2 rounded-md flex items-center justify-between gap-2",
                             children: [
                               c.jsxs("div", {
-                                className:
-                                  "flex items-center gap-2 overflow-hidden",
+                                className: "flex items-center gap-2 overflow-hidden",
                                 children: [
                                   c.jsxs("span", {
-                                    className:
-                                      "font-bold text-accent flex-shrink-0 w-8 text-right",
+                                    className: "font-bold text-accent flex-shrink-0 w-8 text-right",
                                     children: [U + 1, "."],
                                   }),
                                   c.jsx("p", {
-                                    className:
-                                      "text-sm text-dark-text truncate",
+                                    className: "text-sm text-dark-text truncate",
                                     title: nl(se.path),
                                     children: nl(se.path),
                                   }),
@@ -44383,21 +41984,15 @@ const Nk = 1e4,
                               }),
                               c.jsx("button", {
                                 onClick: () => Me(se),
-                                title: "Bỏ chọn",
-                                className:
-                                  "p-1 rounded-full hover:bg-red-100 transition-colors flex-shrink-0",
+                                title: tr("mergeVideos.unselectBtn"),
+                                className: "p-1 rounded-full hover:bg-red-100 transition-colors flex-shrink-0",
                                 children: c.jsx("svg", {
                                   xmlns: "http://www.w3.org/2000/svg",
                                   className: "h-4 w-4 text-red-500",
                                   fill: "none",
                                   viewBox: "0 0 24 24",
                                   stroke: "currentColor",
-                                  children: c.jsx("path", {
-                                    strokeLinecap: "round",
-                                    strokeLinejoin: "round",
-                                    strokeWidth: "2",
-                                    d: "M6 18L18 6M6 6l12 12",
-                                  }),
+                                  children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M6 18L18 6M6 6l12 12" }),
                                 }),
                               }),
                             ],
@@ -44413,226 +42008,42 @@ const Nk = 1e4,
       ],
     });
   },
-  Hk = ({
-    prompt: t,
-    index: e,
-    imageAnalysisMode: s,
-    isRunning: i,
-    isAnalyzing: r,
-    onUpdateText: f,
-    onUpdateImage: h,
-    onClearImage: p,
-    onRunSingle: x,
-    onRemove: g,
-    onDownload: v,
-    isSelected: isSel,
-    onToggleSelect: onSel,
-  }) => {
-    const b = (T) => {
-      const S = T.target.files?.[0];
-      S && h(t.id, S), (T.target.value = "");
+  Hk = ({ prompt: t, index: e, imageAnalysisMode: s, isRunning: i, isAnalyzing: r, onUpdateText: f, onUpdateImage: h, onClearImage: p, onRunSingle: x, onRemove: g, onDownload: v, isSelected: isSel, onToggleSelect: onSel }) => {
+    const { t: tr } = so();
+    const isVi = tr("sidebar.dashboard") === "Tổng quan";
+    const b = (T) => { const S = T.target.files?.[0]; S && h(t.id, S), (T.target.value = ""); };
+    const trMsg = (m) => {
+      if (!m) return "";
+      const l = m.toLowerCase();
+      if (l.includes("sẵn sàng") || l.includes("ready")) return tr("common.status.ready");
+      if (l.includes("đang chờ") || l.includes("queued") || l.includes("pending")) return tr("common.status.queued");
+      if (l.includes("xử lý") || l.includes("processing")) return tr("common.status.processing");
+      if (l.includes("hoàn thành") || l.includes("thành công") || l.includes("success") || l.includes("completed")) return tr("common.status.success");
+      if (l.includes("thất bại") || l.includes("failed")) return tr("common.status.failed");
+      if (l.includes("đã dừng") || l.includes("stopped")) return tr("common.status.stopped");
+      return m;
     };
+    const msg = trMsg(t.message);
     return c.jsxs("div", {
-      className: `bg-secondary p-3 rounded-lg shadow-md flex flex-col gap-2 border ${isSel ? "border-accent" : "border-transparent"
-        }`,
+      className: `bg-secondary p-3 rounded-lg shadow-md flex flex-col gap-2 border ${isSel ? "border-accent" : "border-transparent"}`,
       children: [
-        c.jsxs("div", {
-          className: "flex justify-between items-center",
-          children: [
-            c.jsxs("div", {
-              className: "flex items-center gap-2",
-              children: [
-                // CHECKBOX MỚI
-                c.jsx("input", {
-                  type: "checkbox",
-                  checked: !!isSel,
-                  onChange: () => onSel && onSel(t.id),
-                  disabled: i || r,
-                  className:
-                    "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                }),
-                c.jsxs("label", {
-                  className: "block text-dark-text text-sm font-bold",
-                  children: ["Prompt #", e + 1],
-                }),
-              ],
-            }),
-            c.jsxs("div", {
-              className: "flex items-center gap-2",
-              children: [
-                c.jsx("span", {
-                  className: `text-xs font-bold px-2 py-0.5 rounded-full ${t.status === "success"
-                    ? "bg-green-100 text-green-800"
-                    : t.status === "pending_retry"
-                      ? "bg-yellow-100 text-yellow-800"
-                      : [
-                        "running",
-                        "queued",
-                        "submitting",
-                        "processing",
-                        "pending_retry",
-                      ].includes(t.status)
-                        ? "bg-blue-100 text-blue-800"
-                        : t.status === "error"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-gray-100 text-gray-800"
-                    }`,
-                  children: t.message,
-                }),
-                c.jsx("button", {
-                  onClick: () => x(t.id),
-                  disabled: i || r,
-                  title: "Chạy prompt này",
-                  className:
-                    "p-1 hover:bg-green-100 rounded-full disabled:opacity-50",
-                  children: c.jsx(Ps, {
-                    className: "h-4 w-4 text-green-600",
-                  }),
-                }),
-                c.jsx("button", {
-                  onClick: () => g(t.id),
-                  disabled: i || r,
-                  title: "Xóa",
-                  className:
-                    "p-1 hover:bg-red-100 rounded-full disabled:opacity-50",
-                  children: c.jsx(Oa, {
-                    className: "h-4 w-4 text-red-500",
-                  }),
-                }),
-              ],
-            }),
-          ],
-        }),
+        c.jsxs("div", { className: "flex justify-between items-center", children: [c.jsxs("div", { className: "flex items-center gap-2", children: [c.jsx("input", { type: "checkbox", checked: !!isSel, onChange: () => onSel && onSel(t.id), disabled: i || r, className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent" }), c.jsxs("label", { className: "block text-dark-text text-sm font-bold", children: [tr("videoFromImage.promptNum").replace("{num}", e + 1)] })] }), c.jsxs("div", { className: "flex items-center gap-2", children: [c.jsx("span", { className: `text-xs font-bold px-2 py-0.5 rounded-full ${t.status === "success" ? "bg-green-100 text-green-800" : t.status === "pending_retry" ? "bg-yellow-100 text-yellow-800" : ["running", "queued", "submitting", "processing"].includes(t.status) ? "bg-blue-100 text-blue-800" : t.status === "error" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"}`, children: msg }), c.jsx("button", { onClick: () => x(t.id), disabled: i || r, title: tr("videoFromImage.ready"), className: "p-1 hover:bg-green-100 rounded-full disabled:opacity-50", children: c.jsx(Ps, { className: "h-4 w-4 text-green-600" }) }), c.jsx("button", { onClick: () => g(t.id), disabled: i || r, title: tr("videoFromImage.delete"), className: "p-1 hover:bg-red-100 rounded-full disabled:opacity-50", children: c.jsx(Oa, { className: "h-4 w-4 text-red-500" }) })] })] }),
         c.jsx("div", {
-          className: `relative w-full aspect-video bg-primary rounded-md border border-border-color flex items-center justify-center overflow-hidden group ${[
-            "running",
-            "queued",
-            "submitting",
-            "processing",
-            "pending_retry",
-          ].includes(t.status)
-            ? "rainbow-border-running"
-            : ""
-            }`,
+          className: `relative w-full aspect-video bg-primary rounded-md border border-border-color flex items-center justify-center overflow-hidden group ${["running", "queued", "submitting", "processing", "pending_retry"].includes(t.status) ? "rainbow-border-running" : ""}`,
           children: t.videoUrl
-            ? c.jsxs(c.Fragment, {
-              children: [
-                c.jsx(
-                  "video",
-                  {
-                    controls: !0,
-                    className: "w-full h-full object-contain bg-black",
-                    children: c.jsx("source", {
-                      src: t.videoUrl,
-                      type: "video/mp4",
-                    }),
-                  },
-                  t.videoUrl
-                ),
-                c.jsx("div", {
-                  className:
-                    "absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
-                  children: c.jsxs("button", {
-                    onClick: () => v(t.videoUrl, t.text),
-                    className:
-                      "bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-full text-xs flex items-center gap-1 pointer-events-auto",
-                    children: [
-                      c.jsx(Ut, {
-                        className: "w-4 h-4",
-                      }),
-                      "Tải về",
-                    ],
-                  }),
-                }),
-              ],
-            })
-            : [
-              "running",
-              "queued",
-              "submitting",
-              "processing",
-              "pending_retry",
-            ].includes(t.status)
-              ? c.jsxs("div", {
-                className:
-                  "flex flex-col items-center justify-center text-center px-4",
-                children: [
-                  c.jsx(Ut, {}),
-                  c.jsx("p", {
-                    className:
-                      "mt-3 text-dark-text text-xs font-bold animate-pulse",
-                    children:
-                      t.status === "pending_retry"
-                        ? "⏳ Đang chờ thử lại..."
-                        : "🔄 Đang xử lý...",
-                  }),
-                ],
-              })
-              : c.jsx("div", {
-                className: "text-center text-dark-text text-sm",
-                children: c.jsx("p", {
-                  children:
-                    t.status === "error" ? "Lỗi!" : "Kết quả sẽ hiện ở đây",
-                }),
-              }),
+            ? c.jsxs(c.Fragment, { children: [c.jsx("video", { controls: !0, className: "w-full h-full object-contain bg-black", children: c.jsx("source", { src: t.videoUrl, type: "video/mp4" }) }, t.videoUrl), c.jsx("div", { className: "absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none", children: c.jsxs("button", { onClick: () => v(t.videoUrl, t.text), className: "bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-full text-xs flex items-center gap-1 pointer-events-auto", children: [c.jsx(Ut, { className: "w-4 h-4" }), tr("videoFromImage.download")] }) })] })
+            : ["running", "queued", "submitting", "processing", "pending_retry"].includes(t.status)
+              ? c.jsxs("div", { className: "flex flex-col items-center justify-center text-center px-4", children: [c.jsx(Ut, {}), c.jsx("p", { className: "mt-3 text-dark-text text-xs font-bold animate-pulse", children: t.status === "pending_retry" ? tr("videoFromImage.waitingRetry") : tr("videoFromImage.processing") })] })
+              : c.jsx("div", { className: "text-center text-dark-text text-sm", children: c.jsx("p", { children: t.status === "error" ? tr("videoFromImage.error") : tr("videoFromImage.resultHere") }) })
         }),
-        c.jsxs("div", {
-          className: "flex gap-2",
-          children: [
-            c.jsx("textarea", {
-              value: t.text,
-              onChange: (T) => f(t.id, T.target.value),
-              className:
-                "w-full p-2 bg-primary rounded-md border border-border-color text-sm resize-y h-24",
-              readOnly: i || r,
-            }),
-            s === "separate" &&
-            c.jsxs("div", {
-              className:
-                "flex-shrink-0 w-24 h-24 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center relative group",
-              children: [
-                t.imageBase64
-                  ? c.jsxs(c.Fragment, {
-                    children: [
-                      c.jsx("img", {
-                        src: t.imageBase64,
-                        alt: "Preview",
-                        className: "w-full h-full object-cover rounded-lg",
-                      }),
-                      !i &&
-                      !r &&
-                      c.jsx("button", {
-                        onClick: () => p(t.id),
-                        className:
-                          "absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10",
-                        title: "Xóa ảnh",
-                        children: c.jsx(Oa, {
-                          className: "h-4 w-4",
-                        }),
-                      }),
-                    ],
-                  })
-                  : c.jsx(_u, {
-                    className: "h-6 w-6 text-blue-400",
-                  }),
-                !i &&
-                !r &&
-                c.jsx("input", {
-                  type: "file",
-                  accept: "image/*",
-                  onChange: b,
-                  className:
-                    "absolute inset-0 w-full h-full opacity-0 cursor-pointer",
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
+        c.jsxs("div", { className: "flex gap-2", children: [c.jsx("textarea", { value: t.text, onChange: (T) => f(t.id, T.target.value), className: "w-full p-2 bg-primary rounded-md border border-border-color text-sm resize-y h-24", readOnly: i || r, placeholder: tr("videoFromImage.promptPlaceholder") }), s === "separate" && c.jsxs("div", { className: "flex-shrink-0 w-24 h-24 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center relative group", children: [t.imageBase64 ? c.jsxs(c.Fragment, { children: [c.jsx("img", { src: t.imageBase64, alt: "Preview", className: "w-full h-full object-cover rounded-lg" }), !i && !r && c.jsx("button", { onClick: () => p(t.id), className: "absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10", title: tr("videoFromImage.deleteImage"), children: c.jsx(Oa, { className: "h-4 w-4" }) })] }) : c.jsx(_u, { className: "h-6 w-6 text-blue-400" }), !i && !r && c.jsx("input", { type: "file", accept: "image/*", onChange: b, className: "absolute inset-0 w-full h-full opacity-0 cursor-pointer" })] })] })
+      ]
     });
   },
-  Bk = ({ label: t, preview: e, onChange: s, onClear: i, disabled: r }) =>
-    c.jsxs("div", {
+
+  Bk = ({ label: t, preview: e, onChange: s, onClear: i, disabled: r }) => {
+    const { t: tr } = so();
+    return c.jsxs("div", {
       className: "flex flex-col items-center flex-shrink-0",
       children: [
         c.jsx("label", {
@@ -44640,8 +42051,7 @@ const Nk = 1e4,
           children: t,
         }),
         c.jsxs("div", {
-          className:
-            "w-20 h-20 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center relative group",
+          className: "w-20 h-20 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center relative group",
           children: [
             e
               ? c.jsxs(c.Fragment, {
@@ -44656,21 +42066,15 @@ const Nk = 1e4,
                     onClick: (f) => {
                       f.stopPropagation(), i();
                     },
-                    className:
-                      "absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10",
-                    title: `Xóa ${t}`,
+                    className: "absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10",
+                    title: `${tr("common.delete")} ${t}`,
                     children: c.jsx("svg", {
                       xmlns: "http://www.w3.org/2000/svg",
                       className: "h-4 w-4",
                       fill: "none",
                       viewBox: "0 0 24 24",
                       stroke: "currentColor",
-                      children: c.jsx("path", {
-                        strokeLinecap: "round",
-                        strokeLinejoin: "round",
-                        strokeWidth: "2",
-                        d: "M6 18L18 6M6 6l12 12",
-                      }),
+                      children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M6 18L18 6M6 6l12 12" }),
                     }),
                   }),
                 ],
@@ -44683,12 +42087,7 @@ const Nk = 1e4,
                   fill: "none",
                   viewBox: "0 0 24 24",
                   stroke: "currentColor",
-                  children: c.jsx("path", {
-                    strokeLinecap: "round",
-                    strokeLinejoin: "round",
-                    strokeWidth: "2",
-                    d: "M12 4v16m8-8H4",
-                  }),
+                  children: c.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M12 4v16m8-8H4" }),
                 }),
               }),
             !r &&
@@ -44696,261 +42095,145 @@ const Nk = 1e4,
               type: "file",
               accept: "image/*",
               onChange: s,
-              className:
-                "absolute inset-0 w-full h-full opacity-0 cursor-pointer",
+              className: "absolute inset-0 w-full h-full opacity-0 cursor-pointer",
             }),
           ],
         }),
       ],
-    }),
-  Gk = ({ setActiveView: t }) => {
-    const {
-      stories: e,
-      prompts: s,
-      addVideo: i,
-      autoSaveConfig: r,
-      setAutoSaveConfig: f,
-      currentUser: h,
-      refreshCurrentUser: p,
-      activeCookie: ac,
-      cookies: cookieList,
-    } = jt(),
-      { showToast: x } = _t(),
-      [g, v] = Mt("veo-suite-image-automation-state", {
-        prompts: [],
-        isRunning: !1,
-        overallProgress: 0,
-        statusMessage: "Sẵn sàng.",
-        model: "veo_3_1_t2v",
-        aspectRatio: "LANDSCAPE",
-        concurrentStreams: 4,
-        imageAnalysisMode: "shared",
-      }),
-      [b, T] = A.useState([
-        {
-          id: crypto.randomUUID(),
-          file: null,
-          preview: "",
-        },
-        {
-          id: crypto.randomUUID(),
-          file: null,
-          preview: "",
-        },
-        {
-          id: crypto.randomUUID(),
-          file: null,
-          preview: "",
-        },
-      ]),
-      [S, E] = A.useState(!1),
-      [R, G] = A.useState(""),
-      [showError, setShowError] = A.useState(!1),
-      [showPending, setShowPending] = A.useState(!1),
-      [gridCols, setGridCols] = A.useState(3),
-      {
-        prompts: allPrompts,
-        isRunning: K,
-        aspectRatio: L,
-        concurrentStreams: V,
-        imageAnalysisMode: _,
-      } = g, // Logic lọc danh sách
-      H = A.useMemo(() => {
-        if (showError)
-          return allPrompts.filter(
-            (p) => p.status === "error" || p.status === "failed"
-          );
-        if (showPending)
-          return allPrompts.filter(
-            (p) =>
-              p.status === "idle" ||
-              p.status === "queued" ||
-              p.status === "pending_retry"
-          );
-        return allPrompts;
-      }, [allPrompts, showError, showPending]),
-      P = _ || "shared",
-      // --- THÊM STATE QUẢN LÝ CHỌN ---
-      [selectedIds, setSelectedIds] = A.useState(new Set()),
-      // Hàm cập nhật prompts (giữ nguyên logic cũ)
-      Q = (ae) => {
-        v((ve) => ({
-          ...ve,
-          prompts: typeof ae == "function" ? ae(ve.prompts) : ae,
-        }));
-      },
-      // --- THÊM CÁC HÀM XỬ LÝ CHỌN & CHẠY ---
-      toggleSelect = (ae) => {
-        setSelectedIds((ve) => {
-          const Fe = new Set(ve);
-          return Fe.has(ae) ? Fe.delete(ae) : Fe.add(ae), Fe;
-        });
-      },
-      handleSelectAll = () => {
-        // Lấy danh sách ID đang hiển thị (theo bộ lọc H)
-        const ae = H.map((ve) => ve.id);
-        // Kiểm tra xem tất cả đã được chọn chưa
-        const ve = ae.length > 0 && ae.every((Fe) => selectedIds.has(Fe));
+    });
+  },
 
-        setSelectedIds((Fe) => {
-          const Ie = new Set(Fe);
-          if (ve) {
-            // Bỏ chọn tất cả item đang hiển thị
-            ae.forEach((lt) => Ie.delete(lt));
-          } else {
-            // Chọn tất cả item đang hiển thị
-            ae.forEach((lt) => Ie.add(lt));
+  Gk = ({ setActiveView: t }) => {
+    const { stories: e, prompts: s, addVideo: i, autoSaveConfig: r, setAutoSaveConfig: f, currentUser: h, refreshCurrentUser: p, activeCookie: ac, cookies: cookieList } = jt(),
+      { showToast: x } = _t(),
+      { t: tr } = so(),
+      isVi = tr("sidebar.dashboard") === "Tổng quan",
+      [g, v] = Mt("veo-suite-image-automation-state", { prompts: [], isRunning: !1, overallProgress: 0, statusMessage: "Sẵn sàng.", model: "veo_3_1_t2v", aspectRatio: "LANDSCAPE", concurrentStreams: 4, imageAnalysisMode: "shared" }),
+      [b, T] = A.useState([{ id: crypto.randomUUID(), file: null, preview: "" }, { id: crypto.randomUUID(), file: null, preview: "" }, { id: crypto.randomUUID(), file: null, preview: "" }]),
+      [S, E] = A.useState(!1), [R, G] = A.useState(""), [showError, setShowError] = A.useState(!1), [showPending, setShowPending] = A.useState(!1), [gridCols, setGridCols] = A.useState(3),
+      { prompts: allPrompts, isRunning: K, aspectRatio: L, concurrentStreams: V, imageAnalysisMode: _ } = g,
+      H = A.useMemo(() => { if (showError) return allPrompts.filter((p) => p.status === "error" || p.status === "failed"); if (showPending) return allPrompts.filter((p) => p.status === "idle" || p.status === "queued" || p.status === "pending_retry"); return allPrompts; }, [allPrompts, showError, showPending]),
+      P = _ || "shared", [selectedIds, setSelectedIds] = A.useState(new Set()),
+      Q = (ae) => { v((ve) => ({ ...ve, prompts: typeof ae == "function" ? ae(ve.prompts) : ae })); },
+      toggleSelect = (ae) => { setSelectedIds((ve) => { const Fe = new Set(ve); return Fe.has(ae) ? Fe.delete(ae) : Fe.add(ae), Fe; }); },
+      handleSelectAll = () => { const ae = H.map((ve) => ve.id); const ve = ae.length > 0 && ae.every((Fe) => selectedIds.has(Fe)); setSelectedIds((Fe) => { const Ie = new Set(Fe); if (ve) { ae.forEach((lt) => Ie.delete(lt)); } else { ae.forEach((lt) => Ie.add(lt)); } return Ie; }); },
+      runSelected = () => { const ae = H.filter((ve) => selectedIds.has(ve.id)); if (ae.length > 0) { B(ae); } else { x(tr("videoFromImage.errorNoValidPrompt"), "info"); } };
+
+    const $e = (ae, ve) => { const Fe = ae.target.files?.[0]; if (Fe) { const Ie = new FileReader(); (Ie.onloadend = () => { const lt = Ie.result; T((Ge) => Ge.map((nt) => nt.id === ve ? { ...nt, file: Fe, preview: lt } : nt)); }), Ie.readAsDataURL(Fe); } ae.target.value = ""; };
+    const se = (ae) => { T((ve) => ve.map((Fe) => Fe.id === ae ? { ...Fe, file: null, preview: "" } : Fe)); };
+    const U = () => { b.length < 6 && T((ae) => [...ae, { id: crypto.randomUUID(), file: null, preview: "" }]); };
+    const ee = (ae, ve) => { const Fe = new FileReader(); (Fe.onloadend = () => { const Ie = Fe.result; v((lt) => ({ ...lt, prompts: lt.prompts.map((Ge) => Ge.id === ae ? { ...Ge, imageBase64: Ie } : Ge) })); }), Fe.readAsDataURL(ve); };
+    const fe = (ae) => { v((ve) => ({ ...ve, prompts: ve.prompts.map((Fe) => Fe.id === ae ? { ...Fe, imageBase64: void 0 } : Fe) })); };
+    const ke = async () => { const ae = await window.electronAPI.selectDownloadDirectory(); ae && f({ ...r, path: ae }); };
+
+    const dt = (ae, ve) => v((Fe) => ({ ...Fe, prompts: Fe.prompts.map((Ie) => Ie.id === ae ? { ...Ie, text: ve } : Ie) }));
+    const Qe = (ae) => v((ve) => ({ ...ve, prompts: ve.prompts.filter((Fe) => Fe.id !== ae) }));
+    const we = (ae) => { const ve = H.find((Fe) => Fe.id === ae); ve && B([ve]); };
+    const St = (ae, ve) => { ae && window.electronAPI.downloadVideo({ url: ae, promptText: ve, savePath: null, promptIndex: 0 }); };
+    const ut = async () => {
+      if (K) return;
+      const ae = await window.electronAPI.importPromptsFromFile();
+      if (ae.success && ae.prompts) {
+        const ve = ae.prompts.map((Fe) => ({ id: `prompt-${Date.now()}-${Math.random()}`, text: Fe, status: "idle", message: tr("videoFromImage.ready") }));
+        Q((Fe) => [...Fe, ...ve]);
+        x(`Đã nhập ${ve.length} prompt.`, "success");
+      } else if (ae.error && ae.error !== "No file selected") {
+        x(`Lỗi: ${ae.error}`, "error");
+      }
+    };
+    const Be = () => {
+      window.electronAPI.stopBrowserAutomation();
+      v((ae) => ({ ...ae, isRunning: !1, prompts: ae.prompts.map((p) => ["queued", "processing", "running", "pending_retry"].includes(p.status) ? { ...p, status: "idle", message: isVi ? "Đã dừng" : "Stopped" } : p) }));
+    };
+    const Ve = () => v((ae) => ({ ...ae, prompts: [...ae.prompts, { id: `prompt-${Date.now()}`, text: "", status: "idle", message: tr("videoFromImage.ready") }] }));
+    const Ee = () => { window.confirm(tr("videoFromImage.deleteAll") + "?") && v((ae) => ({ ...ae, prompts: [] })); };
+
+    const B = async (ae) => {
+      E(!0), v((Ie) => ({ ...Ie, isRunning: !0 })); let ve = [], Fe = new Set(ae.map((Ie) => Ie.id));
+      try {
+        if (P === "shared") {
+          const Ie = b.filter((nt) => nt.file);
+          if (Ie.length === 0) throw (x(tr("videoFromImage.errorNoImageShared"), "error"), new Error("No shared image"));
+          let lt = [];
+          for (let nt = 0; nt < Ie.length; nt++) {
+            const F = Ie[nt]; G(tr("videoFromImage.analyzingShared").replace("{current}", nt + 1).replace("{total}", Ie.length));
+            const ge = await xx(F.file), xe = await dg([ge], "Phân tích ảnh này."), We = JSON.parse(xe.text ?? "{}").description;
+            if (We) lt.push(We);
           }
-          return Ie;
-        });
-      },
-      runSelected = () => {
-        const ae = H.filter((ve) => selectedIds.has(ve.id));
-        if (ae.length > 0) {
-          B(ae); // Gọi hàm chạy (hàm B được định nghĩa ở dưới)
+          const Ge = lt.join(". "); if (!Ge) throw new Error("Analysis failed");
+          x(tr("videoFromImage.analysisSuccess"), "success"), ve = H.map((nt, F) => Fe.has(nt.id) ? { ...nt, text: `${Ge}. ${nt.text}`, status: "queued", message: tr("veo.ready"), originalIndex: F } : nt).filter((nt) => Fe.has(nt.id));
         } else {
-          x("Chưa chọn prompt nào.", "info");
+          let Ie = ae.filter((Ge) => Ge.imageBase64);
+          if (Ie.length === 0) throw (x(tr("videoFromImage.errorNoImageSeparate"), "error"), new Error("No separate images"));
+          let lt = [];
+          for (let Ge = 0; Ge < Ie.length; Ge++) {
+            const nt = Ie[Ge]; G(tr("videoFromImage.analyzingSeparate").replace("{current}", Ge + 1).replace("{total}", Ie.length));
+            const F = nt.imageBase64, ge = F.split(",")[1], xe = F.match(/data:(.*);base64,/)?.[1];
+            if (!ge || !xe) { x(tr("videoFromImage.errorImageSlot").replace("{num}", Ge + 1), "error"); continue; }
+            const D = await dg([{ inlineData: { data: ge, mimeType: xe } }], "Phân tích ảnh này."), me = JSON.parse(D.text ?? "{}").description;
+            if (me) lt.push({ ...nt, text: `${me}. ${nt.text}`, status: "queued", message: tr("veo.ready"), originalIndex: H.findIndex((M) => M.id === nt.id) });
+          }
+          x(tr("videoFromImage.analysisSuccess"), "success"), ve = lt;
         }
-      };
-    /// 1. Xử lý Log (Đầy đủ useEffect):
+        if (v((Ie) => ({ ...Ie, prompts: Ie.prompts.map((lt) => { const Ge = ve.find((nt) => nt.id === lt.id); return Ge || lt; }) })), ve.length > 0)
+          window.electronAPI.startBrowserAutomation({ activeCookie: ac, localCookies: cookieList, prompts: ve, authToken: h.token, model: L === "PORTRAIT" ? "veo_3_0_t2v_fast_portrait_ultra" : g.model, aspectRatio: L, autoSaveConfig: r, currentUser: h, concurrentStreams: V });
+        else throw new Error("No valid prompts found");
+      } catch (Ie) { x(tr("videoFromImage.errorAnalyze").replace("{msg}", Ie.message), "error"); v((lt) => ({ ...lt, isRunning: !1, statusMessage: "Error." })); } finally { E(!1), G(""); }
+    };
+
     A.useEffect(() => {
       const ae = window.electronAPI.onBrowserLog((ve) => {
         v((Ie) => {
           const Fe = Ie.prompts || [];
           if (ve.status === "finished") {
             const nt = Fe.map((F) =>
-              F &&
-                ["queued", "submitting", "processing", "running"].includes(
-                  F.status
-                )
-                ? {
-                  ...F,
-                  status: "idle",
-                  message: "Đã dừng",
-                }
+              F && ["queued", "submitting", "processing", "running"].includes(F.status)
+                ? { ...F, status: "idle", message: isVi ? "Đã dừng" : "Stopped" }
                 : F
             );
-            return {
-              ...Ie,
-              prompts: nt,
-              isRunning: !1,
-              statusMessage: ve.message,
-            };
+            return { ...Ie, prompts: nt, isRunning: !1, statusMessage: ve.message };
           }
-          if (!Fe.some((nt) => nt && nt.id === ve.promptId) && ve.promptId)
-            return Ie || {};
+          if (!Fe.some((nt) => nt && nt.id === ve.promptId) && ve.promptId) return Ie || {};
           const lt = Fe.map((nt) => {
             if (!nt) return nt;
             if (nt.id === ve.promptId) {
-              if (nt.status === "pending_retry" && ve.status !== "success")
-                return nt;
-              const F =
-                ve.status && ve.status !== "finished"
-                  ? ve.status
-                  : nt.status,
-                ge = {
-                  status: F,
-                  message: ve.message,
-                  videoUrl: ve.videoUrl || nt.videoUrl,
-                };
-              const isErr =
-                F === "failed" ||
-                F === "error" ||
-                (ve.message &&
-                  (ve.message.toLowerCase().includes("thất bại") ||
-                    ve.message.toLowerCase().includes("vi phạm") ||
-                    ve.message.toLowerCase().includes("error")));
+              if (nt.status === "pending_retry" && ve.status !== "success") return nt;
+              const F = ve.status && ve.status !== "finished" ? ve.status : nt.status,
+                ge = { status: F, message: ve.message, videoUrl: ve.videoUrl || nt.videoUrl };
+              const isErr = F === "failed" || F === "error" || (ve.message && (ve.message.toLowerCase().includes("thất bại") || ve.message.toLowerCase().includes("vi phạm") || ve.message.toLowerCase().includes("error")));
 
-              // [FIX] Thêm điều kiện && Ie.isRunning
-              // Chỉ retry nếu hệ thống ĐANG CHẠY. Nếu đã bấm Dừng (isRunning == false) thì bỏ qua.
               if (isErr && Ie.autoRetry && Ie.isRunning) {
                 const next = (nt.retryCount || 0) + 1;
                 let shortMsg = "Lỗi";
                 const rawMsg = ve.message || "";
-                if (
-                  rawMsg.includes("E005") ||
-                  rawMsg.includes("PUBLIC_ERROR_MINOR_UPLOAD")
-                )
-                  shortMsg = "Lỗi ảnh Input (E005)";
-                else if (rawMsg.includes("400"))
-                  shortMsg = "Lỗi dữ liệu (400)";
-                else if (rawMsg.includes("429")) shortMsg = "Quá tải (429)";
+                if (rawMsg.includes("E005") || rawMsg.includes("PUBLIC_ERROR_MINOR_UPLOAD")) shortMsg = "Lỗi ảnh Input";
+                else if (rawMsg.includes("400")) shortMsg = "Lỗi dữ liệu";
+                else if (rawMsg.includes("429")) shortMsg = "Quá tải";
                 else if (rawMsg.includes("safety")) shortMsg = "Lỗi an toàn";
-                else
-                  shortMsg =
-                    rawMsg.length > 25
-                      ? rawMsg.substring(0, 25) + "..."
-                      : rawMsg;
-                return {
-                  ...nt,
-                  ...ge,
-                  status: "pending_retry",
-                  message: `⚠️ ${shortMsg}. Chờ 60s...`,
-                  retryCount: next,
-                };
+                else shortMsg = rawMsg.length > 25 ? rawMsg.substring(0, 25) + "..." : rawMsg;
+                return { ...nt, ...ge, status: "pending_retry", message: `⚠️ ${shortMsg}. Chờ 60s...`, retryCount: next };
               }
               if (F === "success" && ve.videoUrl && !nt.videoUrl) {
-                i({
-                  id: `${nt.id}-${Date.now()}`,
-                  promptId: nt.id,
-                  promptText: nt.text,
-                  status: "completed",
-                  videoUrl: ve.videoUrl,
-                });
-                return {
-                  ...nt,
-                  ...ge,
-                  status: "success",
-                  message: "Hoàn thành!",
-                };
+                i({ id: `${nt.id}-${Date.now()}`, promptId: nt.id, promptText: nt.text, status: "completed", videoUrl: ve.videoUrl });
+                return { ...nt, ...ge, status: "success", message: isVi ? "Hoàn thành!" : "Completed!" };
               }
-              return {
-                ...nt,
-                ...ge,
-              };
+              return { ...nt, ...ge };
             }
             return nt;
           });
-          const Ge = lt.some(
-            (nt) =>
-              nt &&
-              [
-                "queued",
-                "running",
-                "submitting",
-                "processing",
-                "pending_retry",
-              ].includes(nt.status)
-          );
-          return {
-            ...Ie,
-            prompts: lt,
-            isRunning: Ge,
-          };
+          const Ge = lt.some((nt) => nt && ["queued", "running", "submitting", "processing", "pending_retry"].includes(nt.status));
+          return { ...Ie, prompts: lt, isRunning: Ge };
         });
-      }),
-        te = window.electronAPI.onDownloadComplete(
-          ({ success: O, path: ue, error: pe }) => {
-            O && ue && ue !== "Skipped"
-              ? g(`Video đã lưu tại: ${ue}`, "success")
-              : !O &&
-              pe &&
-              pe !== "Download canceled" &&
-              g(`Lỗi tải video: ${pe}`, "error");
-          }
-        );
-      return () => {
-        ae(), te();
-      };
-    }, [i, x, v]);
-    A.useEffect(() => {
-      // [FIX] Nếu đã bấm Dừng (isRunning = false), tuyệt đối không tự động chạy lại
-      if (!K) return;
+      });
+      const te = window.electronAPI.onDownloadComplete(({ success: O, path: ue, error: pe }) => {
+        O && ue && ue !== "Skipped" ? x(`Video đã lưu tại: ${ue}`, "success") : !O && pe && pe !== "Download canceled" && x(`Lỗi tải video: ${pe}`, "error");
+      });
+      return () => { ae(); te(); };
+    }, [i, x, v, isVi]);
 
-      const t = H.filter(
-        (e) =>
-          "pending_retry" === e.status && !e.message.includes("Đang gửi lệnh")
-      );
+    A.useEffect(() => {
+      if (!K) return;
+      const t = H.filter((e) => "pending_retry" === e.status && !e.message.includes("Đang gửi lệnh"));
       if (t.length > 0) {
         const e = setTimeout(() => {
           const k = H.filter((O) => "pending_retry" === O.status);
@@ -44959,460 +42242,20 @@ const Nk = 1e4,
               ...O,
               isRunning: !0,
               prompts: O.prompts.map((I) =>
-                k.find((de) => de.id === I.id)
-                  ? {
-                    ...I,
-                    status: "queued",
-                    message: "🔄 Đang gửi lệnh chạy lại...",
-                  }
-                  : I
+                k.find((de) => de.id === I.id) ? { ...I, status: "queued", message: "🔄 Đang gửi lệnh chạy lại..." } : I
               ),
             })),
-              window.electronAPI.startBrowserAutomation({
-                activeCookie: ac, // [FIX] Sửa lỗi biến 'v' (là hàm setState) thành 'ac' (Active Cookie)
-                prompts: k,
-                authToken: h.token,
-                model:
-                  "PORTRAIT" === L ? "veo_3_0_t2v_fast_portrait_ultra" : g.model,
-                aspectRatio: L,
-                autoSaveConfig: r,
-                currentUser: h,
-                concurrentStreams: V,
-              }));
+              window.electronAPI.startBrowserAutomation({ activeCookie: ac, prompts: k, authToken: h.token, model: "PORTRAIT" === L ? "veo_3_0_t2v_fast_portrait_ultra" : g.model, aspectRatio: L, autoSaveConfig: r, currentUser: h, concurrentStreams: V }));
         }, 1000);
         return () => clearTimeout(e);
       }
-    }, [H, K]), // [FIX] Thêm K vào dependency để lắng nghe trạng thái Dừng
-      /// 2. Xử lý Đếm ngược (Code này bạn đã có, chỉ cần đảm bảo đúng):
-      A.useEffect(() => {
-        // 1. Lọc ra các video đang chờ thử lại
-        const pendingRetries = H.filter((e) => "pending_retry" === e.status);
+    }, [H, K, h, L, g, r, V, ac]);
 
-        // Nếu không có lỗi nào thì thoát
-        if (pendingRetries.length === 0) return;
-
-        // 2. Kiểm tra xem hệ thống có đang bận xử lý các video khác không
-        const isBusy = H.some((e) =>
-          ["queued", "running", "submitting", "processing"].includes(e.status)
-        );
-
-        // 3. Nếu hệ thống ĐANG RẢNH (tức là các video khác đã xong hết)
-        if (!isBusy) {
-          console.log(
-            `[Auto Retry GK] Phát hiện ${pendingRetries.length} video lỗi. Chạy lại ngay...`
-          );
-
-          // Cập nhật giao diện: Chuyển sang Queued ngay
-          v((I) => ({
-            ...I,
-            isRunning: true,
-            // Bật lại nút Dừng
-            prompts: I.prompts.map((de) =>
-              pendingRetries.find((Ce) => Ce.id === de.id)
-                ? {
-                  ...de,
-                  status: "queued",
-                  message: "🔄 Đang đổi Cookie & Chạy lại ngay...",
-                }
-                : de
-            ),
-          }));
-
-          // Gửi lệnh xuống Main Process ngay lập tức
-          const autoSaveForMain = r;
-
-          window.electronAPI.startBrowserAutomation({
-            activeCookie: ac,
-            // Dùng cookie chung hoặc smart cookie trong main
-            prompts: pendingRetries,
-            authToken: h.token,
-            model:
-              "PORTRAIT" === L ? "veo_3_0_t2v_fast_portrait_ultra" : g.model,
-            aspectRatio: L,
-            autoSaveConfig: autoSaveForMain,
-            currentUser: h,
-            concurrentStreams: V,
-          });
-        }
-      }, [H, h, L, g, r, V, ac]);
-    const {
-      successCount: ne,
-      errorCount: J,
-      processedCount: le,
-      totalCount: be,
-      statusMessage: Me,
-    } = A.useMemo(() => {
-      const ae = H.length;
-      if (ae === 0)
-        return {
-          successCount: 0,
-          errorCount: 0,
-          processedCount: 0,
-          totalCount: 0,
-          statusMessage: "Sẵn sàng.",
-        };
-      const ve = H.filter((Ge) => Ge.status === "success").length,
-        Fe = H.filter((Ge) => Ge.status === "error").length,
-        Ie = ve + Fe;
-      let lt = `Đã xử lý ${Ie}/${ae}...`;
-      return (
-        K
-          ? (lt = `Đang xử lý ${Ie}/${ae}...`)
-          : Ie === ae && ae > 0
-            ? (lt = "Hoàn thành!")
-            : Ie > 0 && (lt = "Đã dừng."),
-        {
-          successCount: ve,
-          errorCount: Fe,
-          processedCount: Ie,
-          totalCount: ae,
-          statusMessage: lt,
-        }
-      );
-    }, [H, K]),
-      Re = be > 0 ? (le / be) * 100 : 0,
-      $e = (ae, ve) => {
-        const Fe = ae.target.files?.[0];
-        if (Fe) {
-          const Ie = new FileReader();
-          (Ie.onloadend = () => {
-            const lt = Ie.result;
-            T((Ge) =>
-              Ge.map((nt) =>
-                nt.id === ve
-                  ? {
-                    ...nt,
-                    file: Fe,
-                    preview: lt,
-                  }
-                  : nt
-              )
-            );
-          }),
-            Ie.readAsDataURL(Fe);
-        }
-        ae.target.value = "";
-      },
-      se = (ae) => {
-        T((ve) =>
-          ve.map((Fe) =>
-            Fe.id === ae
-              ? {
-                ...Fe,
-                file: null,
-                preview: "",
-              }
-              : Fe
-          )
-        );
-      },
-      U = () => {
-        b.length < 6 &&
-          T((ae) => [
-            ...ae,
-            {
-              id: crypto.randomUUID(),
-              file: null,
-              preview: "",
-            },
-          ]);
-      },
-      ee = (ae, ve) => {
-        const Fe = new FileReader();
-        (Fe.onloadend = () => {
-          const Ie = Fe.result;
-          v((lt) => ({
-            ...lt,
-            prompts: lt.prompts.map((Ge) =>
-              Ge.id === ae
-                ? {
-                  ...Ge,
-                  imageBase64: Ie,
-                }
-                : Ge
-            ),
-          }));
-        }),
-          Fe.readAsDataURL(ve);
-      },
-      fe = (ae) => {
-        v((ve) => ({
-          ...ve,
-          prompts: ve.prompts.map((Fe) =>
-            Fe.id === ae
-              ? {
-                ...Fe,
-                imageBase64: void 0,
-              }
-              : Fe
-          ),
-        }));
-      },
-      ke = async () => {
-        const ae = await window.electronAPI.selectDownloadDirectory();
-        ae &&
-          f({
-            ...r,
-            path: ae,
-          });
-      },
-      w = async () => {
-        await p(), await new Promise((ve) => setTimeout(ve, 100));
-        const ae = JSON.parse(localStorage.getItem("currentUser") || "null");
-
-        // 1. Kiểm tra hạn sử dụng
-        if (
-          !ae ||
-          !ae.subscription ||
-          new Date(ae.subscription.end_date) < new Date()
-        ) {
-          x(
-            "Gói của bạn đã hết hạn hoặc không hợp lệ. Vui lòng nâng cấp.",
-            "error"
-          );
-          t(je.PACKAGES);
-          return !1;
-        }
-
-        // 2. [MỚI] Chặn gói Cá Nhân
-        if (ae.subscription.package_name === "Gói Cá Nhân/1 Máy") {
-          x(
-            "Tính năng 'Tạo Video từ Ảnh' yêu cầu Gói Pro hoặc cao hơn.",
-            "info"
-          );
-          t(je.PACKAGES);
-          return !1; // Trả về false để dừng quy trình ngay lập tức
-        }
-
-        return !0;
-      },
-      B = async (ae) => {
-        if (!(await w())) return;
-        if (ae.length === 0) {
-          x("Không có prompt nào được chọn để chạy.", "info");
-          return;
-        }
-        E(!0),
-          v((Ie) => ({
-            ...Ie,
-            isRunning: !0,
-          }));
-        let ve = [],
-          Fe = new Set(ae.map((Ie) => Ie.id));
-        try {
-          if (P === "shared") {
-            const Ie = b.filter((nt) => nt.file);
-            if (Ie.length === 0)
-              throw (
-                (x(
-                  'Chế độ "Dùng chung" yêu cầu ít nhất một ảnh ở thanh công cụ.',
-                  "error"
-                ),
-                  new Error("Không có ảnh chung"))
-              );
-            let lt = [];
-            for (let nt = 0; nt < Ie.length; nt++) {
-              const F = Ie[nt];
-              G(`Đang phân tích ảnh chung ${nt + 1}/${Ie.length}...`);
-              const ge = await xx(F.file),
-                xe = await dg([ge], "Phân tích ảnh này."),
-                We = JSON.parse(xe.text ?? "{}").description;
-              We && lt.push(We);
-            }
-            const Ge = lt.join(". ");
-            if (!Ge) throw new Error("Phân tích ảnh chung thất bại.");
-            x("Phân tích ảnh chung thành công!", "success"),
-              (ve = H.map((nt, F) =>
-                Fe.has(nt.id)
-                  ? {
-                    ...nt,
-                    text: `${Ge}. ${nt.text}`,
-                    status: "queued",
-                    message: "Đang chờ...",
-                    originalIndex: F,
-                  }
-                  : nt
-              ).filter((nt) => Fe.has(nt.id)));
-          } else {
-            let Ie = ae.filter((Ge) => Ge.imageBase64);
-            if (Ie.length === 0)
-              throw (
-                (x(
-                  'Chế độ "Dùng riêng" yêu cầu các prompt phải có ảnh tải lên.',
-                  "error"
-                ),
-                  new Error("Không có ảnh riêng"))
-              );
-            let lt = [];
-            for (let Ge = 0; Ge < Ie.length; Ge++) {
-              const nt = Ie[Ge];
-              G(`Đang phân tích ảnh riêng ${Ge + 1}/${Ie.length}...`);
-              const F = nt.imageBase64,
-                ge = F.split(",")[1],
-                xe = F.match(/data:(.*);base64,/)?.[1];
-              if (!ge || !xe) {
-                x(`Ảnh cho prompt #${Ge + 1} bị lỗi. Bỏ qua.`, "error");
-                continue;
-              }
-              const D = await dg(
-                [
-                  {
-                    inlineData: {
-                      data: ge,
-                      mimeType: xe,
-                    },
-                  },
-                ],
-                "Phân tích ảnh này."
-              ),
-                me = JSON.parse(D.text ?? "{}").description;
-              me &&
-                lt.push({
-                  ...nt,
-                  text: `${me}. ${nt.text}`,
-                  status: "queued",
-                  message: "Đang chờ...",
-                  originalIndex: H.findIndex((M) => M.id === nt.id),
-                });
-            }
-            x("Phân tích ảnh riêng thành công!", "success"), (ve = lt);
-          }
-          if (
-            (v((Ie) => ({
-              ...Ie,
-              prompts: Ie.prompts.map((lt) => {
-                const Ge = ve.find((nt) => nt.id === lt.id);
-                return Ge || lt;
-              }),
-            })),
-              ve.length > 0)
-          )
-            window.electronAPI.startBrowserAutomation({
-              activeCookie: ac,
-              localCookies: cookieList,
-              prompts: ve,
-              authToken: h.token,
-              model:
-                L === "PORTRAIT" ? "veo_3_0_t2v_fast_portrait_ultra" : g.model,
-              aspectRatio: L,
-              autoSaveConfig: r,
-              currentUser: h,
-              concurrentStreams: V,
-            });
-          else
-            throw new Error(
-              "Không có prompt nào hợp lệ để chạy sau khi phân tích."
-            );
-        } catch (Ie) {
-          x(`Lỗi phân tích: ${Ie.message}`, "error"),
-            v((lt) => ({
-              ...lt,
-              isRunning: !1,
-              statusMessage: "Lỗi phân tích ảnh.",
-            }));
-        } finally {
-          E(!1), G("");
-        }
-      },
-      W = () => B(H),
-      oe = () => B(H.filter((ae) => ae.status !== "success")),
-      we = (ae) => {
-        const ve = H.find((Fe) => Fe.id === ae);
-        ve && B([ve]);
-      },
-      Be = () => {
-        window.electronAPI.stopBrowserAutomation();
-        v((ae) => ({
-          ...ae,
-          isRunning: !1,
-          prompts: ae.prompts.map((p) =>
-            ["queued", "processing", "running", "pending_retry"].includes(
-              p.status
-            )
-              ? {
-                ...p,
-                status: "idle",
-                message: "Đã dừng bởi người dùng",
-              }
-              : p
-          ),
-        }));
-      },
-      Ve = () =>
-        v((ae) => ({
-          ...ae,
-          prompts: [
-            ...ae.prompts,
-            {
-              id: `prompt-${Date.now()}`,
-              text: "",
-              status: "idle",
-              message: "Sẵn sàng",
-            },
-          ],
-        })),
-      dt = (ae, ve) =>
-        v((Fe) => ({
-          ...Fe,
-          prompts: Fe.prompts.map((Ie) =>
-            Ie.id === ae
-              ? {
-                ...Ie,
-                text: ve,
-              }
-              : Ie
-          ),
-        })),
-      Qe = (ae) =>
-        v((ve) => ({
-          ...ve,
-          prompts: ve.prompts.filter((Fe) => Fe.id !== ae),
-        })),
-      Ee = () => {
-        window.confirm("Xóa tất cả prompts?") &&
-          v((ae) => ({
-            ...ae,
-            prompts: [],
-          }));
-      },
-      ut = async () => {
-        if (K) return;
-        const ae = await window.electronAPI.importPromptsFromFile();
-        if (ae.success && ae.prompts) {
-          const ve = ae.prompts.map((Fe) => ({
-            id: `prompt-${Date.now()}-${Math.random()}`,
-            text: Fe,
-            status: "idle",
-            message: "Sẵn sàng",
-          }));
-          Q((Fe) => [...Fe, ...ve]),
-            x(`Đã nhập ${ve.length} prompt.`, "success");
-        } else
-          ae.error &&
-            ae.error !== "No file selected" &&
-            x(`Lỗi: ${ae.error}`, "error");
-      },
-      St = (ae, ve) => {
-        ae &&
-          window.electronAPI.downloadVideo({
-            url: ae,
-            promptText: ve,
-            savePath: null,
-            promptIndex: 0,
-          });
-      };
     return c.jsxs("div", {
       className: "animate-fade-in h-full flex flex-col",
       children: [
-        c.jsx("h1", {
-          className: "text-3xl font-bold text-light mb-2",
-          children: "Tạo video từ ảnh",
-        }),
-        c.jsx("p", {
-          className: "text-dark-text mb-4",
-          children:
-            "Tải lên tối đa 6 ảnh nhân vật, phong cách. AI sẽ phân tích tất cả ảnh để tạo video.",
-        }),
+        c.jsx("h1", { className: "text-3xl font-bold text-light mb-2", children: tr("videoFromImage.title") }),
+        c.jsx("p", { className: "text-dark-text mb-4", children: tr("videoFromImage.desc") }),
         c.jsx("div", {
           className: "bg-secondary p-3 rounded-lg shadow-md mb-3",
           children: c.jsxs("div", {
@@ -45421,40 +42264,12 @@ const Nk = 1e4,
               c.jsxs("div", {
                 className: "flex flex-col",
                 children: [
-                  c.jsx("label", {
-                    className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Chế độ ảnh",
-                  }),
+                  c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("videoFromImage.imageMode") }),
                   c.jsxs("div", {
-                    className:
-                      "flex items-center gap-2 bg-primary p-1 rounded-lg",
+                    className: "flex items-center gap-2 bg-primary p-1 rounded-lg",
                     children: [
-                      c.jsx("button", {
-                        onClick: () =>
-                          v((ae) => ({
-                            ...ae,
-                            imageAnalysisMode: "shared",
-                          })),
-                        disabled: K || S,
-                        className: `px-3 py-1 text-xs rounded-md ${P === "shared"
-                          ? "bg-accent text-white font-bold"
-                          : "text-dark-text hover:bg-hover-bg"
-                          }`,
-                        children: "Dùng chung",
-                      }),
-                      c.jsx("button", {
-                        onClick: () =>
-                          v((ae) => ({
-                            ...ae,
-                            imageAnalysisMode: "separate",
-                          })),
-                        disabled: K || S,
-                        className: `px-3 py-1 text-xs rounded-md ${P === "separate"
-                          ? "bg-accent text-white font-bold"
-                          : "text-dark-text hover:bg-hover-bg"
-                          }`,
-                        children: "Dùng riêng",
-                      }),
+                      c.jsx("button", { onClick: () => v((ae) => ({ ...ae, imageAnalysisMode: "shared" })), disabled: K || S, className: `px-3 py-1 text-xs rounded-md ${P === "shared" ? "bg-accent text-white font-bold" : "text-dark-text hover:bg-hover-bg"}`, children: tr("videoFromImage.shared") }),
+                      c.jsx("button", { onClick: () => v((ae) => ({ ...ae, imageAnalysisMode: "separate" })), disabled: K || S, className: `px-3 py-1 text-xs rounded-md ${P === "separate" ? "bg-accent text-white font-bold" : "text-dark-text hover:bg-hover-bg"}`, children: tr("videoFromImage.separate") }),
                     ],
                   }),
                 ],
@@ -45463,378 +42278,50 @@ const Nk = 1e4,
               c.jsxs("div", {
                 className: "flex items-end gap-x-3",
                 children: [
-                  b.map((ae, ve) =>
-                    c.jsx(
-                      Bk,
-                      {
-                        label: `Ảnh ${ve + 1}`,
-                        preview: ae.preview,
-                        onChange: (Fe) => $e(Fe, ae.id),
-                        onClear: () => se(ae.id),
-                        disabled: K || S,
-                      },
-                      ae.id
-                    )
-                  ),
-                  b.length < 6 &&
-                  c.jsxs("div", {
-                    className:
-                      "flex flex-col items-center flex-shrink-0 self-end",
-                    children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1 opacity-0",
-                        children: "Thêm",
-                      }),
-                      " ",
-                      c.jsx("button", {
-                        onClick: U,
-                        className:
-                          "w-20 h-20 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center text-blue-400 hover:bg-hover-bg disabled:opacity-50",
-                        disabled: K || S || b.length >= 6,
-                        title: "Thêm ô ảnh (tối đa 6)",
-                        children: c.jsx("svg", {
-                          xmlns: "http://www.w3.org/2000/svg",
-                          className: "h-6 w-6",
-                          fill: "none",
-                          viewBox: "0 0 24 24",
-                          stroke: "currentColor",
-                          children: c.jsx("path", {
-                            strokeLinecap: "round",
-                            strokeLinejoin: "round",
-                            strokeWidth: "2",
-                            d: "M12 4v16m8-8H4",
-                          }),
-                        }),
-                      }),
-                    ],
-                  }),
+                  b.map((ae, ve) => c.jsx(Bk, { label: tr("videoFromImage.imageLabel").replace("{num}", ve + 1), preview: ae.preview, onChange: (Fe) => $e(Fe, ae.id), onClear: () => se(ae.id), disabled: K || S }, ae.id)),
+                  b.length < 6 && c.jsxs("div", { className: "flex flex-col items-center flex-shrink-0 self-end", children: [c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1 opacity-0", children: "." }), c.jsx("button", { onClick: U, className: "w-20 h-20 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center text-blue-400 hover:bg-hover-bg disabled:opacity-50", disabled: K || S || b.length >= 6, children: c.jsx(Ua, { className: "h-6 w-6" }) })] }),
                 ],
               }),
-              c.jsx("div", {
-                className: "h-6 border-l border-border-color mx-2",
-              }),
+              c.jsx("div", { className: "h-6 border-l border-border-color mx-2" }),
               c.jsxs("div", {
                 className: "flex items-end gap-x-3 flex-wrap",
                 children: [
-                  c.jsxs("div", {
-                    children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Tỷ lệ",
-                      }),
-                      c.jsxs("select", {
-                        value: L,
-                        onChange: (ae) =>
-                          v((ve) => ({
-                            ...ve,
-                            aspectRatio: ae.target.value,
-                          })),
-                        className:
-                          "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
-                        children: [
-                          c.jsx("option", {
-                            value: "LANDSCAPE",
-                            children: "16:9 Ngang",
-                          }),
-                          c.jsx("option", {
-                            value: "PORTRAIT",
-                            children: "9:16 Dọc",
-                          }),
-                        ],
-                      }),
-                    ],
-                  }),
-                  c.jsxs("div", {
-                    children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Luồng (1-10)",
-                      }),
-                      c.jsx("input", {
-                        type: "number",
-                        value: V,
-                        onChange: (ae) =>
-                          v((ve) => ({
-                            ...ve,
-                            concurrentStreams: Math.max(
-                              1,
-                              Math.min(10, parseInt(ae.target.value) || 4)
-                            ),
-                          })),
-                        min: "1",
-                        max: "10",
-                        className:
-                          "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
-                      }),
-                    ],
-                  }),
-                  c.jsxs("div", {
-                    children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Độ phân giải",
-                      }),
-                      c.jsxs("select", {
-                        value: r.resolution || "720p",
-                        onChange: (ae) =>
-                          f({
-                            ...r,
-                            resolution: ae.target.value,
-                          }),
-                        className:
-                          "w-full min-w-[100px] p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
-                        children: [
-                          c.jsx("option", {
-                            value: "720p",
-                            children: "720p (Gốc)",
-                          }),
-                          c.jsx("option", {
-                            value: "1080p",
-                            children: "1080p (HD+)",
-                          }),
-                          c.jsx("option", {
-                            value: "2k",
-                            children: "2K (QHD)",
-                          }),
-                          /* c.jsx("option", {
-                            value: "4k",
-                            children: "4K (UHD)",
-                          }),*/
-                        ],
-                      }),
-                    ],
-                  }),
+                  c.jsxs("div", { children: [c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("videoFromImage.aspectRatio") }), c.jsxs("select", { value: L, onChange: (ae) => v((ve) => ({ ...ve, aspectRatio: ae.target.value })), className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]", children: [c.jsx("option", { value: "LANDSCAPE", children: tr("videoFromImage.landscape") }), c.jsx("option", { value: "PORTRAIT", children: tr("videoFromImage.portrait") })] })] }),
+                  c.jsxs("div", { children: [c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("videoFromImage.streams") }), c.jsx("input", { type: "number", value: V, onChange: (ae) => v((ve) => ({ ...ve, concurrentStreams: Math.max(1, Math.min(10, parseInt(ae.target.value) || 4)) })), min: "1", max: "10", className: "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]" })] }),
+                  c.jsxs("div", { children: [c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1", children: tr("videoFromImage.resolution") }), c.jsxs("select", { value: r.resolution || "720p", onChange: (ae) => f({ ...r, resolution: ae.target.value }), className: "w-full min-w-[100px] p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]", children: [c.jsx("option", { value: "720p", children: tr("videoFromImage.res720") }), c.jsx("option", { value: "1080p", children: tr("videoFromImage.res1080") }), c.jsx("option", { value: "2k", children: tr("videoFromImage.res2k") })] })] }),
                   c.jsxs("div", {
                     className: "flex flex-col ml-4",
                     children: [
-                      c.jsxs("label", {
-                        className: "flex items-center cursor-pointer mb-1",
-                        children: [
-                          c.jsxs("div", {
-                            className: "relative",
-                            children: [
-                              c.jsx("input", {
-                                type: "checkbox",
-                                checked: !!g.autoRetry,
-                                onChange: (ae) =>
-                                  v((ve) => ({
-                                    ...ve,
-                                    autoRetry: ae.target.checked,
-                                  })),
-                                className: "sr-only peer",
-                                disabled: K,
-                              }),
-                              c.jsx("div", {
-                                className:
-                                  "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                              }),
-                              c.jsx("div", {
-                                className:
-                                  "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                              }),
-                            ],
-                          }),
-                          c.jsx("span", {
-                            className:
-                              "ml-2 text-dark-text text-xs font-medium",
-                            children: "Tự động thử lại",
-                          }),
-                        ],
-                      }),
-                      c.jsx("div", {
-                        className: "h-[34px] flex items-center",
-                        children: c.jsx("span", {
-                          className:
-                            "text-dark-text text-xs font-medium whitespace-nowrap",
-                          children: g.autoRetry ? "BẬT" : "TẮT",
-                        }),
-                      }),
+                      c.jsxs("label", { className: "flex items-center cursor-pointer mb-1", children: [c.jsxs("div", { className: "relative", children: [c.jsx("input", { type: "checkbox", checked: !!g.autoRetry, onChange: (ae) => v((ve) => ({ ...ve, autoRetry: ae.target.checked })), className: "sr-only peer", disabled: K }), c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }), c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" })] }), c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium", children: tr("videoFromImage.autoRetry") })] }),
+                      c.jsx("div", { className: "h-[34px] flex items-center", children: c.jsx("span", { className: "text-dark-text text-xs font-medium whitespace-nowrap", children: g.autoRetry ? tr("videoFromImage.on") : tr("videoFromImage.off") }) }),
                     ],
                   }),
                   c.jsxs("select", {
-                    onChange: (ae) => {
-                      const ve = ae.target.value;
-                      if (!ve) return;
-                      const Fe = s.filter((Ie) => Ie.storyId === ve);
-                      Q(
-                        Fe.map((Ie) => ({
-                          id: `prompt-${Date.now()}-${Math.random()}`,
-                          text: Ie.prompt,
-                          status: "idle",
-                          message: "Sẵn sàng",
-                        }))
-                      );
-                    },
-                    className:
-                      "w-full max-w-[160px] p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
-                    children: [
-                      c.jsx("option", {
-                        value: "",
-                        children: "-- Tải prompt từ Story --",
-                      }),
-                      e.map((ae) =>
-                        c.jsx(
-                          "option",
-                          {
-                            value: ae.id,
-                            children: ae.title,
-                          },
-                          ae.id
-                        )
-                      ),
-                    ],
+                    onChange: (ae) => { const ve = ae.target.value; if (!ve) return; const Fe = s.filter((Ie) => Ie.storyId === ve); Q(Fe.map((Ie) => ({ id: `prompt-${Date.now()}-${Math.random()}`, text: Ie.prompt, status: "idle", message: tr("videoFromImage.ready") }))); },
+                    className: "w-full max-w-[160px] p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
+                    children: [c.jsx("option", { value: "", children: tr("videoFromImage.loadFromStory") }), e.map((ae) => c.jsx("option", { value: ae.id, children: ae.title }, ae.id))],
                   }),
-                  c.jsxs("button", {
-                    onClick: ut,
-                    disabled: K || S,
-                    className:
-                      "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg disabled:bg-gray-400 flex items-center gap-1 text-xs h-[34px]",
-                    children: [
-                      c.jsx("svg", {
-                        xmlns: "http://www.w3.org/2000/svg",
-                        className: "h-4 w-4",
-                        fill: "none",
-                        viewBox: "0 0 24 24",
-                        stroke: "currentColor",
-                        children: c.jsx("path", {
-                          strokeLinecap: "round",
-                          strokeLinejoin: "round",
-                          strokeWidth: "2",
-                          d: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-                        }),
-                      }),
-                      "Nhập từ TXT",
-                    ],
-                  }),
+                  c.jsxs("button", { onClick: ut, disabled: K || S, className: "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg disabled:bg-gray-400 flex items-center gap-1 text-xs h-[34px]", children: [c.jsx(Dg, { className: "h-4 w-4" }), tr("videoFromImage.importTxt")] }),
                 ],
               }),
               c.jsxs("div", {
                 className: "flex flex-col",
                 children: [
-                  c.jsxs("label", {
-                    htmlFor: "auto-save-toggle",
-                    className: "flex items-center cursor-pointer mb-1",
-                    children: [
-                      c.jsxs("div", {
-                        className: "relative",
-                        children: [
-                          c.jsx("input", {
-                            type: "checkbox",
-                            id: "auto-save-toggle",
-                            className: "sr-only peer",
-                            checked: r.enabled,
-                            onChange: () =>
-                              f((ae) => ({
-                                ...ae,
-                                enabled: !ae.enabled,
-                              })),
-                            disabled: K,
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-10 h-6 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
-                        ],
-                      }),
-                      c.jsx("span", {
-                        className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "Tự động lưu",
-                      }),
-                    ],
-                  }),
-                  c.jsxs("div", {
-                    className: "flex items-center",
-                    children: [
-                      c.jsx("p", {
-                        className:
-                          "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-32 truncate",
-                        title: r.path || "Chưa chọn thư mục",
-                        children: r.path || "Chưa chọn...",
-                      }),
-                      c.jsx("button", {
-                        onClick: ke,
-                        disabled: !r.enabled || K,
-                        className:
-                          "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50",
-                        children: "Đổi",
-                      }),
-                    ],
-                  }),
+                  c.jsxs("label", { className: "flex items-center cursor-pointer mb-1", children: [c.jsxs("div", { className: "relative", children: [c.jsx("input", { type: "checkbox", id: "auto-save-toggle", className: "sr-only peer", checked: r.enabled, onChange: () => f((ae) => ({ ...ae, enabled: !ae.enabled })), disabled: K }), c.jsx("div", { className: "block bg-gray-400 w-10 h-6 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }), c.jsx("div", { className: "dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" })] }), c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium", children: tr("videoFromImage.autoSave") })] }),
+                  c.jsxs("div", { className: "flex items-center", children: [c.jsx("p", { className: "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-32 truncate", title: r.path || tr("videoFromImage.noFolder"), children: r.path || tr("videoFromImage.noFolder") }), c.jsx("button", { onClick: ke, disabled: !r.enabled || K, className: "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50", children: tr("videoFromImage.changeFolder") })] }),
                 ],
               }),
-              c.jsx("div", {
-                className: "flex-grow",
-              }),
+              c.jsx("div", { className: "flex-grow" }),
               c.jsx("div", {
                 className: "flex items-center gap-2 flex-wrap",
-                children:
-                  K || S
-                    ? c.jsxs("button", {
-                      onClick: Be,
-                      className:
-                        "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-xs h-[34px]",
-                      children: [
-                        c.jsx("svg", {
-                          xmlns: "http://www.w3.org/2000/svg",
-                          className: "h-4 w-4",
-                          viewBox: "0 0 20 20",
-                          fill: "currentColor",
-                          children: c.jsx("path", {
-                            fillRule: "evenodd",
-                            d: "M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z",
-                            clipRule: "evenodd",
-                          }),
-                        }),
-                        "Dừng",
-                      ],
-                    })
-                    : c.jsxs("div", {
-                      className: "flex items-center gap-2",
-                      children: [
-                        c.jsxs("button", {
-                          onClick: W,
-                          disabled: H.length === 0 || S,
-                          className:
-                            "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg disabled:bg-gray-400 flex items-center justify-center gap-2 text-xs h-[34px]",
-                          children: [
-                            S
-                              ? c.jsx(Ut, {
-                                className: "w-4 h-4",
-                              })
-                              : c.jsx("svg", {
-                                xmlns: "http://www.w3.org/2000/svg",
-                                className: "h-4 w-4",
-                                viewBox: "0 0 20 20",
-                                fill: "currentColor",
-                                children: c.jsx("path", {
-                                  fillRule: "evenodd",
-                                  d: "M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z",
-                                  clipRule: "evenodd",
-                                }),
-                              }),
-                            "Chạy tất cả",
-                          ],
-                        }),
-                        H.some(
-                          (ae) =>
-                            ae.status !== "success" && ae.status !== "idle"
-                        ) &&
-                        c.jsx("button", {
-                          onClick: oe,
-                          className:
-                            "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-xs h-[34px]",
-                          children: "Chạy lại Prompt chưa hoàn thành",
-                        }),
-                      ],
-                    }),
+                children: K || S
+                  ? c.jsxs("button", { onClick: Be, className: "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-xs h-[34px]", children: [c.jsx(ku, { className: "h-4 w-4" }), tr("videoFromImage.stop")] })
+                  : c.jsxs("div", {
+                    className: "flex items-center gap-2", children: [
+                      c.jsxs("button", { onClick: () => B(H), disabled: H.length === 0 || S, className: "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg disabled:bg-gray-400 flex items-center justify-center gap-2 text-xs h-[34px]", children: [S ? c.jsx(Ut, { className: "w-4 h-4" }) : c.jsx(Ps, { className: "h-4 w-4" }), tr("videoFromImage.runAll")] }),
+                      H.some((ae) => ae.status !== "success" && ae.status !== "idle") && c.jsx("button", { onClick: () => B(H.filter(a => a.status !== 'success')), className: "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-xs h-[34px]", children: tr("videoFromImage.runUnfinished") }),
+                    ]
+                  }),
               }),
             ],
           }),
@@ -45846,179 +42333,38 @@ const Nk = 1e4,
               className: "flex justify-between items-center mb-1",
               children: [
                 c.jsxs("div", {
-                  className: "flex items-center gap-3",
+                  className: "flex items-center gap-3 flex-wrap",
                   children: [
-                    // --- BỔ SUNG: Nút Chọn tất cả (Quan trọng để chọn nhanh danh sách lọc) ---
-                    c.jsxs("div", {
-                      className: "flex items-center mr-2",
-                      children: [
-                        c.jsx("input", {
-                          type: "checkbox",
-                          id: "select-all-image-video",
-                          // Kiểm tra: Nếu danh sách lọc (H) có dữ liệu và tất cả đều nằm trong selectedIds
-                          checked:
-                            H.length > 0 &&
-                            H.every((item) => selectedIds.has(item.id)),
-                          onChange: handleSelectAll,
-                          disabled: K || S || H.length === 0,
-                          className:
-                            "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent cursor-pointer",
-                        }),
-                        c.jsx("label", {
-                          htmlFor: "select-all-image-video",
-                          className:
-                            "ml-2 text-xs font-medium text-dark-text cursor-pointer",
-                          children: ["Chọn tất cả (", H.length, ")"],
-                        }),
-                      ],
-                    }),
-
-                    // Nút Chạy (Chỉ hiện khi có item được chọn)
-                    selectedIds.size > 0 &&
-                    !K &&
-                    c.jsxs("button", {
-                      onClick: runSelected,
-                      className:
-                        "bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-3 rounded-full border border-cyan-700 flex items-center gap-1",
-                      children: [
-                        c.jsx(Ps, {
-                          className: "h-3 w-3",
-                        }),
-                        " Chạy (",
-                        selectedIds.size,
-                        ") ",
-                      ],
-                    }),
-
-                    // Nút Xóa tất cả
-                    c.jsxs("button", {
-                      onClick: Ee,
-                      disabled: K || S || H.length === 0,
-                      className:
-                        "text-red-500 hover:text-red-700 font-bold py-1 px-2 rounded-md disabled:opacity-50 flex items-center gap-1 text-xs",
-                      children: [
-                        c.jsx($a, {
-                          className: "h-3 w-3",
-                        }),
-                        "Xóa tất cả",
-                      ],
-                    }),
-
-                    // Checkbox Lọc Chưa chạy (Giữ nguyên logic)
-                    c.jsxs("div", {
-                      className:
-                        "flex items-center ml-3 border-l border-gray-600 pl-3",
-                      children: [
-                        c.jsx("input", {
-                          type: "checkbox",
-                          id: "qk-show-pending-img", // ID duy nhất
-                          checked: showPending,
-                          onChange: (D) => setShowPending(D.target.checked),
-                          className:
-                            "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                        }),
-                        c.jsx("label", {
-                          htmlFor: "qk-show-pending-img",
-                          className:
-                            "ml-1 text-xs font-medium text-dark-text cursor-pointer",
-                          children: "Chưa chạy",
-                        }),
-                      ],
-                    }),
-
-                    // Trạng thái đang phân tích (Giữ nguyên)
-                    S &&
-                    c.jsxs("div", {
-                      className:
-                        "flex items-center gap-2 text-blue-400 text-xs font-semibold animate-pulse ml-2",
-                      children: [
-                        c.jsx(Ut, {
-                          className: "w-4 h-4",
-                        }),
-                        c.jsx("span", {
-                          children: R || "Đang Phân tích ảnh ...",
-                        }),
-                      ],
-                    }),
+                    c.jsxs("div", { className: "flex items-center mr-2", children: [c.jsx("input", { type: "checkbox", id: "select-all-image-video", checked: H.length > 0 && H.every((item) => selectedIds.has(item.id)), onChange: handleSelectAll, disabled: K || S || H.length === 0, className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent cursor-pointer" }), c.jsx("label", { htmlFor: "select-all-image-video", className: "ml-2 text-xs font-medium text-dark-text cursor-pointer", children: tr("videoFromImage.selectAll").replace("{count}", H.length) })] }),
+                    selectedIds.size > 0 && !K && c.jsxs("button", { onClick: runSelected, className: "bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-3 rounded-full border border-cyan-700 flex items-center gap-1", children: [c.jsx(Ps, { className: "h-3 w-3" }), tr("videoFromImage.runSelected").replace("{count}", selectedIds.size)] }),
+                    c.jsxs("button", { onClick: Ee, disabled: K || S || H.length === 0, className: "text-red-500 hover:text-red-700 font-bold py-1 px-2 rounded-md disabled:opacity-50 flex items-center gap-1 text-xs", children: [c.jsx($a, { className: "h-3 w-3" }), tr("videoFromImage.deleteAll")] }),
+                    c.jsxs("div", { className: "flex items-center ml-3 border-l border-gray-600 pl-3", children: [c.jsx("input", { type: "checkbox", id: "qk-show-pending-img", checked: showPending, onChange: (D) => setShowPending(D.target.checked), className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent" }), c.jsx("label", { htmlFor: "qk-show-pending-img", className: "ml-1 text-xs font-medium text-dark-text cursor-pointer", children: tr("videoFromImage.showPending") })] }),
+                    S && c.jsxs("div", { className: "flex items-center gap-2 text-blue-400 text-xs font-semibold animate-pulse ml-2", children: [c.jsx(Ut, { className: "w-4 h-4" }), c.jsx("span", { children: R || tr("videoFromImage.analyzing") })] }),
                   ],
                 }),
                 c.jsxs("div", {
                   className: "flex items-center gap-3 text-xs",
                   children: [
-                    c.jsx("span", {
-                      className: "font-semibold text-light",
-                      children: Me,
-                    }),
-                    c.jsxs("span", {
-                      className: "font-bold text-blue-600",
-                      children: ["Tổng: ", be],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-green-600",
-                      children: ["Thành công: ", ne],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-red-600",
-                      children: ["Thất bại: ", J],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-accent",
-                      children: [Math.round(Re), "%"],
-                    }),
+                    c.jsx("span", { className: "font-semibold text-light", children: tr("videoFromImage.ready") }),
+                    c.jsxs("span", { className: "font-bold text-blue-600", children: [tr("videoFromImage.total"), allPrompts.length] }),
+                    c.jsxs("span", { className: "font-semibold text-green-600", children: [tr("videoFromImage.success"), allPrompts.filter(p => p.status === 'success').length] }),
+                    c.jsxs("span", { className: "font-semibold text-red-600", children: [tr("videoFromImage.failed"), allPrompts.filter(p => p.status === 'error' || p.status === 'failed').length] }),
+                    c.jsxs("span", { className: "font-semibold text-accent", children: [allPrompts.length > 0 ? Math.round((allPrompts.filter(p => p.status === 'success').length / allPrompts.length) * 100) : 0, "%"] }),
                   ],
                 }),
               ],
             }),
-            c.jsx("div", {
-              className: "w-full bg-primary rounded-full h-1.5",
-              children: c.jsx("div", {
-                className: "bg-accent h-1.5 rounded-full",
-                style: {
-                  width: `${Re}%`,
-                },
-              }),
-            }),
+            c.jsx("div", { className: "w-full bg-primary rounded-full h-1.5", children: c.jsx("div", { className: "bg-accent h-1.5 rounded-full", style: { width: `${allPrompts.length > 0 ? (allPrompts.filter(p => p.status === 'success').length / allPrompts.length) * 100 : 0}%` } }) }),
           ],
         }),
         c.jsxs("div", {
           className: "flex-1 overflow-y-auto pr-2 -mr-2",
           children: [
-            c.jsx("div", {
-              className: "mb-2",
-              children: c.jsx("button", {
-                onClick: Ve,
-                disabled: K || S,
-                className:
-                  "bg-blue-100 hover:bg-blue-200 text-blue-800 text-sm font-bold py-2 px-4 rounded-lg border border-blue-200 disabled:opacity-50",
-                children: "+ Thêm Prompt",
-              }),
-            }),
-            H.length === 0 &&
-            c.jsx("p", {
-              className: "text-dark-text text-center py-8",
-              children: "Thêm prompt để bắt đầu.",
-            }),
+            c.jsx("div", { className: "mb-2", children: c.jsx("button", { onClick: Ve, disabled: K || S, className: "bg-blue-100 hover:bg-blue-200 text-blue-800 text-sm font-bold py-2 px-4 rounded-lg border border-blue-200 disabled:opacity-50", children: tr("videoFromImage.addPrompt") }) }),
+            H.length === 0 && c.jsx("p", { className: "text-dark-text text-center py-8", children: tr("videoFromImage.emptyState") }),
             c.jsx("div", {
               className: `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${gridCols} gap-4`,
-              children: H.map((ae, ve) =>
-                c.jsx(
-                  Hk,
-                  {
-                    prompt: ae,
-                    index: ve,
-                    imageAnalysisMode: P,
-                    isRunning: K,
-                    isAnalyzing: S,
-                    onUpdateText: dt,
-                    onUpdateImage: ee,
-                    onClearImage: fe,
-                    onRunSingle: we,
-                    onRemove: Qe,
-                    onDownload: St,
-                  },
-                  ae.id
-                )
-              ),
+              children: H.map((ae, ve) => c.jsx(Hk, { prompt: ae, index: ve, imageAnalysisMode: P, isRunning: K, isAnalyzing: S, onUpdateText: dt, onUpdateImage: ee, onClearImage: fe, onRunSingle: we, onRemove: Qe, onDownload: St, isSelected: selectedIds.has(ae.id), onToggleSelect: toggleSelect }, ae.id)),
             }),
           ],
         }),
@@ -46143,12 +42489,13 @@ const Nk = 1e4,
       activeCookie: ac,
     } = jt(),
       { showToast: g } = _t(),
-      { t: v } = so(),
+      { t: tr } = so(),
+      isVi = tr("sidebar.dashboard") === "Tổng quan",
       [b, T] = Mt("veo-suite-frame-automation-state", {
         prompts: [],
         isRunning: !1,
         overallProgress: 0,
-        statusMessage: "Sẵn sàng.",
+        statusMessage: isVi ? "Sẵn sàng." : "Ready.",
         model: "veo_3_1_i2v_s_fast_fl_ultra_relaxed",
         aspectRatio: "LANDSCAPE",
         concurrentStreams: 4,
@@ -46161,10 +42508,9 @@ const Nk = 1e4,
       [L, V] = A.useState(2),
       [_, P] = A.useState(s.videosPerFolder || 10),
       Q = A.useRef(null);
-    // --- [SỬA ĐOẠN 1] ---
+
     const ne = A.useMemo(() => b.prompts || [], [b.prompts]);
 
-    // Thêm biến lọc danh sách
     const FilteredPrompts = A.useMemo(() => {
       if (showError)
         return ne.filter((p) => p.status === "error" || p.status === "failed");
@@ -46225,12 +42571,8 @@ const Nk = 1e4,
       P(s.videosPerFolder || 10);
     }, [s.videosPerFolder]);
 
-    // --- LOGIC 1080P (QK) - THÔNG BÁO LỖI NGẮN GỌN ---
-
     const getSmartCookie = (current) => {
-      // [FIX] Luôn ưu tiên cookie hiện tại (Active Cookie) được truyền vào
       if (current && current.value) {
-        // Vẫn lưu đè vào storage để cập nhật cache mới nhất (xóa vết tích cái cũ)
         localStorage.setItem(
           "VEO_COOKIE_QK",
           JSON.stringify({
@@ -46240,10 +42582,6 @@ const Nk = 1e4,
         );
         return current;
       }
-
-      // [FIX QUAN TRỌNG] TUYỆT ĐỐI KHÔNG LẤY TỪ LOCALSTORAGE NỮA
-      // Cookie cũ lưu ở đó thường đã chết (Expired). Nếu lấy ra dùng sẽ gây lỗi 401/403.
-      // Thà trả về null để hệ thống báo lỗi hoặc tìm nguồn khác (Server) còn hơn dùng đồ thiu.
       return null;
     };
     const triggerUpscale = async (M) => {
@@ -46253,11 +42591,11 @@ const Nk = 1e4,
     const triggerUpscale_old = async (M) => {
       const te = M.cookie || getSmartCookie(ac);
       if (!te) {
-        g("Lỗi cookie/cache.", "error");
+        g(isVi ? "Lỗi cookie/cache." : "Cookie/cache error.", "error");
         return;
       }
       if (!M.mediaId || !M.projectId) {
-        g("Thiếu info.", "error");
+        g(isVi ? "Thiếu info." : "Missing info.", "error");
         return;
       }
 
@@ -46269,7 +42607,7 @@ const Nk = 1e4,
             ? {
               ...ue,
               upsampleStatus: "pending",
-              message: "Gửi lệnh 1080p...",
+              message: isVi ? "Gửi lệnh 1080p..." : "Sending 1080p command...",
             }
             : ue
         ),
@@ -46291,25 +42629,23 @@ const Nk = 1e4,
                 ...I,
                 upsampleStatus: "processing",
                 upsampleOperationName: `${O}|${ue}`,
-                message: "Xử lý 1080p...",
+                message: isVi ? "Xử lý 1080p..." : "Processing 1080p...",
               }
               : I
           ),
         }));
-        g("Đã gửi upscale.", "info");
+        g(isVi ? "Đã gửi upscale." : "Upscale sent.", "info");
       } catch (O) {
-        // --- XỬ LÝ LỖI NGẮN GỌN ---
         const errRaw = O.message || "";
-        let shortMsg = "Lỗi gửi";
+        let shortMsg = isVi ? "Lỗi gửi" : "Send Error";
         if (errRaw.includes("429") || errRaw.includes("RESOURCE_EXHAUSTED"))
-          shortMsg = "Lỗi Limit (429)";
+          shortMsg = isVi ? "Lỗi Limit (429)" : "Limit Error (429)";
         else if (errRaw.includes("401") || errRaw.includes("UNAUTHENTICATED"))
-          shortMsg = "Lỗi Cookie (401)";
-        else if (errRaw.includes("500")) shortMsg = "Lỗi Server (500)";
+          shortMsg = isVi ? "Lỗi Cookie (401)" : "Cookie Error (401)";
+        else if (errRaw.includes("500")) shortMsg = isVi ? "Lỗi Server (500)" : "Server Error (500)";
 
         if (b.autoRetry && (M.upsampleRetryCount || 0) < 20) {
           const next = (M.upsampleRetryCount || 0) + 1;
-          // Chỉ hiện text ngắn trên thẻ, không bắn thông báo dài
           T((ue) => ({
             ...ue,
             prompts: ue.prompts.map((pe) =>
@@ -46317,7 +42653,7 @@ const Nk = 1e4,
                 ? {
                   ...pe,
                   upsampleStatus: "waiting_retry",
-                  message: `⚠️ ${shortMsg}. Thử lại sau 30s...`,
+                  message: `⚠️ ${shortMsg}. ${isVi ? "Thử lại sau 30s..." : "Retrying in 30s..."}`,
                   upsampleRetryCount: next,
                 }
                 : pe
@@ -46342,179 +42678,10 @@ const Nk = 1e4,
             ),
           }));
           g(shortMsg, "error");
-          // Toast ngắn gọn
         }
       }
     };
-    /*
-    A.useEffect(() => {
-      const M = b.prompts.filter(
-        (te) => te.upsampleStatus === "processing" && te.upsampleOperationName
-      );
-      if (M.length === 0) return;
-      const te = setInterval(() => {
-        M.forEach((O) => {
-          const [ue, pe] = (O.upsampleOperationName || "").split("|");
-          const I = O.cookie || getSmartCookie(ac);
-          if (!ue || !pe || !I) return;
-          Ck(I, ue, pe)
-            .then((de) => {
-              if (de.status === "MEDIA_GENERATION_STATUS_SUCCESSFUL") {
-                const Ce =
-                  de?.operation?.metadata?.video?.fifeUrl ||
-                  de?.operation?.metadata?.video?.servingBaseUri;
-                T((Le) => {
-                  const updated = Le.prompts.map((_e) =>
-                    _e.id === O.id
-                      ? {
-                          ..._e,
-                          upsampleStatus: "completed",
-                          upsampledVideoUrl: Ce,
-                          message: "Xong 1080p!",
-                        }
-                      : _e
-                  );
-                  return {
-                    ...Le,
-                    prompts: updated,
-                    isRunning: updated.some((itm) =>
-                      ["processing", "pending", "waiting_retry"].includes(
-                        itm.upsampleStatus
-                      )
-                    ),
-                  };
-                });
-                g(`Video #${O.id.slice(0, 5)} xong 1080p!`, "success");
-                if (s.enabled && String(s.resolution) === "1080p" && Ce) {
-                  const suffix = s.allowOverwrite ? "_1080p" : "";
-                  const idx = b.prompts.findIndex((he) => he.id === O.id);
-                  window.electronAPI.downloadVideo({
-                    url: Ce,
-                    promptText: (O.text || "video") + suffix,
-                    savePath: s.path,
-                    promptIndex: idx,
-                  });
-                }
-              } else if (
-                de.status === "MEDIA_GENERATION_STATUS_FAILED" ||
-                de.error
-              ) {
-                // Lỗi từ Server trả về khi đang xử lý
-                const errRaw = de?.error?.message || "Lỗi server";
-                let shortMsg = "Lỗi Server";
-                if (errRaw.includes("429")) shortMsg = "Lỗi Limit (429)";
 
-                if (b.autoRetry && (O.upsampleRetryCount || 0) < 20) {
-                  const next = (O.upsampleRetryCount || 0) + 1;
-                  T((Le) => ({
-                    ...Le,
-                    prompts: Le.prompts.map((_e) =>
-                      _e.id === O.id
-                        ? {
-                            ..._e,
-                            upsampleStatus: "waiting_retry",
-                            message: `⚠️ ${shortMsg}. Đợi...`,
-                            upsampleRetryCount: next,
-                            upsampleOperationName: null,
-                          }
-                        : _e
-                    ),
-                  }));
-                } else {
-                  T((Le) => ({
-                    ...Le,
-                    prompts: Le.prompts.map((_e) =>
-                      _e.id === O.id
-                        ? {
-                            ..._e,
-                            upsampleStatus: "failed",
-                            message: shortMsg,
-                          }
-                        : _e
-                    ),
-                  }));
-                }
-              }
-            })
-            .catch(() => {
-              if (b.autoRetry)
-                T((Le) => ({
-                  ...Le,
-                  prompts: Le.prompts.map((_e) =>
-                    _e.id === O.id
-                      ? {
-                          ..._e,
-                          upsampleStatus: "waiting_retry",
-                          message: "Mạng lỗi...",
-                        }
-                      : _e
-                  ),
-                }));
-            });
-        });
-      }, 10000);
-      return () => clearInterval(te);
-    }, [b.prompts, ac, s, b.autoRetry]);
-    */
-
-    /*
-    A.useEffect(() => {
-      const w = b.prompts.filter((x) => x.upsampleStatus === "waiting_retry");
-      if (w.length === 0) return;
-      const t = setTimeout(() => {
-        w.forEach((i) => {
-          T((o) => ({
-            ...o,
-            isRunning: true,
-            prompts: o.prompts.map((pr) =>
-              pr.id === i.id
-                ? {
-                    ...pr,
-                    upsampleStatus: null,
-                  }
-                : pr
-            ),
-          }));
-          setTimeout(() => triggerUpscale(i), 500);
-        });
-      }, 30000);
-      return () => clearTimeout(t);
-    }, [b.prompts]);
-    */
-
-    /*
-    A.useEffect(() => {
-      if (s.resolution !== "1080p") return;
-      const active = b.prompts.filter(
-        (te) =>
-          te.upsampleStatus === "processing" || te.upsampleStatus === "pending"
-      );
-      if (active.length >= 6) return;
-      const candidates = b.prompts.filter(
-        (O) =>
-          O.status === "success" &&
-          O.videoUrl &&
-          !O.upsampleStatus &&
-          !O.upsampledVideoUrl &&
-          O.mediaId &&
-          O.projectId
-      );
-
-      for (const item of candidates) {
-        const c = item.cookie || getSmartCookie(ac);
-        if (!c || !c.value) continue;
-        const count = active.filter(
-          (r) => (r.cookie || getSmartCookie(ac))?.value === c.value
-        ).length;
-        if (count < 3) {
-          triggerUpscale(item);
-          break;
-        }
-      }
-    }, [b.prompts, s.resolution, ac]);
-    */
-
-    // --- KẾT THÚC QK ---
     const logRef = A.useRef(null);
     const timeRef = A.useRef(Date.now());
     A.useEffect(() => {
@@ -46532,7 +42699,7 @@ const Nk = 1e4,
                   ? {
                     ...Se,
                     status: "idle",
-                    message: "Đã dừng",
+                    message: tr("createVideoFromFrames.promptStopped"),
                   }
                   : Se
               );
@@ -46552,13 +42719,11 @@ const Nk = 1e4,
                   return _e;
                 const he =
                   O.status && O.status !== "finished" ? O.status : _e.status;
-                // --- [TỐI ƯU CPU] CHẶN RE-RENDER NẾU KHÔNG CẦN THIẾT ---
-                // Nếu đang chạy và trạng thái chưa đổi, BỎ QUA cập nhật message để tránh lag
                 if (
                   he === "processing" &&
                   _e.status === "processing" &&
                   !O.videoUrl &&
-                  !O.message?.includes("Lỗi")
+                  !O.message?.includes("Lỗi") && !O.message?.includes("Error")
                 )
                   return _e;
                 if (
@@ -46567,7 +42732,6 @@ const Nk = 1e4,
                   O.message === _e.message
                 )
                   return _e;
-                // -----------------------------------------------------
                 const Se = {
                   status: he,
                   message: O.message,
@@ -46586,17 +42750,17 @@ const Nk = 1e4,
                         O.message.toLowerCase().includes("error")));
                 if (isErr && ue.autoRetry && ue.isRunning) {
                   const next = (_e.retryCount || 0) + 1;
-                  let shortMsg = "Lỗi";
+                  let shortMsg = isVi ? "Lỗi" : "Error";
                   const rawMsg = O.message || "";
                   if (
                     rawMsg.includes("E005") ||
                     rawMsg.includes("PUBLIC_ERROR_MINOR_UPLOAD")
                   )
-                    shortMsg = "Lỗi ảnh Input";
-                  else if (rawMsg.includes("400")) shortMsg = "Lỗi dữ liệu";
-                  else if (rawMsg.includes("429")) shortMsg = "Quá tải";
+                    shortMsg = isVi ? "Lỗi ảnh Input" : "Input Image Error";
+                  else if (rawMsg.includes("400")) shortMsg = isVi ? "Lỗi dữ liệu" : "Data Error";
+                  else if (rawMsg.includes("429")) shortMsg = isVi ? "Quá tải" : "Overload (429)";
                   else if (rawMsg.includes("safety"))
-                    shortMsg = "Lỗi an toàn";
+                    shortMsg = isVi ? "Lỗi an toàn" : "Safety Error";
                   else
                     shortMsg =
                       rawMsg.length > 25
@@ -46606,7 +42770,7 @@ const Nk = 1e4,
                     ..._e,
                     ...Se,
                     status: "pending_retry",
-                    message: "⚠️ " + shortMsg + ". Chờ 60s...",
+                    message: `⚠️ ${shortMsg}. ${isVi ? "Chờ 60s..." : "Wait 60s..."}`,
                     retryCount: next,
                   };
                 }
@@ -46670,11 +42834,11 @@ const Nk = 1e4,
       const te = window.electronAPI.onDownloadComplete(
         ({ success: O, path: ue, error: pe }) => {
           O && ue && ue !== "Skipped"
-            ? g("Video đã lưu tại: " + ue, "success")
+            ? g(isVi ? `Video đã lưu tại: ${ue}` : `Video saved to: ${ue}`, "success")
             : !O &&
             pe &&
             pe !== "Download canceled" &&
-            g("Lỗi tải video: " + pe, "error");
+            g(`${isVi ? "Lỗi tải video:" : "Download error:"} ${pe}`, "error");
         }
       );
       return () => {
@@ -46682,201 +42846,33 @@ const Nk = 1e4,
         te();
         clearInterval(iv);
       };
-    }, [e, g, T, v]);
-    A.useRef(Date.now());
-    A.useEffect(() => {
-      const flush = () => {
-        const O = logRef.current;
-        if (O) {
-          T((ue) => {
-            const pe = ue.prompts || [];
-            if (O.status === "finished") {
-              const _e = pe.map((Se) =>
-                Se &&
-                  ["queued", "submitting", "processing", "running"].includes(
-                    Se.status
-                  )
-                  ? {
-                    ...Se,
-                    status: "idle",
-                    message: "Đã dừng",
-                  }
-                  : Se
-              );
-              return {
-                ...ue,
-                prompts: _e,
-                isRunning: _e.some((p) => p.status === "pending_retry"),
-                statusMessage: O.message,
-              };
-            }
-            if (!pe.some((_e) => _e && _e.id === O.promptId) && O.promptId)
-              return ue || {};
-            const de = pe.map((_e) => {
-              if (!_e) return _e;
-              if (_e.id === O.promptId) {
-                if (_e.status === "pending_retry" && O.status !== "success")
-                  return _e;
-                const he =
-                  O.status && O.status !== "finished"
-                    ? O.status
-                    : _e.status,
-                  Se = {
-                    status: he,
-                    message: O.message,
-                    videoUrl: O.videoUrl || _e.videoUrl,
-                    operationName: O.operationName || _e.operationName,
-                    mediaId: O.mediaId || _e.mediaId,
-                    projectId: O.projectId || _e.projectId,
-                    cookie: O.cookie || _e.cookie,
-                  },
-                  isErr =
-                    he === "failed" ||
-                    he === "error" ||
-                    (O.message &&
-                      (O.message.toLowerCase().includes("thất bại") ||
-                        O.message.toLowerCase().includes("vi phạm") ||
-                        O.message.toLowerCase().includes("error")));
-                if (isErr && ue.autoRetry && ue.isRunning) {
-                  const next = (_e.retryCount || 0) + 1;
-                  let shortMsg = "Lỗi";
-                  const rawMsg = O.message || "";
-                  if (
-                    rawMsg.includes("E005") ||
-                    rawMsg.includes("PUBLIC_ERROR_MINOR_UPLOAD")
-                  )
-                    shortMsg = "Lỗi ảnh Input";
-                  else if (rawMsg.includes("400")) shortMsg = "Lỗi dữ liệu";
-                  else if (rawMsg.includes("429")) shortMsg = "Quá tải";
-                  else if (rawMsg.includes("safety"))
-                    shortMsg = "Lỗi an toàn";
-                  else
-                    shortMsg =
-                      rawMsg.length > 25
-                        ? rawMsg.substring(0, 25) + "..."
-                        : rawMsg;
-                  return {
-                    ..._e,
-                    ...Se,
-                    status: "pending_retry",
-                    message: "⚠️ " + shortMsg + ". Chờ 60s...",
-                    retryCount: next,
-                  };
-                }
-                if (he === "success" && O.videoUrl && !_e.videoUrl) {
-                  e({
-                    id: _e.id + "-" + Date.now(),
-                    promptId: _e.id,
-                    promptText: _e.text,
-                    status: "success",
-                    videoUrl: O.videoUrl,
-                    projectId: O.projectId,
-                    mediaId: O.mediaId,
-                    cookie: O.cookie,
-                    aspectRatio: ue?.aspectRatio || "LANDSCAPE",
-                  });
-                }
-                return {
-                  ..._e,
-                  ...Se,
-                };
-              }
-              return _e;
-            }),
-              Ce = de.some(
-                (_e) =>
-                  _e &&
-                  [
-                    "queued",
-                    "running",
-                    "submitting",
-                    "processing",
-                    "pending_retry",
-                  ].includes(_e.status)
-              );
-            return {
-              ...ue,
-              prompts: de,
-              isRunning: Ce,
-            };
-          });
-          logRef.current = null;
-        }
-      };
-      const M = window.electronAPI.onBrowserLog((O) => {
-        logRef.current = O;
-        const now = Date.now();
-        if (["success", "failed", "error", "finished"].includes(O.status)) {
-          flush();
-          timeRef.current = now;
-        } else if (now - timeRef.current > 1000) {
-          flush();
-          timeRef.current = now;
-        }
-      });
-      const iv = setInterval(() => {
-        if (logRef.current && Date.now() - timeRef.current > 1000) {
-          flush();
-          timeRef.current = Date.now();
-        }
-      }, 1000);
-      const te = window.electronAPI.onDownloadComplete(
-        ({ success: O, path: ue, error: pe }) => {
-          O && ue && ue !== "Skipped"
-            ? g("Video đã lưu tại: " + ue, "success")
-            : !O &&
-            pe &&
-            pe !== "Download canceled" &&
-            g("Lỗi tải video: " + pe, "error");
-        }
-      );
-      return () => {
-        M();
-        te();
-        clearInterval(iv);
-      };
-    }, [e, g, T, v]);
-    A.useEffect(() => {
-      // [FIX QUAN TRỌNG] Nếu đã bấm Dừng (isRunning = false), tuyệt đối không tự động chạy lại
-      if (!b.isRunning) return;
+    }, [e, g, T, isVi, tr]);
 
-      // 1. Lọc ra các video đang chờ thử lại
+    A.useEffect(() => {
+      if (!b.isRunning) return;
       const pendingRetries = b.prompts.filter(
         (e) => "pending_retry" === e.status
       );
-
-      // Nếu không có video lỗi nào thì thoát
       if (pendingRetries.length === 0) return;
-
-      // 2. Kiểm tra xem hệ thống có đang bận xử lý các video khác không
       const isBusy = b.prompts.some((e) =>
         ["queued", "running", "submitting", "processing"].includes(e.status)
       );
 
-      // 3. Nếu hệ thống ĐANG RẢNH (chỉ còn lại mấy cái lỗi này)
       if (!isBusy) {
-        console.log(
-          `[Auto Retry QK] Phát hiện ${pendingRetries.length} video lỗi. Chạy lại ngay...`
-        );
-
-        // Cập nhật giao diện: Chuyển sang Queued ngay
         T((I) => ({
           ...I,
           isRunning: true,
-          // Bật lại nút Dừng
           prompts: I.prompts.map((de) =>
             pendingRetries.find((Ce) => Ce.id === de.id)
               ? {
                 ...de,
                 status: "queued",
-                message: "🔄 Đang đổi Cookie & Chạy lại ngay...",
+                message: isVi ? "🔄 Đang đổi Cookie & Chạy lại ngay..." : "🔄 Changing Cookie & Retrying...",
               }
               : de
           ),
         }));
 
-        // Gửi lệnh xuống Main Process ngay lập tức
-        // Lưu ý: createVideoFromFrames cần originalIndex để update đúng dòng
         const promptsToSend = pendingRetries.map((O) => ({
           ...O,
           originalIndex: b.prompts.findIndex((I) => I.id === O.id),
@@ -46894,7 +42890,8 @@ const Nk = 1e4,
           activeCookie: ac,
         });
       }
-    }, [b.prompts, s, r, le, be, ac]);
+    }, [b.prompts, s, r, le, be, ac, isVi]);
+
     const {
       successCount: U,
       errorCount: ee,
@@ -46910,21 +42907,21 @@ const Nk = 1e4,
           errorCount: 0,
           pendingCount: 0,
           totalCount: 0,
-          statusMessage: v("createVideoFromFrames.promptReady"),
+          statusMessage: tr("createVideoFromFrames.ready"),
           completedPercentage: 0,
         };
       const te = ne.filter((Ce) => Ce && Ce.status === "success").length,
         O = ne.filter((Ce) => Ce && Ce.status === "error").length,
         ue = ne.filter(
-          (Ce) => Ce && (Ce.status === "idle" || Ce.status === "queued")
+          (Ce) => Ce && (Ce.status === "idle" || Ce.status === "queued" || Ce.status === "pending_retry")
         ).length,
         pe = te + O;
-      let I = `${v("createVideoFromFrames.pending")}: ${ue}/${M}...`;
+      let I = `${tr("createVideoFromFrames.pending")}: ${ue}/${M}...`;
       J
-        ? (I = `Đang xử lý ${pe}/${M}...`)
+        ? (I = `${tr("createVideoFromFrames.processing")} ${pe}/${M}...`)
         : pe > 0 && pe < M && M > 0
-          ? (I = v("createVideoFromFrames.promptStopped"))
-          : pe === M && M > 0 && (I = v("createVideoFromFrames.success") + "!");
+          ? (I = tr("createVideoFromFrames.promptStopped"))
+          : pe === M && M > 0 && (I = tr("createVideoFromFrames.success") + "!");
       const de = M > 0 ? (te / M) * 100 : 0;
       return {
         successCount: te,
@@ -46934,240 +42931,181 @@ const Nk = 1e4,
         statusMessage: I,
         completedPercentage: de,
       };
-    }, [ne, J, v]),
-      W = A.useCallback(
-        async (M, te, O, ue, pe) => {
-          const I = M.target.files?.[0];
-          if (!I) return;
-          let de = "";
-          try {
-            if (((de = URL.createObjectURL(I)), ue && pe)) {
-              const Le =
-                pe === "start" ? "startImagePreview" : "endImagePreview";
-              E((_e) => ({
-                ..._e,
-                [ue]: {
-                  ..._e[ue],
-                  [Le]: de,
-                },
-              }));
-            } else te(de);
-            const Ce = await vg(I);
-            if (ue && pe) {
-              const Le = pe === "start" ? "startImageBase64" : "endImageBase64";
-              T((_e) => ({
-                ..._e,
-                prompts: (_e.prompts || []).map((he) =>
-                  he.id === ue
-                    ? {
-                      ...he,
-                      [Le]: Ce,
-                    }
-                    : he
-                ),
-              }));
-            } else O(Ce);
-          } catch (Ce) {
-            if (
-              (console.error("Lỗi đọc file ảnh:", Ce),
-                g("Không thể đọc file ảnh.", "error"),
-                ue && pe)
-            ) {
-              const Le =
-                pe === "start" ? "startImagePreview" : "endImagePreview";
-              E((_e) => ({
-                ..._e,
-                [ue]: {
-                  ..._e[ue],
-                  [Le]: void 0,
-                },
-              }));
-            } else te("");
-            de && URL.revokeObjectURL(de);
-          } finally {
-            M.target && (M.target.value = "");
-          }
-        },
-        [g, T]
-      ),
-      oe = (M, te, O) => {
-        W(
-          M,
-          () => { },
-          () => { },
-          te,
-          O
-        );
-      },
-      we = (M, te, O) => {
-        M.stopPropagation();
-        const ue = O === "start" ? "startImageBase64" : "endImageBase64",
-          pe = O === "start" ? "startImagePreview" : "endImagePreview";
-        T((I) => ({
-          ...I,
-          prompts: (I.prompts || []).map((de) =>
-            de.id === te
-              ? {
-                ...de,
-                [ue]: void 0,
-              }
-              : de
-          ),
-        })),
-          E((I) => {
-            const de = {
-              ...I[te],
-            };
-            if ((delete de[pe], Object.keys(de).length === 0)) {
-              const Ce = {
-                ...I,
-              };
-              return delete Ce[te], Ce;
-            }
-            return {
-              ...I,
-              [te]: de,
-            };
-          });
-      },
-      Be = async () => {
-        const M = await window.electronAPI.selectDownloadDirectory();
-        M &&
-          (i((te) => ({
-            ...te,
-            path: M,
-          })),
-            g(`Thư mục lưu: ${M}`, "success"));
-      },
-      Ve = async () => {
+    }, [ne, J, tr]);
+
+    const W = A.useCallback(
+      async (M, te, O, ue, pe) => {
+        const I = M.target.files?.[0];
+        if (!I) return;
+        let de = "";
         try {
-          await f(), await new Promise((te) => setTimeout(te, 150));
-          const M = JSON.parse(localStorage.getItem("currentUser") || "null");
+          if (((de = URL.createObjectURL(I)), ue && pe)) {
+            const Le =
+              pe === "start" ? "startImagePreview" : "endImagePreview";
+            E((_e) => ({
+              ..._e,
+              [ue]: {
+                ..._e[ue],
+                [Le]: de,
+              },
+            }));
+          } else te(de);
+          const Ce = await vg(I);
+          if (ue && pe) {
+            const Le = pe === "start" ? "startImageBase64" : "endImageBase64";
+            T((_e) => ({
+              ..._e,
+              prompts: (_e.prompts || []).map((he) =>
+                he.id === ue
+                  ? {
+                    ...he,
+                    [Le]: Ce,
+                  }
+                  : he
+              ),
+            }));
+          } else O(Ce);
+        } catch (Ce) {
           if (
-            !M ||
-            !M.subscription ||
-            !M.subscription.end_date ||
-            new Date(M.subscription.end_date) < new Date()
+            (console.error("Lỗi đọc file ảnh:", Ce),
+              g(isVi ? "Không thể đọc file ảnh." : "Cannot read image file.", "error"),
+              ue && pe)
           ) {
-            const te =
-              !M || !M.subscription
-                ? "Bạn cần nâng cấp gói."
-                : "Gói đăng ký đã hết hạn.";
-            return g(te, "error"), t(je.PACKAGES), !1;
-          }
-          if (M.subscription.package_name === "Gói Cá Nhân/1 Máy") {
-            g("Tạo video Đồng nhất yêu cầu Gói Pro hoặc cao hơn.", "info");
-            t(je.PACKAGES);
-            return !1;
-          }
-          return !0;
-        } catch (M) {
-          console.error("Lỗi khi kiểm tra subscription:", M);
-          const te = M instanceof Error ? M.message : String(M);
-          return (
-            g(
-              `Không thể kiểm tra trạng thái gói (${te}). Vui lòng thử lại.`,
-              "error"
-            ),
-            !1
-          );
+            const Le =
+              pe === "start" ? "startImagePreview" : "endImagePreview";
+            E((_e) => ({
+              ..._e,
+              [ue]: {
+                ..._e[ue],
+                [Le]: void 0,
+              },
+            }));
+          } else te("");
+          de && URL.revokeObjectURL(de);
+        } finally {
+          M.target && (M.target.value = "");
         }
-      };
+      },
+      [g, T, isVi]
+    );
+
+    const oe = (M, te, O) => {
+      W(M, () => { }, () => { }, te, O);
+    };
+
+    const we = (M, te, O) => {
+      M.stopPropagation();
+      const ue = O === "start" ? "startImageBase64" : "endImageBase64",
+        pe = O === "start" ? "startImagePreview" : "endImagePreview";
+      T((I) => ({
+        ...I,
+        prompts: (I.prompts || []).map((de) =>
+          de.id === te
+            ? {
+              ...de,
+              [ue]: void 0,
+            }
+            : de
+        ),
+      }));
+      E((I) => {
+        const de = { ...I[te] };
+        if ((delete de[pe], Object.keys(de).length === 0)) {
+          const Ce = { ...I };
+          return delete Ce[te], Ce;
+        }
+        return { ...I, [te]: de };
+      });
+    };
+
+    const Be = async () => {
+      const M = await window.electronAPI.selectDownloadDirectory();
+      M &&
+        (i((te) => ({ ...te, path: M })),
+          g(isVi ? `Thư mục lưu: ${M}` : `Save path: ${M}`, "success"));
+    };
+
+    const Ve = async () => {
+      try {
+        await f(), await new Promise((te) => setTimeout(te, 150));
+        const M = JSON.parse(localStorage.getItem("currentUser") || "null");
+        if (!M || !M.subscription || !M.subscription.end_date || new Date(M.subscription.end_date) < new Date()) {
+          const te = !M || !M.subscription ? (isVi ? "Bạn cần nâng cấp gói." : "Upgrade required.") : (isVi ? "Gói đăng ký đã hết hạn." : "Subscription expired.");
+          return g(te, "error"), t(je.PACKAGES), !1;
+        }
+        if (M.subscription.package_name === "Gói Cá Nhân/1 Máy") {
+          g(isVi ? "Tạo video Đồng nhất yêu cầu Gói Pro hoặc cao hơn." : "Feature requires Pro Plan.", "info");
+          t(je.PACKAGES);
+          return !1;
+        }
+        return !0;
+      } catch (M) {
+        const te = M instanceof Error ? M.message : String(M);
+        return g(isVi ? `Lỗi kiểm tra gói (${te}).` : `Plan check error (${te}).`, "error"), !1;
+      }
+    };
+
     const dt = async (M) => {
       try {
-        // 1. Kiểm tra quyền hạn
         if (!(await Ve())) return;
-
-        // 2. Lấy danh sách prompt gốc và ID các prompt được chọn
         const te = b.prompts || [];
         const O = new Set(M.map((he) => he.id));
 
         if (M.length === 0) {
-          g("Vui lòng chọn ít nhất một prompt.", "info");
+          g(isVi ? "Vui lòng chọn ít nhất một prompt." : "Please select at least one prompt.", "info");
           return;
         }
 
-        // 3. BẬT TRẠNG THÁI RUNNING NGAY LẬP TỨC
-        // Để giao diện phản hồi ngay, tránh cảm giác "không có gì xảy ra"
-        T((he) => ({
-          ...he,
-          isRunning: true,
-        }));
+        T((he) => ({ ...he, isRunning: true }));
 
-        // 4. Kiểm tra và lọc prompt hợp lệ
         let validCount = 0;
         let missingImageCount = 0;
 
         const nextPrompts = te.map((p) => {
-          // Nếu không được chọn, giữ nguyên
           if (!O.has(p.id)) return p;
-
-          // Kiểm tra lỗi
           let err = null;
           if (!p.startImageBase64) {
-            // Kiểm tra xem có ảnh trong bộ nhớ tạm (preview) không?
-            // Nếu có preview mà không có base64 -> Lỗi bộ nhớ LocalStorage đầy
             if (S[p.id]?.startImagePreview) {
-              err = "Lỗi bộ nhớ: Vui lòng xóa bớt lịch sử hoặc tải lại ảnh.";
+              err = isVi ? "Lỗi bộ nhớ: Vui lòng xóa bớt lịch sử hoặc tải lại ảnh." : "Memory Error: Clear history or reload image.";
             } else {
-              err = "Thiếu ảnh bắt đầu";
+              err = isVi ? "Thiếu ảnh bắt đầu" : "Missing Start Image";
             }
             missingImageCount++;
           } else if (!p.text || !p.text.trim()) {
-            err = "Prompt trống";
+            err = isVi ? "Prompt trống" : "Empty prompt";
           }
-
-          // Nếu lỗi -> Đánh dấu Failed (hiện đỏ) nhưng KHÔNG DỪNG quy trình của các prompt khác
           if (err) {
-            return {
-              ...p,
-              status: "error",
-              message: err,
-            };
+            return { ...p, status: "error", message: err };
           }
-
-          // Nếu hợp lệ -> Chuyển sang Queued
           validCount++;
           return {
             ...p,
             status: "queued",
-            message: "Đang chờ...",
+            message: tr("createVideoFromFrames.promptWaiting"),
             startImageBase64: p.startImageBase64,
             endImageBase64: R ? p.endImageBase64 : undefined,
           };
         });
 
-        // Cập nhật giao diện (Hiển thị lỗi/chờ)
         Me(nextPrompts);
 
-        // 5. Xử lý kết quả kiểm tra
         if (validCount === 0) {
-          // Nếu tất cả đều lỗi -> Dừng và thông báo
-          T((he) => ({
-            ...he,
-            isRunning: false,
-          }));
+          T((he) => ({ ...he, isRunning: false }));
           if (missingImageCount > 0) {
-            g(
-              `Có ${missingImageCount} prompt thiếu ảnh hoặc lỗi bộ nhớ. Vui lòng kiểm tra lại.`,
-              "error"
-            );
+            g(isVi ? `Có ${missingImageCount} prompt thiếu ảnh hoặc lỗi bộ nhớ.` : `${missingImageCount} prompts missing image.`, "error");
           } else {
-            g("Không có prompt nào hợp lệ để chạy.", "error");
+            g(isVi ? "Không có prompt nào hợp lệ để chạy." : "No valid prompt to run.", "error");
           }
           return;
         }
 
-        // 6. Lọc lấy danh sách hợp lệ để gửi đi
         const promptsToSend = nextPrompts
           .filter((p) => O.has(p.id) && p.status === "queued")
           .map((he) => ({
             ...he,
-            // Quan trọng: Gửi đúng index để backend cập nhật lại đúng dòng
             originalIndex: te.findIndex((x) => x.id === he.id),
           }));
 
-        // 7. Gửi lệnh xuống Backend
         const autoSaveForMain = s;
 
         window.electronAPI.videoCreateFromFrames({
@@ -47180,353 +43118,191 @@ const Nk = 1e4,
           concurrentStreams: be,
         });
 
-        g(`Đã gửi ${promptsToSend.length} prompt vào hàng đợi.`, "success");
+        g(isVi ? `Đã gửi ${promptsToSend.length} prompt vào hàng đợi.` : `Sent ${promptsToSend.length} prompts to queue.`, "success");
       } catch (err) {
-        console.error("Lỗi khởi chạy:", err);
-        g(`Có lỗi xảy ra: ${err.message}`, "error");
-        T((he) => ({
-          ...he,
-          isRunning: false,
-        }));
+        g(isVi ? `Có lỗi xảy ra: ${err.message}` : `Error: ${err.message}`, "error");
+        T((he) => ({ ...he, isRunning: false }));
       }
-    },
-      Qe = () => dt(ne),
-      Ee = () => dt(ne.filter((M) => M && M.status !== "success")),
-      ut = () => dt(ne.filter((M) => M && M.status === "error")),
-      St = (M) => {
-        const te = ne.find((O) => O && O.id === M);
-        te ? dt([te]) : g("Không tìm thấy prompt để chạy.", "error");
-      },
-      ae = () => {
-        const M = ne.filter((te) => te && H.has(te.id));
-        M.length > 0 ? dt(M) : g("Không có prompt nào được chọn.", "info");
-      },
-      ve = () => {
-        window.electronAPI.stopBrowserAutomation();
-        T((M) => ({
-          ...M,
-          isRunning: !1,
-          prompts: M.prompts.map((p) =>
-            [
-              "queued",
-              "processing",
-              "running",
-              "submitting",
-              "pending_retry",
-            ].includes(p.status)
-              ? {
-                ...p,
-                status: "idle",
-                message: "Đã dừng bởi người dùng",
-              }
-              : p
-          ),
-        }));
-      },
-      Fe = () =>
-        Me((M) => [
-          ...(M || []),
-          {
-            id: `prompt-${Date.now()}-${Math.random()}`,
-            text: "",
-            status: "idle",
-            message: v("createVideoFromFrames.promptReady"),
-          },
-        ]),
-      Ie = (M, te) =>
-        Me((O) =>
-          (O || []).map((ue) =>
-            ue.id === M
-              ? {
-                ...ue,
-                text: te,
-              }
-              : ue
-          )
+    };
+
+    const Qe = () => dt(ne);
+    const Ee = () => dt(ne.filter((M) => M && M.status !== "success"));
+    const ut = () => dt(ne.filter((M) => M && M.status === "error"));
+    const St = (M) => {
+      const te = ne.find((O) => O && O.id === M);
+      te ? dt([te]) : g(isVi ? "Không tìm thấy prompt để chạy." : "Prompt not found.", "error");
+    };
+    const ae = () => {
+      const M = ne.filter((te) => te && H.has(te.id));
+      M.length > 0 ? dt(M) : g(isVi ? "Không có prompt nào được chọn." : "No prompt selected.", "info");
+    };
+    const ve = () => {
+      window.electronAPI.stopBrowserAutomation();
+      T((M) => ({
+        ...M,
+        isRunning: !1,
+        prompts: M.prompts.map((p) =>
+          ["queued", "processing", "running", "submitting", "pending_retry"].includes(p.status)
+            ? { ...p, status: "idle", message: tr("createVideoFromFrames.promptStopped") }
+            : p
         ),
-      lt = (M) => {
-        Me((te) => (te || []).filter((O) => O.id !== M)),
-          E((te) => {
-            const O = {
-              ...te,
-            };
-            return delete O[M], O;
-          }),
-          K((te) => {
-            const O = new Set(te);
-            return O.delete(M), O;
-          });
-      },
-      Ge = () => {
-        window.confirm("Xóa tất cả prompts?") && (Me([]), E({}), K(new Set()));
-      },
-      nt = async () => {
-        if (J) return;
-        const M = await window.electronAPI.importPromptsFromFile();
-        if (M.success && M.prompts && Array.isArray(M.prompts)) {
-          const te = M.prompts
-            .filter((O) => typeof O == "string")
-            .map((O) => ({
-              id: `prompt-${Date.now()}-${Math.random()}`,
-              text: O,
-              status: "idle",
-              message: v("createVideoFromFrames.promptReady"),
-            }));
-          te.length > 0
-            ? (Me((O) => [...(O || []), ...te]),
-              g(`Đã nhập ${te.length} prompt.`, "success"))
-            : g("File không chứa prompt hợp lệ.", "info");
-        } else
-          M.error &&
-            M.error !== "No file selected" &&
-            g(`Lỗi: ${M.error}`, "error");
-      },
-      F = A.useMemo(() => {
-        const M = h || [],
-          te = p || [],
-          O = M.filter((I) => I && I.id).map((I) => ({
-            id: I.id,
-            title: I.title || `Story ${I.id}`,
-          })),
-          ue = new Map();
-        te.forEach((I) => {
-          I &&
-            I.storyId &&
-            I.storyId.startsWith("manual-") &&
-            (ue.has(I.storyId) ||
-              ue.set(I.storyId, I.storyTitle || `Manual Story ${I.storyId}`));
-        });
-        const pe = Array.from(ue.entries()).map(([I, de]) => ({
-          id: I,
-          title: de,
-        }));
-        return [...O, ...pe].sort((I, de) => de.id.localeCompare(I.id));
-      }, [h, p]),
-      ge = (M) => {
-        if (!M) return;
-        const O = (p || []).filter((pe) => pe && pe.storyId === M);
-        if (O.length === 0) {
-          g("Không tìm thấy prompt nào cho câu chuyện này.", "info");
-          return;
-        }
-        const ue = O.map((pe) => ({
-          id: `prompt-${Date.now()}-${Math.random()}`,
-          text: pe.prompt || "",
-          status: "idle",
-          message: v("createVideoFromFrames.promptReady"),
-        }));
-        Me(ue),
-          E({}),
-          K(new Set()),
-          g(
-            `Đã tải và thay thế bằng ${ue.length} prompt từ câu chuyện.`,
-            "success"
-          );
-      },
-      xe = async (M) => {
-        const te = M.target.files;
-        if (!te || te.length === 0) return;
-        const O = Array.from(te);
-        g(`Đang xử lý ${O.length} ảnh...`, "info");
-        const ue = [],
-          pe = [],
-          I = {},
-          de = [];
-        let Ce = 0;
-        const Le = b.prompts || [],
-          _e = [];
-        try {
-          for (let Ne = 0; Ne < O.length; Ne++) {
-            const Ye = O[Ne],
-              tt = R && Ne + 1 < O.length ? O[Ne + 1] : void 0,
-              Je = URL.createObjectURL(Ye);
-            _e.push(Je);
-            const et = tt ? URL.createObjectURL(tt) : void 0;
-            for (
-              et && _e.push(et);
-              Ce < Le.length && Le[Ce]?.startImageBase64;
+      }));
+    };
+    const Fe = () =>
+      Me((M) => [
+        ...(M || []),
+        { id: `prompt-${Date.now()}-${Math.random()}`, text: "", status: "idle", message: tr("createVideoFromFrames.ready") },
+      ]);
+    const Ie = (M, te) => Me((O) => (O || []).map((ue) => ue.id === M ? { ...ue, text: te } : ue));
+    const lt = (M) => {
+      Me((te) => (te || []).filter((O) => O.id !== M));
+      E((te) => { const O = { ...te }; return delete O[M], O; });
+      K((te) => { const O = new Set(te); return O.delete(M), O; });
+    };
+    const Ge = () => {
+      window.confirm(tr("createVideoFromFrames.deleteAll") + "?") && (Me([]), E({}), K(new Set()));
+    };
+    const nt = async () => {
+      if (J) return;
+      const M = await window.electronAPI.importPromptsFromFile();
+      if (M.success && M.prompts && Array.isArray(M.prompts)) {
+        const te = M.prompts
+          .filter((O) => typeof O == "string")
+          .map((O) => ({ id: `prompt-${Date.now()}-${Math.random()}`, text: O, status: "idle", message: tr("createVideoFromFrames.ready") }));
+        te.length > 0
+          ? (Me((O) => [...(O || []), ...te]), g(isVi ? `Đã nhập ${te.length} prompt.` : `Imported ${te.length} prompts.`, "success"))
+          : g(isVi ? "File không chứa prompt hợp lệ." : "No valid prompts found.", "info");
+      } else M.error && M.error !== "No file selected" && g(`Lỗi: ${M.error}`, "error");
+    };
 
-            )
-              Ce++;
-            let ft;
-            if (Ce < Le.length && Le[Ce]) (ft = Le[Ce].id), Ce++;
-            else {
-              ft = `prompt-${Date.now()}-${Math.random()}-${Ye.name}`;
-              const Kt =
-                Ye.name.split(".").slice(0, -1).join(".") || `Image ${Ne + 1}`;
-              pe.push({
-                id: ft,
-                text: Kt,
-                status: "idle",
-                message: v("createVideoFromFrames.promptReady"),
-              });
-            }
-            de.push(ft),
-              ue.push({
-                promptId: ft,
-                file: Ye,
-                previewUrl: Je,
-                type: "start",
-              }),
-              (I[ft] = {
-                ...I[ft],
-                startImagePreview: Je,
-              }),
-              R &&
-              tt &&
-              et &&
-              (ue.push({
-                promptId: ft,
-                file: tt,
-                previewUrl: et,
-                type: "end",
-              }),
-                (I[ft] = {
-                  ...I[ft],
-                  endImagePreview: et,
-                }));
+    const F = A.useMemo(() => {
+      const M = h || [],
+        te = p || [],
+        O = M.filter((I) => I && I.id).map((I) => ({ id: I.id, title: I.title || `Story ${I.id}` })),
+        ue = new Map();
+      te.forEach((I) => {
+        I && I.storyId && I.storyId.startsWith("manual-") && (ue.has(I.storyId) || ue.set(I.storyId, I.storyTitle || `Manual Story ${I.storyId}`));
+      });
+      const pe = Array.from(ue.entries()).map(([I, de]) => ({ id: I, title: de }));
+      return [...O, ...pe].sort((I, de) => de.id.localeCompare(I.id));
+    }, [h, p]);
+
+    const ge = (M) => {
+      if (!M) return;
+      const O = (p || []).filter((pe) => pe && pe.storyId === M);
+      if (O.length === 0) {
+        g(isVi ? "Không tìm thấy prompt nào cho câu chuyện này." : "No prompts found for this story.", "info");
+        return;
+      }
+      const ue = O.map((pe) => ({
+        id: `prompt-${Date.now()}-${Math.random()}`,
+        text: pe.prompt || "",
+        status: "idle",
+        message: tr("createVideoFromFrames.ready"),
+      }));
+      Me(ue); E({}); K(new Set());
+      g(isVi ? `Đã tải ${ue.length} prompt.` : `Loaded ${ue.length} prompts.`, "success");
+    };
+
+    const xe = async (M) => {
+      const te = M.target.files;
+      if (!te || te.length === 0) return;
+      const O = Array.from(te);
+      g(isVi ? `Đang xử lý ${O.length} ảnh...` : `Processing ${O.length} images...`, "info");
+      const ue = [], pe = [], I = {}, de = [];
+      let Ce = 0;
+      const Le = b.prompts || [], _e = [];
+      try {
+        for (let Ne = 0; Ne < O.length; Ne++) {
+          const Ye = O[Ne], tt = R && Ne + 1 < O.length ? O[Ne + 1] : void 0, Je = URL.createObjectURL(Ye);
+          _e.push(Je);
+          const et = tt ? URL.createObjectURL(tt) : void 0;
+          for (et && _e.push(et); Ce < Le.length && Le[Ce]?.startImageBase64;) Ce++;
+          let ft;
+          if (Ce < Le.length && Le[Ce]) (ft = Le[Ce].id), Ce++;
+          else {
+            ft = `prompt-${Date.now()}-${Math.random()}-${Ye.name}`;
+            const Kt = Ye.name.split(".").slice(0, -1).join(".") || `Image ${Ne + 1}`;
+            pe.push({ id: ft, text: Kt, status: "idle", message: tr("createVideoFromFrames.ready") });
           }
-        } catch (Ne) {
-          console.error("Lỗi tạo object URL:", Ne),
-            g("Lỗi khi chuẩn bị xem trước ảnh.", "error"),
-            _e.forEach((Ye) => URL.revokeObjectURL(Ye)),
-            M.target && (M.target.value = "");
-          return;
+          de.push(ft);
+          ue.push({ promptId: ft, file: Ye, previewUrl: Je, type: "start" });
+          (I[ft] = { ...I[ft], startImagePreview: Je });
+          R && tt && et && (ue.push({ promptId: ft, file: tt, previewUrl: et, type: "end" }), (I[ft] = { ...I[ft], endImagePreview: et }));
         }
-        E((Ne) => ({
-          ...Ne,
-          ...I,
-        })),
-          pe.length > 0 && Me((Ne) => [...(Ne || []), ...pe]);
-        const he = new Map();
-        ue.forEach((Ne) => {
-          he.has(Ne.file) || he.set(Ne.file, vg(Ne.file));
-        });
-        let Se = !0;
-        try {
-          await Promise.all(he.values());
-          const Ne = new Map();
-          for (const [Ye, tt] of he.entries())
-            try {
-              const Je = await tt;
-              Ne.set(Ye, Je);
-            } catch (Je) {
-              console.error(`Lỗi đọc file ${Ye.name}:`, Je),
-                (Se = !1),
-                g(`Không thể xử lý file ${Ye.name}.`, "error");
+      } catch (Ne) {
+        console.error("Lỗi tạo object URL:", Ne);
+        g(isVi ? "Lỗi khi chuẩn bị xem trước ảnh." : "Preview error.", "error");
+        _e.forEach((Ye) => URL.revokeObjectURL(Ye));
+        M.target && (M.target.value = "");
+        return;
+      }
+      E((Ne) => ({ ...Ne, ...I }));
+      pe.length > 0 && Me((Ne) => [...(Ne || []), ...pe]);
+      const he = new Map();
+      ue.forEach((Ne) => { he.has(Ne.file) || he.set(Ne.file, vg(Ne.file)); });
+      let Se = !0;
+      try {
+        await Promise.all(he.values());
+        const Ne = new Map();
+        for (const [Ye, tt] of he.entries()) try { const Je = await tt; Ne.set(Ye, Je); } catch (Je) { console.error(`Lỗi đọc file ${Ye.name}:`, Je), (Se = !1); }
+        Me((Ye) => {
+          const tt = Ye || [], Je = new Map();
+          for (const et of ue) {
+            const ft = Ne.get(et.file);
+            if (ft !== void 0) {
+              const Kt = Je.get(et.promptId) || {};
+              et.type === "start" ? (Kt.startImageBase64 = ft) : et.type === "end" && (Kt.endImageBase64 = ft);
+              Je.set(et.promptId, Kt);
             }
-          Me((Ye) => {
-            const tt = Ye || [],
-              Je = new Map();
-            for (const et of ue) {
-              const ft = Ne.get(et.file);
-              if (ft !== void 0) {
-                const Kt = Je.get(et.promptId) || {};
-                et.type === "start"
-                  ? (Kt.startImageBase64 = ft)
-                  : et.type === "end" && (Kt.endImageBase64 = ft),
-                  Je.set(et.promptId, Kt);
-              }
-            }
-            return tt.map((et) =>
-              Je.has(et.id)
-                ? {
-                  ...et,
-                  ...Je.get(et.id),
-                }
-                : et
-            );
-          }),
-            Se
-              ? g(`Đã tải lên và gán ${O.length} ảnh.`, "success")
-              : g("Đã tải lên ảnh, nhưng một số ảnh bị lỗi xử lý.", "info");
-        } catch (Ne) {
-          console.error("Lỗi khi xử lý base64 hàng loạt:", Ne),
-            g(`Lỗi khi xử lý ảnh: ${Ne.message}`, "error"),
-            (Se = !1),
-            E((tt) => {
-              const Je = {
-                ...tt,
-              };
-              return (
-                de.forEach((et) => {
-                  I[et] &&
-                    (I[et].startImagePreview &&
-                      (Je[et] = {
-                        ...Je[et],
-                        startImagePreview: void 0,
-                      }),
-                      I[et].endImagePreview &&
-                      (Je[et] = {
-                        ...Je[et],
-                        endImagePreview: void 0,
-                      }),
-                      !Je[et]?.startImagePreview &&
-                      !Je[et]?.endImagePreview &&
-                      delete Je[et]);
-                }),
-                Je
-              );
-            });
-          const Ye = new Set(pe.map((tt) => tt.id));
-          Me((tt) => (tt || []).filter((Je) => !Ye.has(Je.id)));
-        } finally {
-          M.target && (M.target.value = ""),
-            _e.forEach((Ne) => URL.revokeObjectURL(Ne));
-        }
-      },
-      We = (M, te, O) => {
-        if (M) {
-          const ue = b.prompts.findIndex((pe) => pe.id === O);
-          window.electronAPI.downloadVideo({
-            url: M,
-            promptText: String(te || "video"),
-            savePath: null,
-            promptIndex: ue >= 0 ? ue : 0,
-          });
-        } else g("Video không có URL.", "info");
-      },
-      D = (M) => {
-        K((te) => {
-          const O = new Set(te);
-          return O.has(M) ? O.delete(M) : O.add(M), O;
+          }
+          return tt.map((et) => Je.has(et.id) ? { ...et, ...Je.get(et.id) } : et);
         });
-      }, // SỬA: Hàm chọn tất cả chỉ tác động lên danh sách đang hiển thị (FilteredPrompts)
-      // --- [SỬA ĐOẠN 2] Hàm chọn tất cả thông minh ---
-      me = () => {
-        // Lấy danh sách ID của các video đang hiển thị (đã lọc)
-        const visibleIds = FilteredPrompts.map((p) => p.id);
+        Se ? g(isVi ? `Đã tải lên và gán ${O.length} ảnh.` : `Uploaded ${O.length} images.`, "success") : g(isVi ? "Đã tải lên ảnh, nhưng một số ảnh bị lỗi." : "Some images failed to process.", "info");
+      } catch (Ne) {
+        console.error("Lỗi khi xử lý base64:", Ne);
+        g(isVi ? `Lỗi khi xử lý ảnh: ${Ne.message}` : `Image processing error: ${Ne.message}`, "error");
+        (Se = !1);
+        E((tt) => {
+          const Je = { ...tt };
+          return (de.forEach((et) => { I[et] && (I[et].startImagePreview && (Je[et] = { ...Je[et], startImagePreview: void 0 }), I[et].endImagePreview && (Je[et] = { ...Je[et], endImagePreview: void 0 }), !Je[et]?.startImagePreview && !Je[et]?.endImagePreview && delete Je[et]); }), Je);
+        });
+        const Ye = new Set(pe.map((tt) => tt.id));
+        Me((tt) => (tt || []).filter((Je) => !Ye.has(Je.id)));
+      } finally { M.target && (M.target.value = ""); _e.forEach((Ne) => URL.revokeObjectURL(Ne)); }
+    };
 
-        // Kiểm tra xem tất cả video đang hiển thị đã được tick chưa
-        const isAllVisibleSelected =
-          visibleIds.length > 0 && visibleIds.every((id) => H.has(id));
+    const We = (M, te, O) => {
+      if (M) {
+        const ue = b.prompts.findIndex((pe) => pe.id === O);
+        window.electronAPI.downloadVideo({ url: M, promptText: String(te || "video"), savePath: null, promptIndex: ue >= 0 ? ue : 0 });
+      } else g(isVi ? "Video không có URL." : "No video URL.", "info");
+    };
 
-        if (isAllVisibleSelected) {
-          // Nếu đã chọn hết danh sách lọc -> Bỏ chọn tất cả (trong danh sách lọc này)
-          K((prev) => {
-            const next = new Set(prev);
-            visibleIds.forEach((id) => next.delete(id));
-            return next;
-          });
-        } else {
-          // Nếu chưa chọn hết -> Chọn tất cả (trong danh sách lọc này)
-          K((prev) => {
-            const next = new Set(prev);
-            visibleIds.forEach((id) => next.add(id));
-            return next;
-          });
-        }
-      };
+    const D = (M) => {
+      K((te) => { const O = new Set(te); return O.has(M) ? O.delete(M) : O.add(M), O; });
+    };
+
+    const me = () => {
+      const visibleIds = FilteredPrompts.map((p) => p.id);
+      const isAllVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => H.has(id));
+      if (isAllVisibleSelected) {
+        K((prev) => { const next = new Set(prev); visibleIds.forEach((id) => next.delete(id)); return next; });
+      } else {
+        K((prev) => { const next = new Set(prev); visibleIds.forEach((id) => next.add(id)); return next; });
+      }
+    };
+
     return c.jsxs("div", {
       className: "animate-fade-in h-full flex flex-col",
       children: [
         c.jsx("h1", {
           className: "text-3xl font-bold text-light mb-2",
-          children: v("createVideoFromFrames.title"),
+          children: tr("createVideoFromFrames.title"),
         }),
         c.jsx("p", {
           className: "text-dark-text mb-4",
-          children: v("createVideoFromFrames.description"),
+          children: tr("createVideoFromFrames.description"),
         }),
         c.jsx("input", {
           type: "file",
@@ -47545,23 +43321,16 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: v("createVideoFromFrames.aspectRatio"),
+                    children: tr("createVideoFromFrames.aspectRatio"),
                   }),
                   c.jsxs("select", {
                     value: le,
                     onChange: (M) => Re(M.target.value),
-                    className:
-                      "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
+                    className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
                     disabled: J,
                     children: [
-                      c.jsx("option", {
-                        value: "LANDSCAPE",
-                        children: v("createVideoFromFrames.aspectLandscape"),
-                      }),
-                      c.jsx("option", {
-                        value: "PORTRAIT",
-                        children: v("createVideoFromFrames.aspectPortrait"),
-                      }),
+                      c.jsx("option", { value: "LANDSCAPE", children: tr("createVideoFromFrames.aspectLandscape") }),
+                      c.jsx("option", { value: "PORTRAIT", children: tr("createVideoFromFrames.aspectPortrait") }),
                     ],
                   }),
                 ],
@@ -47570,19 +43339,15 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: v("createVideoFromFrames.streams"),
+                    children: tr("createVideoFromFrames.streams"),
                   }),
                   c.jsx("input", {
                     type: "number",
                     value: be,
-                    onChange: (M) =>
-                      $e(
-                        Math.max(1, Math.min(10, parseInt(M.target.value) || 4))
-                      ),
+                    onChange: (M) => $e(Math.max(1, Math.min(10, parseInt(M.target.value) || 4))),
                     min: "1",
                     max: "10",
-                    className:
-                      "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
+                    className: "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
                     disabled: J,
                   }),
                 ],
@@ -47591,40 +43356,21 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Độ phân giải",
+                    children: tr("createVideoFromFrames.resolution"),
                   }),
                   c.jsxs("select", {
                     value: s.resolution || "720p",
-                    onChange: (M) =>
-                      i((te) => ({
-                        ...te,
-                        resolution: M.target.value,
-                      })),
-                    className:
-                      "w-24 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
+                    onChange: (M) => i((te) => ({ ...te, resolution: M.target.value })),
+                    className: "w-24 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
                     disabled: J,
                     children: [
-                      c.jsx("option", {
-                        value: "original",
-                        children: "720p",
-                      }),
-                      c.jsx("option", {
-                        value: "1080p",
-                        children: "1080p",
-                      }),
-                      c.jsx("option", {
-                        value: "2k",
-                        children: "2k",
-                      }),
-                      /*  c.jsx("option", {
-                        value: "4k",
-                        children: "4k",
-                      }),*/
+                      c.jsx("option", { value: "original", children: tr("createVideoFromFrames.res720") }),
+                      c.jsx("option", { value: "1080p", children: tr("createVideoFromFrames.res1080") }),
+                      c.jsx("option", { value: "2k", children: tr("createVideoFromFrames.res2k") }),
                     ],
                   }),
                 ],
               }),
-              ,
               c.jsxs("div", {
                 className: "flex flex-col ml-4",
                 children: [
@@ -47637,80 +43383,47 @@ const Nk = 1e4,
                           c.jsx("input", {
                             type: "checkbox",
                             checked: !!b.autoRetry,
-                            onChange: (M) =>
-                              T((te) => ({
-                                ...te,
-                                autoRetry: M.target.checked,
-                              })),
+                            onChange: (M) => T((te) => ({ ...te, autoRetry: M.target.checked })),
                             disabled: J,
                             className: "sr-only peer",
                           }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
+                          c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                          c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                         ],
                       }),
                       c.jsx("span", {
                         className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "Tự động thử lại",
+                        children: tr("createVideoFromFrames.autoRetry"),
                       }),
                     ],
                   }),
                   c.jsx("div", {
                     className: "h-[34px] flex items-center",
                     children: c.jsx("span", {
-                      className:
-                        "text-dark-text text-xs font-medium whitespace-nowrap",
-                      children: b.autoRetry ? "BẬT" : "TẮT",
+                      className: "text-dark-text text-xs font-medium whitespace-nowrap",
+                      children: b.autoRetry ? tr("createVideoFromFrames.on") : tr("createVideoFromFrames.off"),
                     }),
                   }),
                 ],
               }),
-              c.jsx("div", {
-                className: "h-6 border-l border-border-color mx-2 self-center",
-              }),
+              c.jsx("div", { className: "h-6 border-l border-border-color mx-2 self-center" }),
               c.jsxs("div", {
                 className: "flex items-end gap-2 self-end",
                 children: [
                   c.jsxs("div", {
                     children: [
                       c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Thêm prompt từ Story",
+                        className: "block text-xs font-medium text-dark-text mb-1",
+                        children: tr("createVideoFromFrames.loadFromStory"),
                       }),
                       c.jsxs("select", {
-                        onChange: (M) => {
-                          ge(M.target.value), (M.target.value = "");
-                        },
-                        className:
-                          "p-2 text-xs bg-primary rounded-full border border-border-color h-[34px] w-40",
+                        onChange: (M) => { ge(M.target.value); M.target.value = ""; },
+                        className: "p-2 text-xs bg-primary rounded-full border border-border-color h-[34px] w-40",
                         disabled: J,
                         defaultValue: "",
                         children: [
-                          c.jsx("option", {
-                            value: "",
-                            disabled: !0,
-                            children: "Chọn Story...",
-                          }),
-                          (F || []).map((M) =>
-                            c.jsxs(
-                              "option",
-                              {
-                                value: M.id,
-                                children: [
-                                  M.title.substring(0, 35),
-                                  M.title.length > 35 ? "..." : "",
-                                ],
-                              },
-                              M.id
-                            )
-                          ),
+                          c.jsx("option", { value: "", disabled: !0, children: tr("createVideoFromFrames.selectStory") }),
+                          (F || []).map((M) => c.jsxs("option", { value: M.id, children: [M.title.substring(0, 35), M.title.length > 35 ? "..." : ""] }, M.id)),
                         ],
                       }),
                     ],
@@ -47718,21 +43431,14 @@ const Nk = 1e4,
                   c.jsxs("div", {
                     children: [
                       c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Thêm prompt",
+                        className: "block text-xs font-medium text-dark-text mb-1",
+                        children: tr("createVideoFromFrames.addPromptTitle"),
                       }),
                       c.jsxs("button", {
                         onClick: nt,
                         disabled: J,
-                        className:
-                          "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-1 text-xs h-[34px] w-40",
-                        children: [
-                          c.jsx(Fv, {
-                            className: "h-4 w-4",
-                          }),
-                          "Từ file TXT",
-                        ],
+                        className: "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-1 text-xs h-[34px] w-40",
+                        children: [c.jsx(Fv, { className: "h-4 w-4" }), tr("createVideoFromFrames.importTxt")],
                       }),
                     ],
                   }),
@@ -47748,42 +43454,19 @@ const Nk = 1e4,
                       c.jsxs("div", {
                         className: "relative",
                         children: [
-                          c.jsx("input", {
-                            type: "checkbox",
-                            id: "show-end-image-toggle",
-                            className: "sr-only peer",
-                            checked: R,
-                            onChange: (M) => G(M.target.checked),
-                            disabled: J,
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
+                          c.jsx("input", { type: "checkbox", id: "show-end-image-toggle", className: "sr-only peer", checked: R, onChange: (M) => G(M.target.checked), disabled: J }),
+                          c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                          c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                         ],
                       }),
-                      c.jsx("span", {
-                        className:
-                          "ml-2 text-dark-text text-xs font-medium whitespace-nowrap",
-                        children: "Sử dụng ảnh cuối",
-                      }),
+                      c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium whitespace-nowrap", children: tr("createVideoFromFrames.useEndImage") }),
                     ],
                   }),
                   c.jsxs("button", {
                     onClick: () => Q.current?.click(),
                     disabled: J,
-                    className:
-                      "bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-1 text-xs h-[34px]",
-                    children: [
-                      c.jsx(mb, {
-                        className: "h-4 w-4",
-                      }),
-                      "Tải Nhiều Ảnh",
-                    ],
+                    className: "bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-1 text-xs h-[34px]",
+                    children: [c.jsx(mb, { className: "h-4 w-4" }), tr("createVideoFromFrames.uploadMultiple")],
                   }),
                 ],
               }),
@@ -47797,43 +43480,17 @@ const Nk = 1e4,
                       c.jsxs("div", {
                         className: "relative",
                         children: [
-                          c.jsx("input", {
-                            type: "checkbox",
-                            id: "allow-overwrite-toggle-frames",
-                            className: "sr-only peer",
-                            checked: !s.allowOverwrite,
-                            onChange: () =>
-                              i((M) => ({
-                                ...M,
-                                allowOverwrite: !M.allowOverwrite,
-                              })),
-                            disabled: J,
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
+                          c.jsx("input", { type: "checkbox", id: "allow-overwrite-toggle-frames", className: "sr-only peer", checked: !s.allowOverwrite, onChange: () => i((M) => ({ ...M, allowOverwrite: !M.allowOverwrite })), disabled: J }),
+                          c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                          c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                         ],
                       }),
-                      c.jsx("span", {
-                        className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "Xóa file cũ",
-                      }),
+                      c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium", children: tr("createVideoFromFrames.allowOverwrite") }),
                     ],
                   }),
                   c.jsx("div", {
                     className: "h-[34px] flex items-center",
-                    children: c.jsx("span", {
-                      className:
-                        "text-dark-text text-xs font-medium whitespace-nowrap",
-                      children: s.allowOverwrite
-                        ? "TẮT (Giữ file)"
-                        : "BẬT (Xóa file)",
-                    }),
+                    children: c.jsx("span", { className: "text-dark-text text-xs font-medium whitespace-nowrap", children: s.allowOverwrite ? tr("createVideoFromFrames.keepFile") : tr("createVideoFromFrames.deleteFile") }),
                   }),
                 ],
               }),
@@ -47847,54 +43504,19 @@ const Nk = 1e4,
                       c.jsxs("div", {
                         className: "relative",
                         children: [
-                          c.jsx("input", {
-                            type: "checkbox",
-                            id: "auto-save-toggle",
-                            className: "sr-only peer",
-                            checked: s.enabled,
-                            onChange: () =>
-                              i((M) => ({
-                                ...M,
-                                enabled: !M.enabled,
-                              })),
-                            disabled: J,
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
+                          c.jsx("input", { type: "checkbox", id: "auto-save-toggle", className: "sr-only peer", checked: s.enabled, onChange: () => i((M) => ({ ...M, enabled: !M.enabled })), disabled: J }),
+                          c.jsx("div", { className: "block bg-gray-400 w-10 h-6 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                          c.jsx("div", { className: "dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                         ],
                       }),
-                      c.jsx("span", {
-                        className: "ml-2 text-dark-text text-xs font-medium",
-                        children: v("createVideoFromFrames.autoSave"),
-                      }),
+                      c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium", children: tr("createVideoFromFrames.autoSave") }),
                     ],
                   }),
                   c.jsxs("div", {
                     className: "flex items-center",
                     children: [
-                      c.jsx("p", {
-                        className:
-                          "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-32 truncate",
-                        title:
-                          s.path || v("createVideoFromFrames.savePathDefault"),
-                        children:
-                          s.path || v("createVideoFromFrames.savePathDefault"),
-                      }),
-                      c.jsx("button", {
-                        onClick: Be,
-                        disabled: !s.enabled || J,
-                        className:
-                          "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50 flex items-center gap-1",
-                        children: c.jsx(Iu, {
-                          className: "h-4 w-4",
-                        }),
-                      }),
+                      c.jsx("p", { className: "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-32 truncate", title: s.path || tr("createVideoFromFrames.savePathDefault"), children: s.path || tr("createVideoFromFrames.savePathDefault") }),
+                      c.jsx("button", { onClick: Be, disabled: !s.enabled || J, className: "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50 flex items-center gap-1", children: c.jsx(Iu, { className: "h-4 w-4" }) }),
                     ],
                   }),
                 ],
@@ -47909,118 +43531,50 @@ const Nk = 1e4,
                       c.jsxs("div", {
                         className: "relative",
                         children: [
-                          c.jsx("input", {
-                            type: "checkbox",
-                            id: "split-folders-toggle",
-                            className: "sr-only peer",
-                            checked: s.splitFolders,
-                            onChange: () =>
-                              i((M) => ({
-                                ...M,
-                                splitFolders: !M.splitFolders,
-                              })),
-                            disabled: !s.enabled || J,
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
+                          c.jsx("input", { type: "checkbox", id: "split-folders-toggle", className: "sr-only peer", checked: s.splitFolders, onChange: () => i((M) => ({ ...M, splitFolders: !M.splitFolders })), disabled: !s.enabled || J }),
+                          c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                          c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                         ],
                       }),
-                      c.jsx("span", {
-                        className:
-                          "ml-2 text-dark-text text-xs font-medium whitespace-nowrap",
-                        children: "video/phần",
-                      }),
+                      c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium whitespace-nowrap", children: tr("createVideoFromFrames.videosPerFolder") }),
                     ],
                   }),
                   c.jsx("div", {
                     className: "flex items-center",
-                    children: c.jsx("input", {
-                      type: "number",
-                      value: isNaN(_) ? "" : _,
-                      onChange: se,
-                      onBlur: () => {
-                        isNaN(_) && P(s.videosPerFolder || 10);
-                      },
-                      min: "1",
-                      disabled: !s.enabled || !s.splitFolders || J,
-                      className:
-                        "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] disabled:opacity-50",
-                    }),
+                    children: c.jsx("input", { type: "number", value: isNaN(_) ? "" : _, onChange: se, onBlur: () => { isNaN(_) && P(s.videosPerFolder || 10); }, min: "1", disabled: !s.enabled || !s.splitFolders || J, className: "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] disabled:opacity-50" }),
                   }),
                 ],
               }),
-              c.jsx("div", {
-                className: "h-6 border-l border-border-color mx-2 self-center",
-              }),
-              c.jsx("div", {
-                className: "flex-grow",
-              }),
+              c.jsx("div", { className: "h-6 border-l border-border-color mx-2 self-center" }),
+              c.jsx("div", { className: "flex-grow" }),
               c.jsx("div", {
                 className: "flex items-end gap-2 flex-wrap",
                 children: J
                   ? c.jsxs("button", {
                     onClick: ve,
-                    className:
-                      "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-2 text-xs h-[34px]",
-                    children: [
-                      c.jsx(ku, {
-                        className: "h-4 w-4",
-                      }),
-                      v("createVideoFromFrames.stop"),
-                    ],
+                    className: "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-2 text-xs h-[34px]",
+                    children: [c.jsx(ku, { className: "h-4 w-4" }), tr("createVideoFromFrames.stop")],
                   })
                   : c.jsxs("div", {
                     className: "flex items-center gap-2",
                     children: [
-                      ne.some(
-                        (M) =>
-                          M && M.status !== "success" && M.status !== "idle"
-                      ) &&
+                      ne.some((M) => M && M.status !== "success" && M.status !== "idle") &&
                       c.jsxs("button", {
                         onClick: Ee,
-                        className:
-                          "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-1 text-xs h-[34px]",
-                        children: [
-                          c.jsx(ja, {
-                            className: "h-4 w-4",
-                          }),
-                          v("createVideoFromFrames.runUnfinished"),
-                        ],
+                        className: "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-1 text-xs h-[34px]",
+                        children: [c.jsx(ja, { className: "h-4 w-4" }), tr("createVideoFromFrames.runUnfinished")],
                       }),
                       ee > 0 &&
                       c.jsxs("button", {
                         onClick: ut,
-                        className:
-                          "bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-1 text-xs h-[34px]",
-                        children: [
-                          c.jsx(Pg, {
-                            className: "h-4 w-4",
-                          }),
-                          v("createVideoFromFrames.retryFailed", {
-                            count: ee,
-                          }),
-                        ],
+                        className: "bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-1 text-xs h-[34px]",
+                        children: [c.jsx(Pg, { className: "h-4 w-4" }), tr("createVideoFromFrames.retryFailed").replace("{count}", ee)],
                       }),
                       c.jsxs("button", {
                         onClick: Qe,
                         disabled: ne.length === 0,
-                        className:
-                          "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-2 text-xs h-[34px]",
-                        children: [
-                          c.jsx(Ps, {
-                            className: "h-4 w-4",
-                          }),
-                          v("createVideoFromFrames.runAll"),
-                          " (",
-                          ne.length,
-                          ")",
-                        ],
+                        className: "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-2 text-xs h-[34px]",
+                        children: [c.jsx(Ps, { className: "h-4 w-4" }), tr("createVideoFromFrames.runAll"), " (", ne.length, ")"],
                       }),
                     ],
                   }),
@@ -48029,8 +43583,7 @@ const Nk = 1e4,
           }),
         }),
         c.jsxs("div", {
-          className:
-            "mb-3 bg-secondary p-2 rounded-lg shadow-inner flex-shrink-0",
+          className: "mb-3 bg-secondary p-2 rounded-lg shadow-inner flex-shrink-0",
           children: [
             c.jsxs("div", {
               className: "flex justify-between items-center mb-1",
@@ -48041,115 +43594,46 @@ const Nk = 1e4,
                     c.jsxs("div", {
                       className: "flex items-center",
                       children: [
-                        c.jsx("input", {
-                          type: "checkbox",
-                          id: "select-all-prompts", // ID này giống nhau nhưng logic khác
-                          // SỬA: Dùng FilteredPrompts thay vì ne
-                          checked:
-                            FilteredPrompts.length > 0 &&
-                            FilteredPrompts.every((M) => H.has(M.id)),
-                          onChange: me, // <--- ĐÃ SỬA THÀNH 'me' (Hàm chọn tất cả)
-                          // SỬA: Dùng FilteredPrompts để check disable
-                          disabled: J || FilteredPrompts.length === 0,
-                          className:
-                            "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                        }),
-                        c.jsxs("label", {
-                          htmlFor: "select-all-prompts",
-                          className:
-                            "ml-2 text-xs font-medium text-dark-text cursor-pointer",
-                          // SỬA: Hiển thị số lượng đã lọc
-                          children: [
-                            "Chọn tất cả (",
-                            FilteredPrompts.length,
-                            ")",
-                          ],
-                        }),
+                        c.jsx("input", { type: "checkbox", id: "select-all-prompts", checked: FilteredPrompts.length > 0 && FilteredPrompts.every((M) => H.has(M.id)), onChange: me, disabled: J || FilteredPrompts.length === 0, className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent" }),
+                        c.jsxs("label", { htmlFor: "select-all-prompts", className: "ml-2 text-xs font-medium text-dark-text cursor-pointer", children: [tr("createVideoFromFrames.selectAll"), " (", FilteredPrompts.length, ")"] }),
                       ],
                     }),
-                    // --- CHECKBOX MỚI ---
                     c.jsxs("div", {
                       className: "flex items-center gap-3 ml-4",
                       children: [
                         c.jsxs("div", {
                           className: "flex items-center",
                           children: [
-                            c.jsx("input", {
-                              type: "checkbox",
-                              id: "qk-show-error",
-                              checked: showError,
-                              onChange: (D) => setShowError(D.target.checked),
-                              className:
-                                "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                            }),
-                            c.jsx("label", {
-                              htmlFor: "qk-show-error",
-                              className:
-                                "ml-1 text-xs font-medium text-dark-text cursor-pointer",
-                              children: "Lỗi",
-                            }),
+                            c.jsx("input", { type: "checkbox", id: "qk-show-error", checked: showError, onChange: (D) => setShowError(D.target.checked), className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent" }),
+                            c.jsx("label", { htmlFor: "qk-show-error", className: "ml-1 text-xs font-medium text-dark-text cursor-pointer", children: tr("createVideoFromFrames.showError") }),
                           ],
                         }),
                         c.jsxs("div", {
                           className: "flex items-center",
                           children: [
-                            c.jsx("input", {
-                              type: "checkbox",
-                              id: "qk-show-pending",
-                              checked: showPending,
-                              onChange: (D) => setShowPending(D.target.checked),
-                              className:
-                                "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                            }),
-                            c.jsx("label", {
-                              htmlFor: "qk-show-pending",
-                              className:
-                                "ml-1 text-xs font-medium text-dark-text cursor-pointer",
-                              children: "Chưa chạy",
-                            }),
+                            c.jsx("input", { type: "checkbox", id: "qk-show-pending", checked: showPending, onChange: (D) => setShowPending(D.target.checked), className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent" }),
+                            c.jsx("label", { htmlFor: "qk-show-pending", className: "ml-1 text-xs font-medium text-dark-text cursor-pointer", children: tr("createVideoFromFrames.showPending") }),
                           ],
                         }),
                       ],
                     }),
-                    H.size > 0 &&
-                    !J &&
+                    H.size > 0 && !J &&
                     c.jsxs("button", {
                       onClick: ae,
-                      className:
-                        "bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold py-1 px-3 rounded-full border border-yellow-600 flex items-center gap-1",
-                      children: [
-                        c.jsx(ja, {
-                          className: "h-3 w-3",
-                        }),
-                        "Chạy (",
-                        H.size,
-                        ")",
-                      ],
+                      className: "bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold py-1 px-3 rounded-full border border-yellow-600 flex items-center gap-1",
+                      children: [c.jsx(ja, { className: "h-3 w-3" }), tr("createVideoFromFrames.runSelected").replace("{count}", H.size)],
                     }),
                     c.jsxs("button", {
                       onClick: Ge,
                       disabled: J || ne.length === 0,
-                      className:
-                        "text-red-500 hover:text-red-700 font-bold py-1 px-2 rounded-full disabled:opacity-50 flex items-center gap-1 text-xs",
-                      children: [
-                        c.jsx($a, {
-                          className: "h-3 w-3",
-                        }),
-                        v("createVideoFromFrames.deleteAll"),
-                      ],
+                      className: "text-red-500 hover:text-red-700 font-bold py-1 px-2 rounded-full disabled:opacity-50 flex items-center gap-1 text-xs",
+                      children: [c.jsx($a, { className: "h-3 w-3" }), tr("createVideoFromFrames.deleteAll")],
                     }),
                     c.jsxs("button", {
                       onClick: Fe,
                       disabled: J,
-                      className:
-                        "bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-1 px-3 rounded-full border border-blue-200 disabled:opacity-50 flex items-center gap-1",
-                      children: [
-                        c.jsx(Ua, {
-                          className: "h-3 w-3",
-                        }),
-                        " ",
-                        v("createVideoFromFrames.addPrompt"),
-                      ],
+                      className: "bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-1 px-3 rounded-full border border-blue-200 disabled:opacity-50 flex items-center gap-1",
+                      children: [c.jsx(Ua, { className: "h-3 w-3" }), " ", tr("createVideoFromFrames.addPrompt")],
                     }),
                   ],
                 }),
@@ -48159,67 +43643,23 @@ const Nk = 1e4,
                     c.jsxs("div", {
                       className: "flex items-center gap-1",
                       children: [
-                        c.jsx("button", {
-                          onClick: () => V(2),
-                          title: "2 cột",
-                          className: `p-1 rounded-md ${L === 2
-                            ? "bg-accent text-white"
-                            : "bg-primary hover:bg-hover-bg"
-                            }`,
-                          children: c.jsx(Ru, {
-                            className: "h-4 w-4",
-                          }),
-                        }),
-                        c.jsx("button", {
-                          onClick: () => V(3),
-                          title: "3 cột",
-                          className: `p-1 rounded-md ${L === 3
-                            ? "bg-accent text-white"
-                            : "bg-primary hover:bg-hover-bg"
-                            }`,
-                          children: c.jsx(Du, {
-                            className: "h-4 w-4",
-                          }),
-                        }),
+                        c.jsx("button", { onClick: () => V(2), title: tr("createVideoFromFrames.col2"), className: `p-1 rounded-md ${L === 2 ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`, children: c.jsx(Ru, { className: "h-4 w-4" }) }),
+                        c.jsx("button", { onClick: () => V(3), title: tr("createVideoFromFrames.col3"), className: `p-1 rounded-md ${L === 3 ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`, children: c.jsx(Du, { className: "h-4 w-4" }) }),
                       ],
                     }),
-                    c.jsx("span", {
-                      className: "font-semibold text-light",
-                      children: w,
-                    }),
-                    c.jsxs("span", {
-                      className: "font-bold text-blue-600",
-                      children: [v("createVideoFromFrames.total"), ": ", ke],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-yellow-500",
-                      children: [v("createVideoFromFrames.pending"), ": ", fe],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-green-600",
-                      children: [v("createVideoFromFrames.success"), ": ", U],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-red-600",
-                      children: [v("createVideoFromFrames.failed"), ": ", ee],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-accent",
-                      children: [Math.round(B), "%"],
-                    }),
+                    c.jsx("span", { className: "font-semibold text-light", children: w }),
+                    c.jsxs("span", { className: "font-bold text-blue-600", children: [tr("createVideoFromFrames.total"), ": ", ke] }),
+                    c.jsxs("span", { className: "font-semibold text-yellow-500", children: [tr("createVideoFromFrames.pending"), ": ", fe] }),
+                    c.jsxs("span", { className: "font-semibold text-green-600", children: [tr("createVideoFromFrames.success"), ": ", U] }),
+                    c.jsxs("span", { className: "font-semibold text-red-600", children: [tr("createVideoFromFrames.failed"), ": ", ee] }),
+                    c.jsxs("span", { className: "font-semibold text-accent", children: [Math.round(B), "%"] }),
                   ],
                 }),
               ],
             }),
             c.jsx("div", {
               className: "w-full bg-primary rounded-full h-1.5 overflow-hidden",
-              children: c.jsx("div", {
-                className:
-                  "bg-accent h-1.5 rounded-full transition-all duration-300",
-                style: {
-                  width: `${B}%`,
-                },
-              }),
+              children: c.jsx("div", { className: "bg-accent h-1.5 rounded-full transition-all duration-300", style: { width: `${B}%` } }),
             }),
           ],
         }),
@@ -48228,41 +43668,21 @@ const Nk = 1e4,
           children: [
             ne.length === 0 &&
             c.jsx("div", {
-              className:
-                "flex flex-col items-center justify-center h-full text-dark-text opacity-70",
-              children: c.jsx("p", {
-                children: "Thêm prompt hoặc tải ảnh để bắt đầu.",
-              }),
+              className: "flex flex-col items-center justify-center h-full text-dark-text opacity-70",
+              children: c.jsx("p", { children: tr("createVideoFromFrames.emptyState") }),
             }),
             c.jsx("div", {
-              className: `grid grid-cols-1 ${L === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3"
-                } gap-4`,
+              className: `grid grid-cols-1 ${L === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3"} gap-4`,
               children: FilteredPrompts.map((M, te) => {
                 if (!M || !M.id) return null;
-                const O = [
-                  "running",
-                  "queued",
-                  "downloading",
-                  "submitting",
-                  "processing",
-                  "pending_retry",
-                ].includes(M.status),
-                  ue =
-                    S[M.id]?.startImagePreview ||
-                    (M.startImageBase64
-                      ? `data:image/jpeg;base64,${M.startImageBase64}`
-                      : ""),
-                  pe =
-                    S[M.id]?.endImagePreview ||
-                    (M.endImageBase64
-                      ? `data:image/jpeg;base64,${M.endImageBase64}`
-                      : ""),
+                const O = ["running", "queued", "downloading", "submitting", "processing", "pending_retry"].includes(M.status),
+                  ue = S[M.id]?.startImagePreview || (M.startImageBase64 ? `data:image/jpeg;base64,${M.startImageBase64}` : ""),
+                  pe = S[M.id]?.endImagePreview || (M.endImageBase64 ? `data:image/jpeg;base64,${M.endImageBase64}` : ""),
                   I = M.text || "";
                 return c.jsxs(
                   "div",
                   {
-                    className: `bg-secondary p-3 rounded-lg shadow-md flex flex-col gap-2 border ${H.has(M.id) ? "border-accent" : "border-transparent"
-                      }`,
+                    className: `bg-secondary p-3 rounded-lg shadow-md flex flex-col gap-2 border ${H.has(M.id) ? "border-accent" : "border-transparent"}`,
                     children: [
                       c.jsxs("div", {
                         className: "flex justify-between items-center",
@@ -48270,215 +43690,53 @@ const Nk = 1e4,
                           c.jsxs("div", {
                             className: "flex items-center gap-2",
                             children: [
-                              c.jsx("input", {
-                                type: "checkbox",
-                                checked: H.has(M.id),
-                                onChange: () => D(M.id),
-                                className:
-                                  "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                                disabled: J,
-                              }),
-                              c.jsxs("label", {
-                                className:
-                                  "block text-dark-text text-sm font-bold",
-                                children: ["Prompt #", te + 1],
-                              }),
+                              c.jsx("input", { type: "checkbox", checked: H.has(M.id), onChange: () => D(M.id), className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent", disabled: J }),
+                              c.jsxs("label", { className: "block text-dark-text text-sm font-bold", children: [tr("createVideoFromFrames.promptNum").replace("{num}", te + 1)] }),
                             ],
                           }),
                           c.jsxs("div", {
                             className: "flex items-center gap-1",
                             children: [
                               c.jsx("span", {
-                                className: `text-xs font-bold px-2 py-0.5 rounded-full ${M.status === "success"
-                                  ? "bg-green-100 text-green-800"
-                                  : M.status === "pending_retry"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : O
-                                      ? "bg-blue-100 text-blue-800"
-                                      : M.status === "error"
-                                        ? "bg-red-100 text-red-800"
-                                        : "bg-gray-100 text-gray-800"
-                                  }`,
+                                className: `text-xs font-bold px-2 py-0.5 rounded-full ${M.status === "success" ? "bg-green-100 text-green-800" : M.status === "pending_retry" ? "bg-yellow-100 text-yellow-800" : O ? "bg-blue-100 text-blue-800" : M.status === "error" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"}`,
                                 children: M.message,
                               }),
-                              c.jsx("button", {
-                                onClick: () => St(M.id),
-                                disabled: J,
-                                title: v("createVideoFromFrames.runThisPrompt"),
-                                className:
-                                  "p-1 hover:bg-green-100 rounded-full disabled:opacity-50",
-                                children: c.jsx(Ps, {
-                                  className: "h-4 w-4 text-green-600",
-                                }),
-                              }),
-                              c.jsx("button", {
-                                onClick: () => lt(M.id),
-                                disabled: J,
-                                title: v("common.delete"),
-                                className:
-                                  "p-1 hover:bg-red-100 rounded-full disabled:opacity-50",
-                                children: c.jsx(Oa, {
-                                  className: "h-4 w-4 text-red-500",
-                                }),
-                              }),
+                              c.jsx("button", { onClick: () => St(M.id), disabled: J, title: tr("createVideoFromFrames.runThisPrompt"), className: "p-1 hover:bg-green-100 rounded-full disabled:opacity-50", children: c.jsx(Ps, { className: "h-4 w-4 text-green-600" }) }),
+                              c.jsx("button", { onClick: () => lt(M.id), disabled: J, title: tr("common.delete"), className: "p-1 hover:bg-red-100 rounded-full disabled:opacity-50", children: c.jsx(Oa, { className: "h-4 w-4 text-red-500" }) }),
                             ],
                           }),
                         ],
                       }),
                       c.jsx("div", {
-                        className: `relative w-full aspect-video bg-primary rounded-md border border-border-color flex items-center justify-center overflow-hidden group ${O ? "rainbow-border-running" : ""
-                          }`,
-                        children:
-                          M.upsampledVideoUrl || M.videoUrl
-                            ? c.jsxs(c.Fragment, {
-                              children: [
-                                c.jsx(
-                                  "video",
-                                  {
-                                    controls: !0,
-                                    className:
-                                      "w-full h-full object-contain bg-black",
-                                    children: c.jsx("source", {
-                                      src: M.upsampledVideoUrl || M.videoUrl,
-                                      type: "video/mp4",
-                                    }),
-                                  },
-                                  M.upsampledVideoUrl || M.videoUrl
-                                ),
-                                c.jsx("div", {
-                                  className:
-                                    "absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
-                                  children: c.jsxs("div", {
-                                    className:
-                                      "flex gap-2 pointer-events-auto",
-                                    children: [
-                                      c.jsxs("button", {
-                                        onClick: () =>
-                                          We(M.videoUrl, I, M.id),
-                                        className:
-                                          "bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-full text-xs flex items-center gap-1",
-                                        children: [
-                                          c.jsx(Ut, {
-                                            className: "w-4 h-4",
-                                          }),
-                                          "Tải về",
-                                        ],
-                                      }),
-                                      /*.jsxs("button", {
-                                        onClick: () => {
-                                          M.upsampledVideoUrl
-                                            ? We(
-                                                M.upsampledVideoUrl,
-                                                I + "_1080p",
-                                                M.id
-                                              )
-                                            : !(
-                                                M.upsampleStatus ===
-                                                  "processing" ||
-                                                M.upsampleStatus === "pending"
-                                              ) && triggerUpscale(M);
-                                        },
-                                        disabled:
-                                          M.upsampleStatus === "processing" ||
-                                          M.upsampleStatus === "pending",
-                                        className: `${
-                                          M.upsampledVideoUrl
-                                            ? "bg-purple-600 hover:bg-purple-700 text-white"
-                                            : M.upsampleStatus ===
-                                                "processing" ||
-                                              M.upsampleStatus === "pending"
-                                            ? "bg-gray-500 text-white cursor-not-allowed"
-                                            : M.upsampleStatus === "failed"
-                                            ? "bg-red-600 hover:bg-red-700 text-white"
-                                            : "bg-green-600 hover:bg-green-700 text-white"
-                                        } font-bold py-1.5 px-3 rounded-full text-xs flex items-center gap-1`,
-                                        children: [
-                                          M.upsampleStatus === "processing" ||
-                                          M.upsampleStatus === "pending"
-                                            ? c.jsx(Ut, {
-                                                className: "w-4 h-4",
-                                              })
-                                            : c.jsx(Pg, {
-                                                className: "w-4 h-4",
-                                              }),
-                                          M.upsampledVideoUrl
-                                            ? "Tải 1080p"
-                                            : M.upsampleStatus ===
-                                                "processing" ||
-                                              M.upsampleStatus === "pending"
-                                            ? "Đang nâng cấp..."
-                                            : M.upsampleStatus === "failed"
-                                            ? "Nâng cấp (Lỗi)"
-                                            : "Nâng cấp 1080p",
-                                        ],
-                                      }),*/
-                                    ],
-                                  }),
-                                }),
-                              ],
-                            })
-                            : O
-                              ? c.jsxs("div", {
-                                className:
-                                  "flex flex-col items-center justify-center text-center px-4",
-                                children: [
-                                  c.jsx(Ut, {}),
-                                  c.jsx("p", {
-                                    className:
-                                      "mt-3 text-dark-text text-xs font-bold animate-pulse",
-                                    children:
-                                      M.status === "pending_retry"
-                                        ? "⏳ Đang chờ thử lại..."
-                                        : "🔄 Đang xử lý...",
-                                  }),
-                                ],
-                              })
-                              : c.jsx("div", {
-                                className: "text-center text-dark-text text-sm",
-                                children: c.jsx("p", {
-                                  children:
-                                    M.status === "error"
-                                      ? v("createVideoFromFrames.promptError")
-                                      : v("createVideoFromFrames.promptReady"),
+                        className: `relative w-full aspect-video bg-primary rounded-md border border-border-color flex items-center justify-center overflow-hidden group ${O ? "rainbow-border-running" : ""}`,
+                        children: M.upsampledVideoUrl || M.videoUrl
+                          ? c.jsxs(c.Fragment, {
+                            children: [
+                              c.jsx("video", { controls: !0, className: "w-full h-full object-contain bg-black", children: c.jsx("source", { src: M.upsampledVideoUrl || M.videoUrl, type: "video/mp4" }) }, M.upsampledVideoUrl || M.videoUrl),
+                              c.jsx("div", {
+                                className: "absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
+                                children: c.jsxs("div", {
+                                  className: "flex gap-2 pointer-events-auto",
+                                  children: [
+                                    c.jsxs("button", { onClick: () => We(M.videoUrl, I, M.id), className: "bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-full text-xs flex items-center gap-1", children: [c.jsx(Ut, { className: "w-4 h-4" }), tr("createVideoFromFrames.download")] }),
+                                  ],
                                 }),
                               }),
+                            ],
+                          })
+                          : O
+                            ? c.jsxs("div", { className: "flex flex-col items-center justify-center text-center px-4", children: [c.jsx(Ut, {}), c.jsx("p", { className: "mt-3 text-dark-text text-xs font-bold animate-pulse", children: M.status === "pending_retry" ? tr("createVideoFromFrames.waitingRetry") : tr("createVideoFromFrames.processing") })] })
+                            : c.jsx("div", { className: "text-center text-dark-text text-sm", children: c.jsx("p", { children: M.status === "error" ? tr("createVideoFromFrames.error") : tr("createVideoFromFrames.resultHere") }) }),
                       }),
                       c.jsxs("div", {
                         className: "grid grid-cols-3 gap-2",
                         children: [
-                          c.jsx("textarea", {
-                            value: I,
-                            onChange: (de) => Ie(M.id, de.target.value),
-                            className:
-                              "col-span-2 w-full p-2 bg-primary rounded-md border border-border-color text-sm resize-y h-full min-h-[10rem]",
-                            readOnly: J,
-                            placeholder: v(
-                              "createVideoFromFrames.promptPlaceholder"
-                            ),
-                          }),
+                          c.jsx("textarea", { value: I, onChange: (de) => Ie(M.id, de.target.value), className: "col-span-2 w-full p-2 bg-primary rounded-md border border-border-color text-sm resize-y h-full min-h-[10rem]", readOnly: J, placeholder: tr("createVideoFromFrames.promptPlaceholder") }),
                           c.jsxs("div", {
-                            className: `col-span-1 flex ${R
-                              ? "flex-row gap-2 justify-around"
-                              : "justify-center"
-                              } items-center`,
+                            className: `col-span-1 flex ${R ? "flex-row gap-2 justify-around" : "justify-center"} items-center`,
                             children: [
-                              c.jsx(bg, {
-                                label: v("createVideoFromFrames.startImage"),
-                                preview: ue,
-                                onChange: (de) => oe(de, M.id, "start"),
-                                onClear: (de) => we(de, M.id, "start"),
-                                borderColorClass: "border-green-500",
-                                disabled: J,
-                              }),
-                              R &&
-                              c.jsx(bg, {
-                                label: v("createVideoFromFrames.endImage"),
-                                preview: pe,
-                                onChange: (de) => oe(de, M.id, "end"),
-                                onClear: (de) => we(de, M.id, "end"),
-                                borderColorClass: "border-red-500",
-                                disabled: J,
-                              }),
+                              c.jsx(bg, { label: tr("createVideoFromFrames.startImage"), preview: ue, onChange: (de) => oe(de, M.id, "start"), onClear: (de) => we(de, M.id, "start"), borderColorClass: "border-green-500", disabled: J }),
+                              R && c.jsx(bg, { label: tr("createVideoFromFrames.endImage"), preview: pe, onChange: (de) => oe(de, M.id, "end"), onClear: (de) => we(de, M.id, "end"), borderColorClass: "border-red-500", disabled: J }),
                             ],
                           }),
                         ],
@@ -48495,520 +43753,305 @@ const Nk = 1e4,
     });
   },
   $k = "Gói Cá Nhân/1 Máy",
-  Ok = ({ setActiveView: t }) => {
+  Ok = ({ setActiveView: setActiveViewProp }) => {
     const {
-      currentUser: e,
-      stories: s,
-      prompts: i,
-      addVideo: r,
-      autoSaveConfig: f,
-      setAutoSaveConfig: h,
-      extendedVideoState: p,
-      setExtendedVideoState: x,
-      refreshCurrentUser: g,
-      activeCookie: ac,
-      cookies: cookieList, // <--- THÊM DÒNG NÀY
-    } = jt(),
-      { showToast: v } = _t(),
-      { t: b } = so(),
-      {
-        prompts: T = [],
-        isRunning: S,
-        aspectRatio: E,
-        concurrentStreams: R,
-      } = p,
-      [G, H] = A.useState(new Set()),
-      [K, L] = A.useState(2),
-      [V, _] = A.useState(f.videosPerFolder || 10),
-      [P, Q] = A.useState(!1),
-      ne = A.useCallback(
-        (F) => {
-          x((ge) => {
-            const xe = ge.prompts || [],
-              We = typeof F == "function" ? F(xe) : F,
-              D = {
-                ...(ge || {}),
-                prompts: Array.isArray(We) ? We : [],
-              };
-            return (
-              (D.aspectRatio = D.aspectRatio || "LANDSCAPE"),
-              (D.concurrentStreams = D.concurrentStreams || 1),
-              D
-            );
-          });
-        },
-        [x]
-      ),
-      J = A.useCallback(
-        (F) => {
-          x((ge) => ({
-            ...(ge || {}),
-            isRunning: F,
-          }));
-        },
-        [x]
-      ),
-      le = A.useCallback(
-        (F) => {
-          x((ge) => ({
-            ...(ge || {}),
-            aspectRatio: F,
-          }));
-        },
-        [x]
-      ),
-      be = A.useCallback(
-        (F) => {
-          x((ge) => ({
-            ...(ge || {}),
-            concurrentStreams: F,
-          }));
-        },
-        [x]
-      ),
-      Me = (F) => {
-        const ge = parseInt(F.target.value, 10);
-        ge > 0
-          ? (_(ge),
-            h((xe) => ({
-              ...xe,
-              videosPerFolder: ge,
-            })))
-          : F.target.value === "" && _(NaN);
-      };
-    A.useEffect(() => {
-      _(f.videosPerFolder || 10);
-    }, [f.videosPerFolder]),
-      A.useEffect(() => {
-        window.electronAPI.onBrowserLog((F) => {
-          let ge = !1;
-          x((xe) => {
-            const We = xe.prompts || [];
-            if (F.status === "finished") {
-              const O = We.map((ue) =>
-                ue &&
-                  ([
-                    "queued",
-                    "generating_base",
-                    "extracting_frame",
-                    "generating_from_frame",
-                    "merging",
-                  ].includes(ue.extendedStatus || "") ||
-                    ["submitting", "processing", "running"].includes(ue.status))
-                  ? {
-                    ...ue,
-                    status: "idle",
-                    extendedStatus: "stopped",
-                    message: "Đã dừng",
-                  }
-                  : ue
-              );
-              return {
-                ...xe,
-                prompts: O,
-                isRunning: !1,
-              };
-            }
-            if (!We.some((O) => O && O.id === F.promptId) && F.promptId)
-              return xe;
-            const me = We.map((O) => {
-              if (!O || O.id !== F.promptId) return O;
-              const ue = F.status,
-                pe = F.status,
-                I = {
-                  message: F.message,
-                  videoUrl: F.videoUrl || O.videoUrl,
-                  tempVideoPath: F.tempVideoPath || O.tempVideoPath,
-                  lastFramePath: F.lastFramePath || O.lastFramePath,
-                };
-              return (
-                ue &&
-                  [
-                    "idle",
-                    "queued",
-                    "generating_base",
-                    "extracting_frame",
-                    "generating_from_frame",
-                    "merging",
-                    "success",
-                    "failed",
-                    "stopped",
-                  ].includes(ue)
-                  ? (I.extendedStatus = ue)
-                  : (I.extendedStatus = O.extendedStatus),
-                pe &&
-                  [
-                    "idle",
-                    "running",
-                    "success",
-                    "error",
-                    "queued",
-                    "downloading",
-                    "submitting",
-                    "processing",
-                    "pending",
-                  ].includes(pe)
-                  ? (I.status = pe)
-                  : (I.status = O.status),
-                ue === "success" && F.videoUrl
-                  ? ((I.status = "success"),
-                    O.videoUrl ||
-                    (r({
-                      id: `${O.id}-extended-${Date.now()}`,
-                      promptId: O.id,
-                      promptText: "Video mở rộng (Nhiều prompt)",
-                      status: "success",
-                      videoUrl: F.videoUrl,
-                      aspectRatio: xe.aspectRatio,
-                    }),
-                      (ge = !0)))
-                  : ue === "failed"
-                    ? (I.status = "error")
-                    : ue === "stopped"
-                      ? (I.status = "idle")
-                      : ue === "queued"
-                        ? (I.status = "queued")
-                        : ue && (I.status = "processing"),
-                {
-                  ...O,
-                  ...I,
-                }
-              );
-            }),
-              M = me.some(
-                (O) =>
-                  O &&
-                  ([
-                    "queued",
-                    "generating_base",
-                    "extracting_frame",
-                    "generating_from_frame",
-                    "merging",
-                  ].includes(O.extendedStatus || "") ||
-                    ["submitting", "processing", "running"].includes(O.status))
-              );
-            return {
-              ...(xe || {
-                prompts: [],
-                isRunning: !1,
-                aspectRatio: "LANDSCAPE",
-                concurrentStreams: 1,
-              }),
-              prompts: me,
-              isRunning: M,
-            };
-          }),
-            ge &&
-            v("Video mở rộng đã hoàn thành và thêm vào Lịch sử!", "success");
-        }),
-          window.electronAPI.onDownloadComplete(
-            ({ success: F, path: ge, error: xe }) => {
-              F && ge && ge !== "Skipped"
-                ? v(`Video đã lưu tại: ${ge}`, "success")
-                : !F &&
-                xe &&
-                xe !== "Download canceled" &&
-                v(`Lỗi tải video: ${xe}`, "error");
-            }
-          );
-      }, [r, v, x, b]);
-    const Re = A.useMemo(() => {
-      const F = s || [],
-        ge = i || [],
-        xe = F.map((D) => ({
-          id: D.id,
-          title: D.title,
-        })),
-        We = new Map();
-      return (
-        ge.forEach((D) => {
-          D &&
-            D.storyId &&
-            D.storyId.startsWith("manual-") &&
-            (We.has(D.storyId) ||
-              We.set(D.storyId, D.storyTitle || `Manual ${D.storyId}`));
-        }),
-        We.forEach((D, me) => {
-          xe.push({
-            id: me,
-            title: D,
-          });
-        }),
-        xe.sort((D, me) => me.id.localeCompare(D.id)),
-        xe
-      );
-    }, [s, i]),
-      {
-        successCount: $e,
-        errorCount: se,
-        pendingCount: U,
-        totalCount: ee,
-        statusMessage: fe,
-        completedPercentage: ke,
-      } = A.useMemo(() => {
-        const F = T.length;
-        if (F === 0)
-          return {
-            successCount: 0,
-            errorCount: 0,
-            pendingCount: 0,
-            totalCount: 0,
-            statusMessage: "Sẵn sàng.",
-            completedPercentage: 0,
-          };
-        let ge = 0,
-          xe = 0,
-          We = 0,
-          D = 0;
-        T.forEach((O) => {
-          if (!O) return;
-          const ue = O.extendedStatus || O.status;
-          ue === "success"
-            ? ge++
-            : ue === "failed" || O.status === "error"
-              ? xe++
-              : ue === "idle" || ue === "queued" || ue === "stopped"
-                ? We++
-                : ue && D++;
-        });
-        const me = ge + xe;
-        let M = `Đang chờ ${We}/${F}...`;
-        S || D > 0
-          ? (M = `Đang xử lý ${me}/${F}... (${D} đang chạy)`)
-          : me > 0 && me < F && F > 0
-            ? (M = "Đã dừng.")
-            : me === F && F > 0 && (M = "Hoàn thành!");
-        const te = F > 0 ? (ge / F) * 100 : 0;
+      currentUser: currentUser,
+      stories: storiesList,
+      prompts: promptsList,
+      addVideo: addVideoAction,
+      autoSaveConfig: autoSaveConf,
+      setAutoSaveConfig: setAutoSaveConf,
+      extendedVideoState: extState,
+      setExtendedVideoState: setExtState,
+      refreshCurrentUser: refreshUser,
+      activeCookie: activeCookieItem,
+      cookies: cookieListArray,
+    } = jt();
+
+    const { showToast: toastAction } = _t();
+    const { t: translate } = so();
+    const isVi = translate("sidebar.dashboard") === "Tổng quan";
+
+    const promptsArr = extState?.prompts || [];
+    const isRunningGlobal = extState?.isRunning || false;
+    const aspectGlobal = extState?.aspectRatio || "LANDSCAPE";
+    const streamsGlobal = extState?.concurrentStreams || 1;
+
+    const [selectedIds, setSelectedIds] = A.useState(new Set());
+    const [gridCols, setGridCols] = A.useState(2);
+    const [videosPerFolderState, setVideosPerFolderState] = A.useState(autoSaveConf?.videosPerFolder || 10);
+    const [showErrorOnly, setShowErrorOnly] = A.useState(false);
+
+    const updateExtStatePrompts = A.useCallback((updater) => {
+      setExtState((prev) => {
+        const oldPrompts = prev?.prompts || [];
+        const newPrompts = typeof updater === "function" ? updater(oldPrompts) : updater;
         return {
-          successCount: ge,
-          errorCount: xe,
-          pendingCount: We,
-          totalCount: F,
-          statusMessage: M,
-          completedPercentage: te,
+          ...(prev || {}),
+          prompts: Array.isArray(newPrompts) ? newPrompts : [],
+          aspectRatio: prev?.aspectRatio || "LANDSCAPE",
+          concurrentStreams: prev?.concurrentStreams || 1,
         };
-      }, [T, S]),
-      w = async () => {
-        const F = await window.electronAPI.selectDownloadDirectory();
-        F &&
-          h((ge) => ({
-            ...ge,
-            path: F,
-          }));
-      },
-      B = async () => {
-        await g(), await new Promise((xe) => setTimeout(xe, 150));
-        const F = JSON.parse(localStorage.getItem("currentUser") || "null");
-        if (
-          !F ||
-          !F.subscription ||
-          !F.subscription.end_date ||
-          new Date(F.subscription.end_date) < new Date()
-        ) {
-          const xe =
-            !F || !F.subscription
-              ? "Bạn cần nâng cấp gói."
-              : "Gói đăng ký đã hết hạn.";
-          return v(xe, "error"), t(je.PACKAGES), !1;
-        }
-        return F.subscription.package_name === $k
-          ? (v(
-            'Tính năng "Video Mở Rộng" yêu cầu Gói Pro hoặc cao hơn.',
-            "info"
-          ),
-            t(je.PACKAGES),
-            !1)
-          : !0;
-      },
-      W = async (F) => {
-        if (!(await B())) return;
-        const ge = p.prompts || [],
-          xe = new Set(F.map((me) => me.id)),
-          We = ge.filter((me) => me && xe.has(me.id));
-        if (We.length === 0) {
-          v("Không có prompt nào hợp lệ được chọn.", "info");
-          return;
-        }
-        J(!0),
-          ne((me) =>
-            (me || []).map((M) =>
-              M && xe.has(M.id)
-                ? {
-                  ...M,
-                  status: "queued",
-                  extendedStatus: "queued",
-                  message: "Đang chờ...",
-                  videoUrl: void 0,
-                  tempVideoPath: void 0,
-                  lastFramePath: void 0,
-                }
-                : M
-            )
-          );
-        const D = We.map((me) => ({
-          ...me,
-          originalIndex: (p.prompts || []).findIndex(
-            (M) => M && M.id === me.id
-          ),
-        }));
-        window.electronAPI.videoCreateExtended({
-          prompts: D,
-          authToken: e.token,
-          aspectRatio: E,
-          autoSaveConfig: f,
-          currentUser: e,
-          concurrentStreams: R,
-          activeCookie: ac,
-          localCookies: cookieList,
-        });
-      },
-      oe = () => W(T),
-      we = () => W(T.filter((F) => F && F.status !== "success")),
-      Be = () => W(T.filter((F) => F && F.status === "error")),
-      Ve = (F) => {
-        const ge = T.find((xe) => xe && xe.id === F);
-        ge && W([ge]);
-      },
-      dt = () => {
-        const F = T.filter((ge) => ge && G.has(ge.id));
-        W(F);
-      },
-      Qe = (F) => {
-        H((ge) => {
-          const xe = new Set(ge);
-          return xe.has(F) ? xe.delete(F) : xe.add(F), xe;
-        });
-      },
-      Ee = () => {
-        const ge = (p.prompts || [])
-          .filter((xe) => xe && xe.id)
-          .map((xe) => xe.id);
-        ge.length !== 0 &&
-          (G.size >= ge.length && ge.every((xe) => G.has(xe))
-            ? H(new Set())
-            : H(new Set(ge)));
-      },
-      ut = () => {
-        window.electronAPI.stopBrowserAutomation(),
-          J(!1),
-          ne((F) =>
-            (F || []).map((ge) =>
-              ge &&
-                ([
-                  "queued",
-                  "generating_base",
-                  "extracting_frame",
-                  "generating_from_frame",
-                  "merging",
-                ].includes(ge.extendedStatus || "") ||
-                  ["submitting", "processing", "running"].includes(ge.status))
-                ? {
-                  ...ge,
-                  status: "idle",
-                  extendedStatus: "stopped",
-                  message: "Đã dừng",
-                }
-                : ge
-            )
-          );
-      },
-      St = () => {
-        window.confirm(`Xóa tất cả ${T.length} prompt?`) &&
-          (ne([]), H(new Set()), v("Đã xóa tất cả prompts.", "info"));
-      },
-      ae = () => {
-        ne((F) => [
-          ...(F || []),
-          {
-            id: `prompt-${Date.now()}-${Math.random()}`,
-            text: "",
-            status: "idle",
-            message: "Sẵn sàng",
-          },
-        ]);
-      },
-      ve = (F) => {
-        ne((ge) => (ge || []).filter((xe) => xe.id !== F)),
-          H((ge) => {
-            const xe = new Set(ge);
-            return xe.delete(F), xe;
-          });
-      },
-      Fe = (F, ge) => {
-        ne((xe) =>
-          (xe || []).map((We) =>
-            We.id === F
-              ? {
-                ...We,
-                text: ge,
+      });
+    }, [setExtState]);
+
+    const handleImageChange = (ev, id) => {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Str = reader.result;
+        updateExtStatePrompts((prev) => prev.map(pItem =>
+          pItem.id === id ? { ...pItem, startImageBase64: base64Str, startImagePreview: base64Str } : pItem
+        ));
+      };
+      reader.readAsDataURL(file);
+      ev.target.value = "";
+    };
+
+    const handleClearImage = (id) => {
+      updateExtStatePrompts((prev) => prev.map(pItem =>
+        pItem.id === id ? { ...pItem, startImageBase64: undefined, startImagePreview: undefined } : pItem
+      ));
+    };
+
+    A.useEffect(() => {
+      setVideosPerFolderState(autoSaveConf?.videosPerFolder || 10);
+    }, [autoSaveConf?.videosPerFolder]);
+
+    A.useEffect(() => {
+      const unsubLog = window.electronAPI.onBrowserLog((logData) => {
+        let hasNewSuccess = false;
+        setExtState((prev) => {
+          const currentPrompts = prev?.prompts || [];
+          if (logData.status === "finished") {
+            const updatedPrompts = currentPrompts.map((pItem) =>
+              pItem && (["queued", "generating_base", "extracting_frame", "generating_from_frame", "merging"].includes(pItem.extendedStatus || "") || ["submitting", "processing", "running"].includes(pItem.status))
+                ? { ...pItem, status: "idle", extendedStatus: "stopped", message: isVi ? "Đã dừng" : "Stopped" }
+                : pItem
+            );
+            return { ...prev, prompts: updatedPrompts, isRunning: false };
+          }
+
+          if (!currentPrompts.some((pItem) => pItem && pItem.id === logData.promptId) && logData.promptId) {
+            return prev;
+          }
+
+          const updatedPrompts = currentPrompts.map((pItem) => {
+            if (!pItem || pItem.id !== logData.promptId) return pItem;
+
+            const logExtStatus = logData.status;
+            const logBaseStatus = logData.status;
+
+            const changes = {
+              message: logData.message,
+              videoUrl: logData.videoUrl || pItem.videoUrl,
+              tempVideoPath: logData.tempVideoPath || pItem.tempVideoPath,
+              lastFramePath: logData.lastFramePath || pItem.lastFramePath,
+            };
+
+            if (logExtStatus && ["idle", "queued", "generating_base", "extracting_frame", "generating_from_frame", "merging", "success", "failed", "stopped"].includes(logExtStatus)) {
+              changes.extendedStatus = logExtStatus;
+            } else {
+              changes.extendedStatus = pItem.extendedStatus;
+            }
+
+            if (logBaseStatus && ["idle", "running", "success", "error", "queued", "downloading", "submitting", "processing", "pending"].includes(logBaseStatus)) {
+              changes.status = logBaseStatus;
+            } else {
+              changes.status = pItem.status;
+            }
+
+            if (logExtStatus === "success" && logData.videoUrl) {
+              changes.status = "success";
+              if (!pItem.videoUrl) {
+                addVideoAction({
+                  id: `${pItem.id}-extended-${Date.now()}`,
+                  promptId: pItem.id,
+                  promptText: isVi ? "Video mở rộng (Nhiều prompt)" : "Extended Video (Multi-prompt)",
+                  status: "success",
+                  videoUrl: logData.videoUrl,
+                  aspectRatio: prev?.aspectRatio || "LANDSCAPE",
+                });
+                hasNewSuccess = true;
               }
-              : We
-          )
-        );
-      },
-      Ie = async () => {
-        if (S) return;
-        const F = await window.electronAPI.importPromptsFromFile();
-        if (F.success && F.prompts) {
-          const ge = F.prompts.map((xe) => ({
-            id: `prompt-${Date.now()}-${Math.random()}`,
-            text: xe,
-            status: "idle",
-            message: "Sẵn sàng",
-          }));
-          ne((xe) => [...(xe || []), ...ge]),
-            v(`Đã nhập ${ge.length} prompt từ file.`, "success");
-        } else
-          F.error &&
-            F.error !== "No file selected" &&
-            v(`Lỗi nhập file: ${F.error}`, "error");
-      },
-      lt = (F) => {
-        if (!F) return;
-        const xe = (i || []).filter((D) => D && D.storyId === F);
-        if (xe.length === 0) {
-          v("Không tìm thấy prompt.", "info");
-          return;
-        }
-        const We = xe.map((D) => ({
-          id: `prompt-${Date.now()}-${Math.random()}`,
-          text: D.prompt || "",
-          status: "idle",
-          message: "Sẵn sàng",
-        }));
-        ne(We), H(new Set()), v(`Đã tải ${We.length} prompt.`, "success");
-      },
-      Ge = (F, ge, xe) => {
-        if (F) {
-          const We = (p.prompts || []).findIndex((D) => D.id === xe);
-          window.electronAPI.downloadVideo({
-            url: F,
-            promptText: String(ge),
-            savePath: null,
-            promptIndex: We >= 0 ? We : 0,
+            } else if (logExtStatus === "failed") {
+              changes.status = "error";
+            } else if (logExtStatus === "stopped") {
+              changes.status = "idle";
+            } else if (logExtStatus === "queued") {
+              changes.status = "queued";
+            } else if (logExtStatus) {
+              changes.status = "processing";
+            }
+
+            return { ...pItem, ...changes };
           });
+
+          const isAnyRunning = updatedPrompts.some((pItem) =>
+            pItem && (["queued", "generating_base", "extracting_frame", "generating_from_frame", "merging"].includes(pItem.extendedStatus || "") || ["submitting", "processing", "running"].includes(pItem.status))
+          );
+
+          return {
+            ...(prev || { prompts: [], isRunning: false, aspectRatio: "LANDSCAPE", concurrentStreams: 1 }),
+            prompts: updatedPrompts,
+            isRunning: isAnyRunning,
+          };
+        });
+
+        if (hasNewSuccess) {
+          toastAction(isVi ? "Video mở rộng đã hoàn thành và thêm vào Lịch sử!" : "Extended video completed and added to History!", "success");
         }
-      },
-      nt = A.useMemo(() => {
-        const F = p.prompts || [];
-        return P
-          ? F.filter(
-            (ge) =>
-              ge && (ge.status === "error" || ge.extendedStatus === "failed")
-          )
-          : F;
-      }, [p.prompts, P]);
+      });
+
+      const unsubDown = window.electronAPI.onDownloadComplete(({ success, path, error }) => {
+        if (success && path && path !== "Skipped") {
+          toastAction(isVi ? `Video đã lưu tại: ${path}` : `Video saved at: ${path}`, "success");
+        } else if (!success && error && error !== "Download canceled") {
+          toastAction(isVi ? `Lỗi tải video: ${error}` : `Video download error: ${error}`, "error");
+        }
+      });
+
+      return () => {
+        unsubLog();
+        unsubDown();
+      };
+    }, [addVideoAction, toastAction, setExtState, isVi]);
+
+    const storyOptions = A.useMemo(() => {
+      const list = storiesList || [];
+      const mapped = list.map((sItem) => ({ id: sItem.id, title: sItem.title }));
+      const manualMap = new Map();
+      (promptsList || []).forEach((pItem) => {
+        if (pItem && pItem.storyId && pItem.storyId.startsWith("manual-")) {
+          if (!manualMap.has(pItem.storyId)) {
+            manualMap.set(pItem.storyId, pItem.storyTitle || `Manual ${pItem.storyId}`);
+          }
+        }
+      });
+      manualMap.forEach((title, id) => {
+        mapped.push({ id, title });
+      });
+      mapped.sort((a, b) => a.id.localeCompare(b.id));
+      return mapped;
+    }, [storiesList, promptsList]);
+
+    const stats = A.useMemo(() => {
+      const total = promptsArr.length;
+      if (total === 0) return { successCount: 0, errorCount: 0, pendingCount: 0, totalCount: 0, statusMessage: translate("extendedVideo.ready"), completedPercentage: 0 };
+
+      let succ = 0, err = 0, pend = 0, run = 0;
+      promptsArr.forEach((pItem) => {
+        if (!pItem) return;
+        const st = pItem.extendedStatus || pItem.status;
+        if (st === "success") succ++;
+        else if (st === "failed" || pItem.status === "error") err++;
+        else if (st === "idle" || st === "queued" || st === "stopped") pend++;
+        else if (st) run++;
+      });
+
+      const doneCount = succ + err;
+      let msg = isVi ? `Đang chờ ${pend}/${total}...` : `Pending ${pend}/${total}...`;
+      if (isRunningGlobal || run > 0) {
+        msg = isVi ? `Đang xử lý ${doneCount}/${total}... (${run} đang chạy)` : `Processing ${doneCount}/${total}... (${run} running)`;
+      } else if (doneCount > 0 && doneCount < total && total > 0) {
+        msg = translate("createVideoFromFrames.promptStopped");
+      } else if (doneCount === total && total > 0) {
+        msg = translate("createVideoFromFrames.success") + "!";
+      }
+
+      const pct = total > 0 ? (succ / total) * 100 : 0;
+      return { successCount: succ, errorCount: err, pendingCount: pend, totalCount: total, statusMessage: msg, completedPercentage: pct };
+    }, [promptsArr, isRunningGlobal, isVi, translate]);
+
+    const handleSelectDir = async () => {
+      const path = await window.electronAPI.selectDownloadDirectory();
+      if (path) setAutoSaveConf((prev) => ({ ...prev, path }));
+    };
+
+    const checkPlan = async () => {
+      await refreshUser();
+      await new Promise((res) => setTimeout(res, 150));
+      const userObj = JSON.parse(localStorage.getItem("currentUser") || "null");
+      if (!userObj || !userObj.subscription || !userObj.subscription.end_date || new Date(userObj.subscription.end_date) < new Date()) {
+        toastAction(isVi ? "Bạn cần nâng cấp gói để tiếp tục." : "Please upgrade plan.", "error");
+        setActiveViewProp(je.PACKAGES);
+        return false;
+      }
+      if (userObj.subscription.package_name === $k) {
+        toastAction(isVi ? 'Tính năng "Video Mở Rộng" yêu cầu Gói Pro hoặc cao hơn.' : 'Extended Video feature requires Pro plan or higher.', "info");
+        setActiveViewProp(je.PACKAGES);
+        return false;
+      }
+      return true;
+    };
+
+    const startExtendedGeneration = async (targets) => {
+      if (!(await checkPlan())) return;
+      const currentPrompts = extState?.prompts || [];
+      const targetIds = new Set(targets.map((tItem) => tItem.id));
+      const toRun = currentPrompts.filter((pItem) => pItem && targetIds.has(pItem.id));
+
+      if (toRun.length === 0) {
+        toastAction(isVi ? "Không có prompt nào hợp lệ được chọn." : "No valid prompt selected.", "info");
+        return;
+      }
+
+      setExtState((prev) => ({ ...prev, isRunning: true }));
+      updateExtStatePrompts((prev) => (prev || []).map((pItem) =>
+        pItem && targetIds.has(pItem.id)
+          ? { ...pItem, status: "queued", extendedStatus: "queued", message: isVi ? "Đang chờ..." : "Pending...", videoUrl: undefined, tempVideoPath: undefined, lastFramePath: undefined }
+          : pItem
+      ));
+
+      const mappedToRun = toRun.map((pItem) => ({
+        ...pItem,
+        originalIndex: (extState?.prompts || []).findIndex((x) => x && x.id === pItem.id)
+      }));
+
+      const firstPrompt = mappedToRun.find(pItem => pItem.originalIndex === 0);
+      const initialImageBase64 = firstPrompt ? firstPrompt.startImageBase64 : null;
+      const useInitialImage = !!initialImageBase64;
+
+      window.electronAPI.videoCreateExtended({
+        prompts: mappedToRun,
+        authToken: currentUser.token,
+        aspectRatio: aspectGlobal,
+        autoSaveConfig: autoSaveConf,
+        currentUser: currentUser,
+        concurrentStreams: streamsGlobal,
+        activeCookie: activeCookieItem,
+        localCookies: cookieListArray,
+        useInitialImage: useInitialImage,
+        initialImageBase64: initialImageBase64
+      });
+    };
+
+    const handleStopAll = () => {
+      window.electronAPI.stopBrowserAutomation();
+      setExtState((prev) => ({ ...prev, isRunning: false }));
+      updateExtStatePrompts((prev) => (prev || []).map((pItem) =>
+        pItem && (["queued", "generating_base", "extracting_frame", "generating_from_frame", "merging"].includes(pItem.extendedStatus || "") || ["submitting", "processing", "running"].includes(pItem.status))
+          ? { ...pItem, status: "idle", extendedStatus: "stopped", message: translate("createVideoFromFrames.promptStopped") }
+          : pItem
+      ));
+    };
+
+    const filteredRenderPrompts = A.useMemo(() => {
+      if (showErrorOnly) return promptsArr.filter(pItem => pItem && (pItem.status === "error" || pItem.extendedStatus === "failed"));
+      return promptsArr;
+    }, [promptsArr, showErrorOnly]);
+
     return c.jsxs("div", {
       className: "animate-fade-in h-full flex flex-col",
       children: [
         c.jsx("h1", {
-          className: "text-xl font-bold text-light mb-2",
-          children: "Tạo Video Mở Rộng",
+          className: "text-3xl font-bold text-light mb-2",
+          children: translate("extendedVideo.title"),
         }),
         c.jsx("p", {
           className: "text-dark-text mb-4",
-          children:
-            "Tạo video dài từ nhiều prompt, nối tiếp cảnh dựa trên khung hình cuối của video trước. (Yêu cầu gói Pro)",
+          children: translate("extendedVideo.desc"),
         }),
         c.jsx("div", {
           className: "bg-secondary p-3 rounded-lg shadow-md mb-3 flex-shrink-0",
@@ -49020,23 +44063,16 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Tỷ lệ",
+                    children: translate("extendedVideo.aspectRatio"),
                   }),
                   c.jsxs("select", {
-                    value: E,
-                    onChange: (F) => le(F.target.value),
-                    className:
-                      "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
-                    disabled: S,
+                    value: aspectGlobal,
+                    onChange: (e) => setExtState(prev => ({ ...prev, aspectRatio: e.target.value })),
+                    className: "w-full p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
+                    disabled: isRunningGlobal,
                     children: [
-                      c.jsx("option", {
-                        value: "LANDSCAPE",
-                        children: "16:9 Ngang",
-                      }),
-                      c.jsx("option", {
-                        value: "PORTRAIT",
-                        children: "9:16 Dọc",
-                      }),
+                      c.jsx("option", { value: "LANDSCAPE", children: translate("extendedVideo.landscape") }),
+                      c.jsx("option", { value: "PORTRAIT", children: translate("extendedVideo.portrait") }),
                     ],
                   }),
                 ],
@@ -49046,28 +44082,21 @@ const Nk = 1e4,
                 children: [
                   c.jsx("label", {
                     className: "block text-xs font-medium text-dark-text mb-1",
-                    children: "Luồng (1)",
+                    children: translate("extendedVideo.streams"),
                   }),
                   c.jsx("input", {
                     type: "number",
-                    value: R,
-                    onChange: (F) =>
-                      be(
-                        Math.max(1, Math.min(3, parseInt(F.target.value) || 1))
-                      ),
+                    value: streamsGlobal,
+                    onChange: (e) => setExtState(prev => ({ ...prev, concurrentStreams: Math.max(1, Math.min(3, parseInt(e.target.value) || 1)) })),
                     min: "1",
                     max: "1",
-                    className:
-                      "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
-                    disabled: S,
-                    title:
-                      "Số luồng xử lý song song (khuyến nghị 1-3 cho quy trình này)",
+                    className: "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px]",
+                    disabled: isRunningGlobal,
+                    title: translate("extendedVideo.streamsTitle"),
                   }),
                 ],
               }),
-              c.jsx("div", {
-                className: "h-6 border-l border-border-color mx-2 self-center",
-              }),
+              c.jsx("div", { className: "h-6 border-l border-border-color mx-2 self-center" }),
               c.jsxs("div", {
                 className: "flex items-end gap-2 self-end flex-wrap",
                 children: [
@@ -49075,32 +44104,30 @@ const Nk = 1e4,
                     className: "flex-shrink-0",
                     children: [
                       c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1",
-                        children: "Tải prompt từ Story",
+                        className: "block text-xs font-medium text-dark-text mb-1",
+                        children: translate("extendedVideo.loadFromStory"),
                       }),
                       c.jsxs("select", {
-                        onChange: (F) => lt(F.target.value),
-                        className:
-                          "p-2 text-xs bg-primary rounded-full border border-border-color h-[34px] w-40",
-                        disabled: S,
+                        onChange: (e) => {
+                          const sid = e.target.value;
+                          if (!sid) return;
+                          const matches = (promptsList || []).filter((p) => p && p.storyId === sid);
+                          if (matches.length === 0) {
+                            toastAction(isVi ? "Không tìm thấy prompt." : "Prompt not found.", "info");
+                            return;
+                          }
+                          const newP = matches.map((m) => ({ id: `prompt-${Date.now()}-${Math.random()}`, text: m.prompt || "", status: "idle", message: translate("extendedVideo.ready") }));
+                          updateExtStatePrompts(newP);
+                          setSelectedIds(new Set());
+                          toastAction(isVi ? `Đã tải ${newP.length} prompt.` : `Loaded ${newP.length} prompts.`, "success");
+                          e.target.value = "";
+                        },
+                        className: "p-2 text-xs bg-primary rounded-full border border-border-color h-[34px] w-40",
+                        disabled: isRunningGlobal,
                         defaultValue: "",
                         children: [
-                          c.jsx("option", {
-                            value: "",
-                            disabled: !0,
-                            children: "Chọn Story...",
-                          }),
-                          (Re || []).map((F) =>
-                            c.jsxs(
-                              "option",
-                              {
-                                value: F.id,
-                                children: [F.title.substring(0, 35), "..."],
-                              },
-                              F.id
-                            )
-                          ),
+                          c.jsx("option", { value: "", disabled: true, children: translate("extendedVideo.selectStory") }),
+                          storyOptions.map((st) => c.jsx("option", { value: st.id, children: st.title.length > 35 ? st.title.substring(0, 35) + "..." : st.title }, st.id)),
                         ],
                       }),
                     ],
@@ -49108,30 +44135,28 @@ const Nk = 1e4,
                   c.jsxs("div", {
                     className: "flex-shrink-0",
                     children: [
-                      c.jsx("label", {
-                        className:
-                          "block text-xs font-medium text-dark-text mb-1 opacity-0",
-                        children: ".",
-                      }),
+                      c.jsx("label", { className: "block text-xs font-medium text-dark-text mb-1 opacity-0", children: "." }),
                       c.jsxs("button", {
-                        onClick: Ie,
-                        disabled: S,
-                        className:
-                          "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-1 text-xs h-[34px] w-40",
-                        children: [
-                          c.jsx(Dg, {
-                            className: "h-4 w-4",
-                          }),
-                          " Từ file TXT",
-                        ],
+                        onClick: async () => {
+                          if (isRunningGlobal) return;
+                          const res = await window.electronAPI.importPromptsFromFile();
+                          if (res.success && res.prompts) {
+                            const mapped = res.prompts.map(p => ({ id: `prompt-${Date.now()}-${Math.random()}`, text: p, status: "idle", message: translate("extendedVideo.ready") }));
+                            updateExtStatePrompts(prev => [...(prev || []), ...mapped]);
+                            toastAction(isVi ? `Đã nhập ${mapped.length} prompt.` : `Imported ${mapped.length} prompts.`, "success");
+                          } else if (res.error && res.error !== "No file selected") {
+                            toastAction(isVi ? `Lỗi nhập file: ${res.error}` : `Import error: ${res.error}`, "error");
+                          }
+                        },
+                        disabled: isRunningGlobal,
+                        className: "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-1 text-xs h-[34px] w-40",
+                        children: [c.jsx(Dg, { className: "h-4 w-4" }), ` ${translate("extendedVideo.importTxt")}`],
                       }),
                     ],
                   }),
                 ],
               }),
-              c.jsx("div", {
-                className: "h-6 border-l border-border-color mx-2 self-center",
-              }),
+              c.jsx("div", { className: "h-6 border-l border-border-color mx-2 self-center" }),
               c.jsxs("div", {
                 className: "flex flex-col flex-shrink-0",
                 children: [
@@ -49142,43 +44167,17 @@ const Nk = 1e4,
                       c.jsxs("div", {
                         className: "relative",
                         children: [
-                          c.jsx("input", {
-                            type: "checkbox",
-                            id: "allow-overwrite-toggle-extended",
-                            className: "sr-only peer",
-                            checked: !f.allowOverwrite,
-                            onChange: () =>
-                              h((F) => ({
-                                ...F,
-                                allowOverwrite: !F.allowOverwrite,
-                              })),
-                            disabled: S,
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
+                          c.jsx("input", { type: "checkbox", id: "allow-overwrite-toggle-extended", className: "sr-only peer", checked: !autoSaveConf.allowOverwrite, onChange: () => setAutoSaveConf(prev => ({ ...prev, allowOverwrite: !prev.allowOverwrite })), disabled: isRunningGlobal }),
+                          c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                          c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                         ],
                       }),
-                      c.jsx("span", {
-                        className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "Xóa file cũ",
-                      }),
+                      c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium", children: translate("extendedVideo.allowOverwrite") }),
                     ],
                   }),
                   c.jsx("div", {
                     className: "h-[34px] flex items-center",
-                    children: c.jsx("span", {
-                      className:
-                        "text-dark-text text-xs font-medium whitespace-nowrap",
-                      children: f.allowOverwrite
-                        ? "TẮT (Giữ file)"
-                        : "BẬT (Xóa file)",
-                    }),
+                    children: c.jsx("span", { className: "text-dark-text text-xs font-medium whitespace-nowrap", children: autoSaveConf.allowOverwrite ? translate("extendedVideo.keepFile") : translate("extendedVideo.deleteFile") }),
                   }),
                 ],
               }),
@@ -49192,52 +44191,19 @@ const Nk = 1e4,
                       c.jsxs("div", {
                         className: "relative",
                         children: [
-                          c.jsx("input", {
-                            type: "checkbox",
-                            id: "auto-save-toggle-extended",
-                            className: "sr-only peer",
-                            checked: f.enabled,
-                            onChange: () =>
-                              h((F) => ({
-                                ...F,
-                                enabled: !F.enabled,
-                              })),
-                            disabled: S,
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
+                          c.jsx("input", { type: "checkbox", id: "auto-save-toggle-extended", className: "sr-only peer", checked: autoSaveConf.enabled, onChange: () => setAutoSaveConf(prev => ({ ...prev, enabled: !prev.enabled })), disabled: isRunningGlobal }),
+                          c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                          c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                         ],
                       }),
-                      c.jsx("span", {
-                        className: "ml-2 text-dark-text text-xs font-medium",
-                        children: "Tự động lưu",
-                      }),
+                      c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium", children: translate("extendedVideo.autoSave") }),
                     ],
                   }),
                   c.jsxs("div", {
                     className: "flex items-center",
                     children: [
-                      c.jsx("p", {
-                        className:
-                          "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-32 truncate",
-                        title: f.path || "Chưa chọn...",
-                        children: f.path || "Chưa chọn...",
-                      }),
-                      c.jsx("button", {
-                        onClick: w,
-                        disabled: !f.enabled || S,
-                        className:
-                          "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50 flex items-center gap-1",
-                        children: c.jsx(Iu, {
-                          className: "h-4 w-4",
-                        }),
-                      }),
+                      c.jsx("p", { className: "bg-primary border border-r-0 border-border-color text-dark-text text-xs rounded-l-md h-[34px] flex items-center px-2 w-32 truncate", title: autoSaveConf.path || translate("extendedVideo.savePathDefault"), children: autoSaveConf.path || translate("extendedVideo.savePathDefault") }),
+                      c.jsx("button", { onClick: handleSelectDir, disabled: !autoSaveConf.enabled || isRunningGlobal, className: "bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-r-md text-xs h-[34px] disabled:opacity-50 flex items-center gap-1", children: c.jsx(Iu, { className: "h-4 w-4" }) }),
                     ],
                   }),
                 ],
@@ -49252,116 +44218,49 @@ const Nk = 1e4,
                       c.jsxs("div", {
                         className: "relative",
                         children: [
-                          c.jsx("input", {
-                            type: "checkbox",
-                            id: "split-folders-toggle-extended",
-                            className: "sr-only peer",
-                            checked: f.splitFolders,
-                            onChange: () =>
-                              h((F) => ({
-                                ...F,
-                                splitFolders: !F.splitFolders,
-                              })),
-                            disabled: !f.enabled || S,
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50",
-                          }),
-                          c.jsx("div", {
-                            className:
-                              "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50",
-                          }),
+                          c.jsx("input", { type: "checkbox", id: "split-folders-toggle-extended", className: "sr-only peer", checked: autoSaveConf.splitFolders, onChange: () => setAutoSaveConf(prev => ({ ...prev, splitFolders: !prev.splitFolders })), disabled: !autoSaveConf.enabled || isRunningGlobal }),
+                          c.jsx("div", { className: "block bg-gray-400 w-9 h-5 rounded-full peer-checked:bg-green-500 transition peer-disabled:opacity-50" }),
+                          c.jsx("div", { className: "dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full peer-disabled:opacity-50" }),
                         ],
                       }),
-                      c.jsx("span", {
-                        className:
-                          "ml-2 text-dark-text text-xs font-medium whitespace-nowrap",
-                        children: "video/phần",
-                      }),
+                      c.jsx("span", { className: "ml-2 text-dark-text text-xs font-medium whitespace-nowrap", children: translate("extendedVideo.videosPerFolder") }),
                     ],
                   }),
                   c.jsx("div", {
                     className: "flex items-center",
-                    children: c.jsx("input", {
-                      type: "number",
-                      value: isNaN(V) ? "" : V,
-                      onChange: Me,
-                      onBlur: () => {
-                        isNaN(V) && _(10);
-                      },
-                      min: "1",
-                      disabled: !f.enabled || !f.splitFolders || S,
-                      className:
-                        "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] disabled:opacity-50",
-                    }),
+                    children: c.jsx("input", { type: "number", value: isNaN(videosPerFolderState) ? "" : videosPerFolderState, onChange: (e) => { const v = parseInt(e.target.value); v > 0 ? (setVideosPerFolderState(v), setAutoSaveConf(prev => ({ ...prev, videosPerFolder: v }))) : e.target.value === "" && setVideosPerFolderState(NaN); }, onBlur: () => { isNaN(videosPerFolderState) && setVideosPerFolderState(10); }, min: "1", disabled: !autoSaveConf.enabled || !autoSaveConf.splitFolders || isRunningGlobal, className: "w-20 p-2 text-xs bg-primary rounded-md border border-border-color h-[34px] disabled:opacity-50" }),
                   }),
                 ],
               }),
-              c.jsx("div", {
-                className: "flex-grow",
-              }),
+              c.jsx("div", { className: "flex-grow" }),
               c.jsx("div", {
                 className: "flex items-end gap-2 flex-wrap flex-shrink-0",
-                children: S
+                children: isRunningGlobal
                   ? c.jsxs("button", {
-                    onClick: ut,
-                    className:
-                      "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-2 text-xs h-[34px]",
-                    children: [
-                      " ",
-                      c.jsx(ku, {
-                        className: "h-4 w-4",
-                      }),
-                      " Dừng ",
-                    ],
+                    onClick: handleStopAll,
+                    className: "bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-2 text-xs h-[34px]",
+                    children: [c.jsx(ku, { className: "h-4 w-4" }), ` ${translate("extendedVideo.stop")} `],
                   })
                   : c.jsxs("div", {
                     className: "flex items-center gap-2",
                     children: [
-                      T.some(
-                        (F) =>
-                          F && F.status !== "success" && F.status !== "idle"
-                      ) &&
+                      promptsArr.some((F) => F && F.status !== "success" && F.status !== "idle") &&
                       c.jsxs("button", {
-                        onClick: we,
-                        className:
-                          "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-1 text-xs h-[34px]",
-                        children: [
-                          c.jsx(ja, {
-                            className: "h-4 w-4",
-                          }),
-                          " Chạy lại chưa xong",
-                        ],
+                        onClick: () => startExtendedGeneration(promptsArr.filter(p => p.status !== "success")),
+                        className: "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-1 text-xs h-[34px]",
+                        children: [c.jsx(ja, { className: "h-4 w-4" }), ` ${translate("extendedVideo.runUnfinished")}`],
                       }),
-                      se > 0 &&
+                      stats.errorCount > 0 &&
                       c.jsxs("button", {
-                        onClick: Be,
-                        className:
-                          "bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-1 text-xs h-[34px]",
-                        children: [
-                          c.jsx(Pg, {
-                            className: "h-4 w-4",
-                          }),
-                          " Chạy lại ",
-                          se,
-                          " lỗi",
-                        ],
+                        onClick: () => startExtendedGeneration(promptsArr.filter(p => p.status === "error")),
+                        className: "bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-3 rounded-full flex items-center justify-center gap-1 text-xs h-[34px]",
+                        children: [c.jsx(Pg, { className: "h-4 w-4" }), ` ${translate("extendedVideo.retryFailed").replace("{count}", stats.errorCount)}`],
                       }),
                       c.jsxs("button", {
-                        onClick: oe,
-                        disabled: T.length === 0,
-                        className:
-                          "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-2 text-xs h-[34px]",
-                        children: [
-                          " ",
-                          c.jsx(Ps, {
-                            className: "h-4 w-4",
-                          }),
-                          " Chạy tất cả (",
-                          T.length,
-                          ") ",
-                        ],
+                        onClick: () => startExtendedGeneration(promptsArr),
+                        disabled: promptsArr.length === 0,
+                        className: "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-full disabled:bg-gray-400 flex items-center justify-center gap-2 text-xs h-[34px]",
+                        children: [c.jsx(Ps, { className: "h-4 w-4" }), ` ${translate("extendedVideo.runAll").replace("{count}", promptsArr.length)} `],
                       }),
                     ],
                   }),
@@ -49370,8 +44269,7 @@ const Nk = 1e4,
           }),
         }),
         c.jsxs("div", {
-          className:
-            "mb-3 bg-secondary p-2 rounded-lg shadow-inner flex-shrink-0",
+          className: "mb-3 bg-secondary p-2 rounded-lg shadow-inner flex-shrink-0",
           children: [
             c.jsxs("div", {
               className: "flex justify-between items-center mb-1",
@@ -49382,87 +44280,33 @@ const Nk = 1e4,
                     c.jsxs("div", {
                       className: "flex items-center gap-1",
                       children: [
-                        " ",
-                        c.jsx("input", {
-                          type: "checkbox",
-                          id: "select-all-extended",
-                          checked:
-                            T.length > 0 &&
-                            G.size === T.filter((F) => F && F.id).length,
-                          onChange: Ee,
-                          disabled: S || T.length === 0,
-                          className:
-                            "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                        }),
-                        " ",
-                        c.jsxs("label", {
-                          htmlFor: "select-all-extended",
-                          className:
-                            "text-xs font-medium text-dark-text cursor-pointer",
-                          children: ["Chọn tất cả (", G.size, ")"],
-                        }),
-                        " ",
+                        c.jsx("input", { type: "checkbox", id: "select-all-extended", checked: promptsArr.length > 0 && selectedIds.size === promptsArr.filter((F) => F && F.id).length, onChange: () => { const ids = promptsArr.map(p => p.id); selectedIds.size === ids.length ? setSelectedIds(new Set()) : setSelectedIds(new Set(ids)); }, disabled: isRunningGlobal || promptsArr.length === 0, className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent" }),
+                        c.jsx("label", { htmlFor: "select-all-extended", className: "text-xs font-medium text-dark-text cursor-pointer", children: translate("extendedVideo.selectAll").replace("{count}", selectedIds.size) }),
                       ],
                     }),
-                    G.size > 0 &&
-                    !S &&
+                    selectedIds.size > 0 && !isRunningGlobal &&
                     c.jsxs("button", {
-                      onClick: dt,
-                      className:
-                        "bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-3 rounded-full border border-cyan-700 flex items-center gap-1",
-                      children: [
-                        " ",
-                        c.jsx(Ps, {
-                          className: "h-3 w-3",
-                        }),
-                        " Chạy (",
-                        G.size,
-                        ") ",
-                      ],
+                      onClick: () => startExtendedGeneration(promptsArr.filter(p => selectedIds.has(p.id))),
+                      className: "bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold py-1 px-3 rounded-full border border-cyan-700 flex items-center gap-1",
+                      children: [c.jsx(Ps, { className: "h-3 w-3" }), ` ${translate("extendedVideo.runSelected").replace("{count}", selectedIds.size)} `],
                     }),
                     c.jsxs("button", {
-                      onClick: St,
-                      disabled: S || T.length === 0,
-                      className:
-                        "text-red-500 hover:text-red-700 font-bold py-1 px-2 rounded-full disabled:opacity-50 flex items-center gap-1 text-xs",
-                      children: [
-                        " ",
-                        c.jsx($a, {
-                          className: "h-3 w-3",
-                        }),
-                        " Xóa tất cả ",
-                      ],
+                      onClick: () => { if (window.confirm(translate("extendedVideo.deleteAll") + "?")) { updateExtStatePrompts([]); setSelectedIds(new Set()); toastAction(isVi ? "Đã xóa tất cả prompts." : "Deleted all prompts.", "info"); } },
+                      disabled: isRunningGlobal || promptsArr.length === 0,
+                      className: "text-red-500 hover:text-red-700 font-bold py-1 px-2 rounded-full disabled:opacity-50 flex items-center gap-1 text-xs",
+                      children: [c.jsx($a, { className: "h-3 w-3" }), ` ${translate("extendedVideo.deleteAll")} `],
                     }),
                     c.jsxs("button", {
-                      onClick: ae,
-                      disabled: S,
-                      className:
-                        "bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-1 px-3 rounded-full border border-blue-200 disabled:opacity-50 flex items-center gap-1",
-                      children: [
-                        " ",
-                        c.jsx(Ua, {
-                          className: "h-3 w-3",
-                        }),
-                        " Thêm Prompt ",
-                      ],
+                      onClick: () => updateExtStatePrompts(prev => [...prev, { id: `prompt-${Date.now()}-${Math.random()}`, text: "", status: "idle", message: translate("extendedVideo.ready") }]),
+                      disabled: isRunningGlobal,
+                      className: "bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-1 px-3 rounded-full border border-blue-200 disabled:opacity-50 flex items-center gap-1",
+                      children: [c.jsx(Ua, { className: "h-3 w-3" }), ` ${translate("extendedVideo.addPrompt")} `],
                     }),
                     c.jsxs("div", {
                       className: "flex items-center",
                       children: [
-                        c.jsx("input", {
-                          type: "checkbox",
-                          id: "show-only-errors-extended",
-                          checked: P,
-                          onChange: (F) => Q(F.target.checked),
-                          className:
-                            "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                        }),
-                        c.jsx("label", {
-                          htmlFor: "show-only-errors-extended",
-                          className:
-                            "ml-2 text-xs font-medium text-dark-text cursor-pointer",
-                          children: "Chỉ hiển thị Lỗi",
-                        }),
+                        c.jsx("input", { type: "checkbox", id: "show-only-errors-extended", checked: showErrorOnly, onChange: (e) => setShowErrorOnly(e.target.checked), className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent" }),
+                        c.jsx("label", { htmlFor: "show-only-errors-extended", className: "ml-2 text-xs font-medium text-dark-text cursor-pointer", children: translate("extendedVideo.showError") }),
                       ],
                     }),
                   ],
@@ -49470,58 +44314,17 @@ const Nk = 1e4,
                 c.jsxs("div", {
                   className: "flex items-center gap-3 text-xs",
                   children: [
-                    c.jsx("span", {
-                      className: "font-semibold text-light",
-                      children: fe,
-                    }),
-                    c.jsxs("span", {
-                      className: "font-bold text-blue-600",
-                      children: ["Tổng: ", ee],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-green-600",
-                      children: ["Xong: ", $e],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-red-600",
-                      children: ["Lỗi: ", se],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-yellow-500",
-                      children: ["Chờ: ", U],
-                    }),
-                    c.jsxs("span", {
-                      className: "font-semibold text-accent",
-                      children: [Math.round(ke), "%"],
-                    }),
+                    c.jsx("span", { className: "font-semibold text-light", children: stats.statusMessage }),
+                    c.jsxs("span", { className: "font-bold text-blue-600", children: [`${translate("extendedVideo.total")}: `, stats.totalCount] }),
+                    c.jsxs("span", { className: "font-semibold text-green-600", children: [`${translate("extendedVideo.success")}: `, stats.successCount] }),
+                    c.jsxs("span", { className: "font-semibold text-red-600", children: [`${translate("extendedVideo.failed")}: `, stats.errorCount] }),
+                    c.jsxs("span", { className: "font-semibold text-yellow-500", children: [`${translate("extendedVideo.pending")}: `, stats.pendingCount] }),
+                    c.jsxs("span", { className: "font-semibold text-accent", children: [Math.round(stats.completedPercentage), "%"] }),
                     c.jsxs("div", {
                       className: "flex items-center gap-1",
                       children: [
-                        " ",
-                        c.jsx("button", {
-                          onClick: () => L(2),
-                          title: "2 cột",
-                          className: `p-1 rounded-md ${K === 2
-                            ? "bg-accent text-white"
-                            : "bg-primary hover:bg-hover-bg"
-                            }`,
-                          children: c.jsx(Ru, {
-                            className: "h-4 w-4",
-                          }),
-                        }),
-                        " ",
-                        c.jsx("button", {
-                          onClick: () => L(3),
-                          title: "3 cột",
-                          className: `p-1 rounded-md ${K === 3
-                            ? "bg-accent text-white"
-                            : "bg-primary hover:bg-hover-bg"
-                            }`,
-                          children: c.jsx(Du, {
-                            className: "h-4 w-4",
-                          }),
-                        }),
-                        " ",
+                        c.jsx("button", { onClick: () => setGridCols(2), title: translate("extendedVideo.col2"), className: `p-1 rounded-md ${gridCols === 2 ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`, children: c.jsx(Ru, { className: "h-4 w-4" }) }),
+                        c.jsx("button", { onClick: () => setGridCols(3), title: translate("extendedVideo.col3"), className: `p-1 rounded-md ${gridCols === 3 ? "bg-accent text-white" : "bg-primary hover:bg-hover-bg"}`, children: c.jsx(Du, { className: "h-4 w-4" }) }),
                       ],
                     }),
                   ],
@@ -49530,61 +44333,34 @@ const Nk = 1e4,
             }),
             c.jsx("div", {
               className: "w-full bg-primary rounded-full h-1.5 overflow-hidden",
-              children: c.jsx("div", {
-                className:
-                  "bg-accent h-1.5 rounded-full transition-all duration-300",
-                style: {
-                  width: `${ke}%`,
-                },
-              }),
+              children: c.jsx("div", { className: "bg-accent h-1.5 rounded-full transition-all duration-300", style: { width: `${stats.completedPercentage}%` } }),
             }),
           ],
         }),
         c.jsxs("div", {
           className: "flex-1 overflow-y-auto pr-2 -mr-2",
           children: [
-            T.length === 0 &&
+            promptsArr.length === 0 &&
             c.jsxs("div", {
-              className:
-                "flex flex-col items-center justify-center h-full text-dark-text opacity-70",
+              className: "flex flex-col items-center justify-center h-full text-dark-text opacity-70",
               children: [
-                c.jsx("p", {
-                  children: "Thêm prompt hoặc tải từ file/story để bắt đầu.",
-                }),
-                c.jsx("p", {
-                  className: "text-sm mt-2",
-                  children:
-                    "Prompt đầu tiên sẽ tạo video gốc (Text-to-Video).",
-                }),
-                c.jsx("p", {
-                  className: "text-sm",
-                  children:
-                    "Các prompt sau sẽ dùng frame cuối của video trước làm input (Image-to-Video).",
-                }),
+                c.jsx("p", { children: translate("extendedVideo.emptyState") }),
+                c.jsx("p", { className: "text-sm mt-2", children: translate("extendedVideo.emptyHint1") }),
+                c.jsx("p", { className: "text-sm", children: translate("extendedVideo.emptyHint2") }),
               ],
             }),
             c.jsx("div", {
-              className: `grid grid-cols-1 md:grid-cols-${K} gap-4`,
-              children: nt.map((F, ge) => {
+              className: `grid grid-cols-1 md:grid-cols-${gridCols} gap-4`,
+              children: filteredRenderPrompts.map((F, ge) => {
                 if (!F || !F.id) return null;
                 const xe = F.extendedStatus || F.status,
-                  We = F.message || "Sẵn sàng",
-                  D = [
-                    "running",
-                    "submitting",
-                    "processing",
-                    "queued",
-                    "generating_base",
-                    "extracting_frame",
-                    "generating_from_frame",
-                    "merging",
-                  ].includes(xe),
-                  me = T.findIndex((M) => M && M.id === F.id);
+                  We = F.message || translate("extendedVideo.ready"),
+                  D = ["running", "submitting", "processing", "queued", "generating_base", "extracting_frame", "generating_from_frame", "merging"].includes(xe),
+                  me = promptsArr.findIndex((M) => M && M.id === F.id);
                 return c.jsxs(
                   "div",
                   {
-                    className: `bg-secondary p-3 rounded-lg shadow-md flex flex-col gap-2 border ${G.has(F.id) ? "border-accent" : "border-transparent"
-                      }`,
+                    className: `bg-secondary p-3 rounded-lg shadow-md flex flex-col gap-2 border ${selectedIds.has(F.id) ? "border-accent" : "border-transparent"}`,
                     children: [
                       c.jsxs("div", {
                         className: "flex justify-between items-center",
@@ -49592,121 +44368,68 @@ const Nk = 1e4,
                           c.jsxs("div", {
                             className: "flex items-center gap-2",
                             children: [
-                              c.jsx("input", {
-                                type: "checkbox",
-                                checked: G.has(F.id),
-                                onChange: () => Qe(F.id),
-                                className:
-                                  "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent",
-                                disabled: S,
-                              }),
-                              c.jsxs("label", {
-                                className:
-                                  "block text-dark-text text-sm font-bold",
-                                children: ["Prompt #", me + 1],
-                              }),
+                              c.jsx("input", { type: "checkbox", checked: selectedIds.has(F.id), onChange: () => { const newSet = new Set(selectedIds); newSet.has(F.id) ? newSet.delete(F.id) : newSet.add(F.id); setSelectedIds(newSet); }, className: "h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent", disabled: isRunningGlobal }),
+                              c.jsx("label", { className: "block text-dark-text text-sm font-bold", children: translate("extendedVideo.promptNum").replace("{num}", me + 1) }),
                             ],
                           }),
                           c.jsxs("div", {
                             className: "flex items-center gap-1",
                             children: [
                               c.jsx("span", {
-                                className: `text-xs font-bold px-2 py-0.5 rounded-full ${xe === "success"
-                                  ? "bg-green-100 text-green-800"
-                                  : D
-                                    ? "bg-blue-100 text-blue-800"
-                                    : xe === "failed" || F.status === "error"
-                                      ? "bg-red-100 text-red-800"
-                                      : "bg-gray-100 text-gray-800"
-                                  }`,
+                                className: `text-xs font-bold px-2 py-0.5 rounded-full ${xe === "success" ? "bg-green-100 text-green-800" : D ? "bg-blue-100 text-blue-800" : xe === "failed" || F.status === "error" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"}`,
                                 children: We,
                               }),
-                              c.jsx("button", {
-                                onClick: () => Ve(F.id),
-                                disabled: S,
-                                title: "Chạy prompt này",
-                                className:
-                                  "p-1 hover:bg-green-100 rounded-full disabled:opacity-50",
-                                children: c.jsx(Ps, {
-                                  className: "h-4 w-4 text-green-600",
-                                }),
-                              }),
-                              c.jsx("button", {
-                                onClick: () => ve(F.id),
-                                disabled: S,
-                                title: "Xóa",
-                                className:
-                                  "p-1 hover:bg-red-100 rounded-full disabled:opacity-50",
-                                children: c.jsx(Oa, {
-                                  className: "h-4 w-4 text-red-500",
-                                }),
-                              }),
+                              c.jsx("button", { onClick: () => startExtendedGeneration([F]), disabled: isRunningGlobal, title: translate("extendedVideo.runThisPrompt"), className: "p-1 hover:bg-green-100 rounded-full disabled:opacity-50", children: c.jsx(Ps, { className: "h-4 w-4 text-green-600" }) }),
+                              c.jsx("button", { onClick: () => { updateExtStatePrompts(prev => prev.filter(p => p.id !== F.id)); const ns = new Set(selectedIds); ns.delete(F.id); setSelectedIds(ns); }, disabled: isRunningGlobal, title: translate("extendedVideo.delete"), className: "p-1 hover:bg-red-100 rounded-full disabled:opacity-50", children: c.jsx(Oa, { className: "h-4 w-4 text-red-500" }) }),
                             ],
                           }),
                         ],
                       }),
                       c.jsx("div", {
-                        className: `relative w-full aspect-video bg-primary rounded-md border border-border-color flex items-center justify-center overflow-hidden group ${D ? "rainbow-border-running" : ""
-                          }`,
-                        children:
-                          F.status === "success" && F.videoUrl
-                            ? c.jsxs(c.Fragment, {
-                              children: [
-                                c.jsx(
-                                  "video",
-                                  {
-                                    controls: !0,
-                                    className: "w-full h-full object-contain",
-                                    loop: !0,
-                                    children: c.jsx("source", {
-                                      src: F.videoUrl,
-                                      type: "video/mp4",
-                                    }),
-                                  },
-                                  F.videoUrl
-                                ),
-                                c.jsx("div", {
-                                  className:
-                                    "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity",
-                                  children: c.jsx("button", {
-                                    onClick: () =>
-                                      Ge(F.videoUrl, "extended_video", F.id),
-                                    className:
-                                      "bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg",
-                                    children: "Tải video",
-                                  }),
-                                }),
-                              ],
-                            })
-                            : D
-                              ? c.jsxs("div", {
-                                className: "text-center",
-                                children: [
-                                  c.jsx(Ut, {}),
-                                  c.jsxs("p", {
-                                    className:
-                                      "mt-4 text-dark-text text-sm capitalize",
-                                    children: [xe, "..."],
-                                  }),
-                                ],
-                              })
-                              : c.jsx("div", {
-                                className: "text-center text-dark-text text-sm",
-                                children: c.jsx("p", {
-                                  children:
-                                    xe === "failed" || F.status === "error"
-                                      ? "Lỗi!"
-                                      : "Chờ chạy...",
-                                }),
+                        className: `relative w-full aspect-video bg-primary rounded-md border border-border-color flex items-center justify-center overflow-hidden group ${D ? "rainbow-border-running" : ""}`,
+                        children: F.status === "success" && F.videoUrl
+                          ? c.jsxs(c.Fragment, {
+                            children: [
+                              c.jsx("video", { controls: true, className: "w-full h-full object-contain bg-black", loop: true, children: c.jsx("source", { src: F.videoUrl, type: "video/mp4" }) }, F.videoUrl),
+                              c.jsx("div", {
+                                className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity",
+                                children: c.jsx("button", { onClick: () => { window.electronAPI.downloadVideo({ url: F.videoUrl, promptText: String("extended_video"), savePath: null, promptIndex: me >= 0 ? me : 0 }); }, className: "bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg", children: translate("extendedVideo.download") }),
                               }),
+                            ],
+                          })
+                          : D
+                            ? c.jsxs("div", { className: "text-center", children: [c.jsx(Ut, {}), c.jsxs("p", { className: "mt-4 text-dark-text text-sm capitalize animate-pulse", children: [xe, "..."] })] })
+                            : c.jsx("div", { className: "text-center text-dark-text text-sm", children: c.jsx("p", { children: xe === "failed" || F.status === "error" ? translate("extendedVideo.error") : translate("extendedVideo.resultHere") }) }),
                       }),
-                      c.jsx("textarea", {
-                        value: F.text,
-                        onChange: (M) => Fe(F.id, M.target.value),
-                        className:
-                          "w-full p-2 bg-primary rounded-md border border-border-color text-sm resize-y h-24",
-                        readOnly: S,
-                        placeholder: "Nhập prompt để tạo video ở đây...",
+                      c.jsxs("div", {
+                        className: "flex gap-2 w-full",
+                        children: [
+                          c.jsx("textarea", {
+                            value: F.text,
+                            onChange: (e) => updateExtStatePrompts(prev => prev.map(p => p.id === F.id ? { ...p, text: e.target.value } : p)),
+                            className: "w-full p-2 bg-primary rounded-md border border-border-color text-sm resize-y h-24",
+                            readOnly: isRunningGlobal,
+                            placeholder: me === 0 ? translate("extendedVideo.promptPlaceholderFirst") : translate("extendedVideo.promptPlaceholderNext"),
+                          }),
+                          me === 0 && c.jsxs("div", {
+                            className: "flex flex-col items-center flex-shrink-0 w-24",
+                            children: [
+                              c.jsx("label", { className: "block text-[10px] font-medium text-dark-text mb-1 text-center leading-tight", children: translate("extendedVideo.startImage") }),
+                              c.jsxs("div", {
+                                className: "w-20 h-20 bg-primary rounded-lg border-2 border-dashed border-blue-400 flex items-center justify-center relative group overflow-hidden",
+                                children: [
+                                  F.startImagePreview ? c.jsxs(c.Fragment, {
+                                    children: [
+                                      c.jsx("img", { src: F.startImagePreview, className: "w-full h-full object-cover rounded-lg" }),
+                                      !isRunningGlobal && c.jsx("button", { onClick: () => handleClearImage(F.id), className: "absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10", title: translate("extendedVideo.deleteImage"), children: c.jsx(Oa, { className: "h-4 w-4" }) })
+                                    ]
+                                  }) : c.jsx("div", { className: "text-blue-400 opacity-60", children: c.jsx(Ua, { className: "h-6 w-6 mx-auto" }) }),
+                                  !isRunningGlobal && c.jsx("input", { type: "file", accept: "image/jpeg,image/png,image/webp", onChange: (e) => handleImageChange(e, F.id), className: "absolute inset-0 w-full h-full opacity-0 cursor-pointer" })
+                                ]
+                              })
+                            ]
+                          })
+                        ]
                       }),
                     ],
                   },
@@ -49803,7 +44526,7 @@ const Nk = 1e4,
       f(!1), i(je.DASHBOARD);
     },
       g = () => {
-        switch ((r && s !== je.API_KEY && i(je.API_KEY), s)) {
+        switch (s) {
           case je.DASHBOARD:
             return c.jsx(qm, {});
           case je.CREATE_STORY:
@@ -50089,26 +44812,190 @@ const Nk = 1e4,
     runThisPrompt: "Run this prompt",
   },
   t_ = {
-    sidebar: Jk,
-    dashboard: Xk,
-    userInfo: Qk,
-    common: Zk,
-    createStory: Wk,
-    clone: {
-      title: "Clone Video Beta",
-      desc: "Currently researching standard prompts.",
+    sidebar: {
+      dashboard: "Dashboard",
+      createStory: "Create Story",
+      youtubeScript: "YouTube Script",
+      createPrompts: "Video Prompts",
+      createThumbnail: "Create Thumbnail",
+      createWhiskImage: "Whisk/Nano Image",
+      createVideoVeo3: "Veo 3/3.1 Video",
+      createVideoFromImage: "Video From Image",
+      createVideoFromFrames: "Consistent Video (I2V)",
+      createExtendedVideo: "Extended Video",
+      autoCreate: "Auto Idea",
+      mergeVideos: "Merge Videos",
+      history: "History",
+      manageCookies: "Manage Cookies",
+      upgrade: "Upgrade Plan",
+      apiKeySettings: "API Key Settings",
+      support: "Support",
+      logout: "Logout",
+      createComic: "AI Comic (Beta)",
+    },
+    dashboard: {
+      title: "Dashboard",
+      totalVideos: "Total Videos Created",
+      successfulTotal: "Successful (Total)",
+      successfulMonth: "Successful (This Month)",
+      successfulToday: "Successful (Today)",
+      userInfo: {
+        title: "User Information",
+        name: "Name",
+        email: "Email",
+        package: "Current Plan",
+        expiry: "Expiry Date",
+      },
+      credits: {
+        saved: "You have saved",
+        creditsVeo3: "Veo3 Credits",
+        equivalent: "Equivalent to",
+      },
+    },
+    userInfo: {
+      toggleLanguage: "Change Language",
+      refresh: "Force Reload",
+    },
+    createPrompts: {
+      collection: {
+        editChar: "Edit Character",
+        addChar: "Add New Character",
+        charName: "Character Name",
+        charNamePlaceholder: "Example: John Doe",
+        charDesc: "Description (Character Sheet)",
+        charDescPlaceholder: "Detail appearance, personality, clothing...",
+        saveChanges: "Save Changes",
+        addToCollection: "Add to Collection",
+        cancel: "Cancel",
+        createFromImage: "Create Character from Image",
+        uploadHint: "Upload an image for AI to automatically generate a character description.",
+        analysisReq: "Analysis Request (Optional)",
+        analysisReqPlaceholder: "Enter additional instructions for AI...",
+        analyzing: "Analyzing...",
+        analyzeBtn: "Analyze & Fill Form",
+        charList: "Character List ({count})",
+        emptyList: "No characters saved yet.",
+        edit: "Edit",
+        delete: "Delete"
+      }
+    },
+    createStory: {
+      mainTitle: "Story Management",
+      description: "Create new stories, or generate titles and descriptions for existing ones.",
       tabs: {
-        script: "Get Script (Legacy)",
-        link: "Link -> Prompt",
-        upload: "Upload -> Prompt",
+        create: "Create Story",
+        edit: "Edit Story",
+        metadata: "Title/Description",
+        history: "History",
+      },
+      inputType: {
+        idea: "From Idea",
+        url: "From Article URL",
+      },
+      placeholders: {
+        idea: "Example: An astronaut lost on Mars...",
+        url: "https://example.com/article",
+        customWords: "Enter word count",
+        customStyle: "Enter your custom style",
+      },
+      length: {
+        "1000": "1000 words",
+        "2000": "2000 words",
+        "3500": "3500 words",
+        "7000": "7000 words",
+        "10000": "10000 words",
+        "20000": "20000 words",
+        title: "Estimated Length",
+        "1000Time": "~1.5 min read",
+        "2000Time": "~3 min read",
+        "3500Time": "~5 min read",
+        "7000Time": "~10 min read",
+        "10000Time": "~15 min read",
+        "20000Time": "~30 min read",
+      },
+      customTime: {
+        underMinute: "~ under 1 min read",
+        minutes: "min read",
+      },
+      style: {
+        title: "Style & Genre",
+        "Kể chuyện": "Storytelling",
+        "Hành động/Chiến đấu": "Action/Combat",
+        "Tình cảm/Lãng mạn": "Romance",
+        "Hài hước/Vui nhộn": "Comedy/Funny",
+        "Kinh dị/Horror": "Horror",
+        "Bí ẩn/Trinh thám": "Mystery/Detective",
+        "Fantasy/Thần thoại": "Fantasy/Mythology",
+        "Khoa học viễn tưởng": "Sci-Fi",
+        "Drama/Chính kịch": "Drama",
+        "Giáo dục/Học tập": "Educational",
+        "Phiêu lưu/Thám hiểm": "Adventure/Exploration",
+        "Đời thường/Slice of Life": "Slice of Life",
+        "Tin tức": "News",
+        "Hoạt Hình": "Animation",
+        "Thể thao": "Sports",
+        "Du lịch": "Travel",
+        "Thời trang": "Fashion",
+        "Ẩm thực": "Food",
+        "Công nghệ": "Technology",
+        "Âm nhạc": "Music",
+        "Phim tài liệu": "Documentary",
+        "Quảng cáo/Marketing": "Advertising/Marketing",
+        "Giáo dục": "Education",
+        "Truyền cảm hứng": "Inspirational",
+        "Hướng dẫn/Tutorial": "Tutorial",
+        "Tin tức/Nhật ký thời sự": "News/Current Events",
+        "Phim ngắn": "Short Film",
+        "Trailer phim": "Movie Trailer",
+        "Phát triển dựa trên nội dung gốc": "Develop from source"
+      },
+      buttons: {
+        create: "Generate Story",
+        update: "Update Story",
+      },
+      metadata: {
+        selectStory: "Select Story",
+        selectPlaceholder: "-- Select a story to generate Meta --",
+        button: "Generate Title, Desc & Hashtags",
+        title: "Title",
+        description: "Description",
+        hashtags: "Hashtags",
+      },
+      history: {
+        title: "Story History",
+        empty: "No stories have been created yet.",
+        metaTitle: "Metadata History",
+        metaEmpty: "No metadata created yet.",
+      },
+      notifications: {
+        updated: "Story updated successfully!",
+        created: "Story created successfully!",
+        metaCreated: "Metadata generated successfully!",
+      },
+      errors: {
+        fillInfo: "Please fill in all required fields.",
+        generic: "An error occurred while creating. Please try again.",
+        selectStory: "Please select a story first.",
+        storyNotFound: "Selected story not found.",
+        metaApiFailed: "API failed to return valid metadata.",
+        metaGeneric: "Error generating metadata.",
+        noStories: "No stories available",
+      },
+    },
+    clone: {
+      title: "YouTube Script & Clone",
+      desc: "Extract scripts, summarize, or rewrite videos to match your style.",
+      tabs: {
+        script: "Get Script",
+        link: "Link → Prompt",
+        upload: "Upload → Prompt",
         history: "History",
       },
       ui: {
         youtubeUrl: "YouTube Video URL",
-        request: "Requirement",
-        uploadHint:
-          "🔥 Upload Video for AI to listen to voice and split prompt by dialogue.",
-        styleLabel: "🎨 Choose Style & Voice (AI auto-describes)",
+        request: "Action Request",
+        uploadHint: "🔥 Upload Video for AI to listen and split scenes by dialogue.",
+        styleLabel: "🎨 Choose Style & Voice (AI will auto-describe)",
         videoName: "Video Name",
       },
       btn: {
@@ -50118,27 +45005,727 @@ const Nk = 1e4,
         exportTxt: "Export .TXT",
       },
       status: {
-        getting: "Getting script...",
-        analyzing: "Analyzing (Link Mode)...",
-        uploading: "1/3. Uploading",
+        getting: "Extracting script...",
+        analyzing: "Analyzing Video...",
+        uploading: "1/3. Uploading file...",
         processingVideo: "2/3. Server processing video...",
-        aiWriting: "3/3. AI writing prompt (Silent mode)...",
+        aiWriting: "3/3. AI is writing prompts...",
       },
       success: {
         done: "Success!",
-        cleanPrompt: "Clean Prompt Created (No intro)!",
-        complete: "Done! Clean prompt.",
-        exported: "TXT file exported!",
+        cleanPrompt: "Clean Prompts Created!",
+        complete: "Done! Clean prompts ready.",
+        exported: "Exported to TXT!",
       },
       error: {
-        noUrl: "Enter URL.",
-        noFile: "Select video file.",
-        videoFailed: "Video failed.",
+        noUrl: "Please enter a valid URL.",
+        noFile: "Please select a video file.",
+        videoFailed: "Failed to process video.",
       },
     },
-    createVideoFromFrames: e_,
-  },
-  n_ = {
+    createVideoFromFrames: {
+      title: "Consistent Video (Image-to-Video)",
+      description: "Upload Start and End images for AI to generate motion between frames.",
+      useCommonImages: "Use Shared Images",
+      commonStartImage: "Shared Start",
+      commonEndImage: "Shared End",
+      aspectRatio: "Aspect Ratio",
+      aspectLandscape: "16:9 Landscape",
+      aspectPortrait: "9:16 Portrait",
+      streams: "Concurrent Streams (1-10)",
+      importPrompts: "Import Prompts (TXT)",
+      autoSave: "Auto Save",
+      savePathDefault: "Not selected...",
+      savePathChange: "Change",
+      runAll: "Run All",
+      runUnfinished: "Run Unfinished",
+      retryFailed: "Retry {count} Failed",
+      stop: "Stop All",
+      deleteAll: "Delete All",
+      status: "Status",
+      total: "Total",
+      pending: "Pending",
+      success: "Success",
+      failed: "Failed",
+      addPrompt: "Add Prompt",
+      promptReady: "Ready to run...",
+      promptError: "Error!",
+      promptWaiting: "Waiting in queue...",
+      promptStopped: "Stopped",
+      promptPlaceholder: "Enter prompt describing the motion...",
+      startImage: "Start Image",
+      endImage: "End Image",
+      download: "Download",
+      runThisPrompt: "Run this prompt",
+    },
+    comic: {
+      title: "AI COMIC (BETA)",
+      desc: "Create professional comics from your script or ideas.",
+      selectExisting: "SELECT EXISTING STORY",
+      manualInput: "MANUAL INPUT",
+      selectPlaceholder: "-- Select a story from library --",
+      analyzeBtn: "ANALYZE SCRIPT",
+      analyzing: "Analyzing...",
+      aspectRatio: "Aspect Ratio",
+      style: "Style",
+      language: "Language",
+      scenes: "Scenes",
+      streams: "Streams",
+      seed: "Seed",
+      autoSave: "Auto Save",
+      saveFolder: "Save Folder",
+      selectFolder: "SELECT FOLDER...",
+      storyboard: "Storyboard",
+      runSelected: "Run {count} selected scenes",
+      stop: "STOP 🛑",
+      generateAll: "Generate All",
+      sceneNum: "Scene {num}",
+      ready: "Ready",
+      processing: "Processing...",
+      success: "Success",
+      failed: "Failed",
+      promptPlaceholder: "Prompt for this scene...",
+      saveImage: "Save Image"
+    },
+    whisk: {
+      title: "Whisk (Nano Banana) Pro",
+      loadPrompt: "Load Prompt",
+      fromStory: "From Story",
+      addFromTxt: "Add from TXT/JSON",
+      useInputImage: "Use Input Image",
+      upgrade: "Upgrade",
+      addInputImage: "Add Image (max {max})",
+      aspectRatio: "Aspect Ratio",
+      landscape: "16:9 Landscape",
+      portrait: "9:16 Portrait",
+      seed: "Seed",
+      streams: "Streams",
+      autoSave: "Auto Save",
+      autoRetry: "Auto Retry",
+      selectFolder: "Select folder...",
+      stopAll: "Stop All",
+      runUnfinished: "Run Unfinished ({count})",
+      runAll: "Run All ({count})",
+      runSelected: "Run Selected ({count})",
+      manualPrompt: "Manual Prompt",
+      stats: {
+        total: "Total",
+        running: "Running",
+        done: "Done",
+        failed: "Failed",
+        waiting: "Waiting",
+        cancelled: "Cancelled"
+      },
+      emptyState: "Add tasks or load prompts to start.",
+      item: {
+        imageNum: "Image #{num}",
+        success: "Success!",
+        processing: "Processing...",
+        failed: "Failed",
+        queued: "Queued...",
+        ready: "Ready",
+        download: "Download",
+        promptPlaceholder: "A surreal woman wearing a cloak made of water...",
+        run: "Run",
+        retry: "Retry"
+      }
+    },
+    thumbnail: {
+      title: "Create YouTube Thumbnail (Pro)",
+      desc: "Create attractive cover images from stories.",
+      fromStory: "From Story",
+      manualInput: "Manual Input",
+      selectStory: "Select Story",
+      selectPlaceholder: "-- Select a story --",
+      contentIdea: "Thumbnail Content / Idea",
+      contentPlaceholder: "Describe the thumbnail content you want to create...",
+      styleSettings: "Style Settings",
+      imageStyle: "Image Style",
+      trendStyle: "Thumbnail Style (Trend)",
+      aspectRatio: "Aspect Ratio",
+      landscape: "16:9 Landscape",
+      portrait: "9:16 Portrait",
+      language: "Language in image",
+      langVi: "Vietnamese",
+      langEn: "English (International)",
+      promptToSend: "Prompt to send (Auto-generated & Optimized)",
+      copy: "Copy",
+      promptCopied: "Prompt copied",
+      promptPlaceholder: "Prompt will appear here after you select a story...",
+      refImage: "Reference Image",
+      delete: "Delete",
+      selectImage: "Select image...",
+      createBtn: "Create Thumbnail Now",
+      processing: "Processing...",
+      initializing: "Initializing...",
+      fetchingServer: "Fetching Server Account...",
+      serverError: "Server Error. Retrying...",
+      generating: "Generating (Banana Pro)...",
+      success: "Successfully created!",
+      emptyState: "No image created yet",
+      emptyHint: "Select a story and click the Create button on the left",
+      download: "Download to device",
+      downloadHint: "Please download immediately after creation, generated images are not saved",
+      checking: "Checking...",
+      errorLogin: "Please login.",
+      errorEmpty: "Prompt content is empty.",
+      errorApp: "App connection error. Retrying...",
+      errorExpired: "Cookie expired. Switching account...",
+      errorBusy: "Server busy. Switching account..."
+    },
+    veo: {
+      title: "Create Veo 3 / 3.1 Video",
+      desc: "Automate bulk video generation process.",
+      model: "Model",
+      veo3: "Veo 3 / 3.1",
+      veo31: "Veo 3.1",
+      aspectRatio: "Aspect Ratio",
+      landscape: "16:9 Landscape",
+      portrait: "9:16 Portrait",
+      streams: "Streams (1-10)",
+      resolution: "Resolution",
+      res720: "720p (Original)",
+      res1080: "1080p (HD+)",
+      res2k: "2K (QHD)",
+      loadHistory: "Load from History",
+      selectReplace: "-- Select to replace --",
+      addPromptTitle: "Add Prompt",
+      addTxt: "TXT / JSON",
+      oldFile: "Old File",
+      keepFile: "OFF (Keep file)",
+      deleteFile: "ON (Delete file)",
+      autoSave: "Auto Save",
+      noFolder: "Not selected...",
+      changeFolder: "Change",
+      videosPerFolder: "videos/folder",
+      autoRetry: "Auto Retry",
+      on: "ON",
+      off: "OFF",
+      stopAll: "Stop All",
+      runAll: "Run All",
+      runUnfinished: "Run Unfinished",
+      retryErrors: "Retry {count} errors",
+      selectAll: "Select All",
+      runSelected: "Run ({count})",
+      deleteAll: "Delete All Prompts",
+      showErrors: "Show Errors",
+      showPending: "Pending / Stopped",
+      col2: "2 Columns",
+      col3: "3 Columns",
+      total: "Total: ",
+      pending: "Pending: ",
+      success: "Success: ",
+      failed: "Failed: ",
+      promptPlaceholder: "Enter prompt to create video here...",
+      addNewPrompt: "Add New Prompt",
+      promptNum: "Prompt #{num}",
+      stopped: "Stopped",
+      runThis: "Run this prompt",
+      download: "Download",
+      waitingRetry: "⏳ Waiting to retry...",
+      processing: "🔄 Processing...",
+      error: "Error!",
+      resultHere: "Result will appear here",
+      deleteImage: "Delete Image",
+      delete: "Delete",
+      ready: "Ready."
+    },
+    videoFromImage: {
+      title: "Video From Image",
+      desc: "Upload up to 6 character or style images. AI will analyze all images to generate the video.",
+      imageMode: "Image Mode",
+      shared: "Shared",
+      separate: "Separate",
+      imageLabel: "Image {num}",
+      addSlot: "Add slot (max 6)",
+      aspectRatio: "Aspect Ratio",
+      streams: "Streams (1-10)",
+      resolution: "Resolution",
+      res720: "720p (Original)",
+      res1080: "1080p (HD+)",
+      res2k: "2K (QHD)",
+      autoRetry: "Auto Retry",
+      on: "ON",
+      off: "OFF",
+      loadFromStory: "-- Load prompt from Story --",
+      importTxt: "Import TXT",
+      autoSave: "Auto Save",
+      noFolder: "Not selected...",
+      changeFolder: "Change",
+      stop: "Stop",
+      runAll: "Run All",
+      runUnfinished: "Run Unfinished",
+      selectAll: "Select All ({count})",
+      runSelected: "Run ({count})",
+      deleteAll: "Delete All",
+      showPending: "Pending",
+      analyzing: "Analyzing images...",
+      analyzingShared: "Analyzing shared image {current}/{total}...",
+      analyzingSeparate: "Analyzing separate image {current}/{total}...",
+      analysisSuccess: "Image analysis successful!",
+      total: "Total: ",
+      success: "Success: ",
+      failed: "Failed: ",
+      addPrompt: "+ Add Prompt",
+      emptyState: "Add prompts to start.",
+      promptNum: "Prompt #{num}",
+      processing: "🔄 Processing...",
+      waitingRetry: "⏳ Waiting to retry...",
+      ready: "Ready",
+      resultHere: "Result will appear here",
+      download: "Download",
+      errorAnalyze: "Analysis error: {msg}",
+      errorNoImageShared: '"Shared" mode requires at least one image in the toolbar.',
+      errorNoImageSeparate: '"Separate" mode requires each prompt to have an uploaded image.',
+      errorImageSlot: "Image for prompt #{num} is invalid. Skipping.",
+      errorNoValidPrompt: "No valid prompts found after analysis."
+    },
+    createVideoFromFrames: {
+      title: "Consistent Video (I2V)",
+      description: "Upload Start and End images for AI to generate motion between them.",
+      aspectRatio: "Aspect Ratio",
+      aspectLandscape: "16:9 Landscape",
+      aspectPortrait: "9:16 Portrait",
+      streams: "Streams (1-10)",
+      resolution: "Resolution",
+      res720: "720p (Original)",
+      res1080: "1080p (HD+)",
+      res2k: "2K (QHD)",
+      autoRetry: "Auto Retry",
+      on: "ON",
+      off: "OFF",
+      addPromptTitle: "Add prompt",
+      loadFromStory: "Load from Story",
+      selectStory: "Select Story...",
+      importTxt: "From TXT file",
+      useEndImage: "Use end image",
+      uploadMultiple: "Upload Multiple",
+      allowOverwrite: "Delete old file",
+      keepFile: "OFF (Keep file)",
+      deleteFile: "ON (Delete file)",
+      autoSave: "Auto Save",
+      savePathDefault: "Not selected...",
+      changeFolder: "Change",
+      videosPerFolder: "videos/folder",
+      stop: "Stop All",
+      runUnfinished: "Run Unfinished",
+      retryFailed: "Retry {count} errors",
+      runAll: "Run All",
+      selectAll: "Select All",
+      showError: "Errors",
+      showPending: "Pending / Stopped",
+      runSelected: "Run ({count})",
+      deleteAll: "Delete All",
+      col2: "2 Columns",
+      col3: "3 Columns",
+      total: "Total",
+      pending: "Pending",
+      success: "Success",
+      failed: "Failed",
+      emptyState: "Add prompt or upload image to start.",
+      promptNum: "Prompt #{num}",
+      ready: "Ready",
+      runThisPrompt: "Run this prompt",
+      delete: "Delete",
+      download: "Download",
+      processing: "🔄 Processing...",
+      waitingRetry: "⏳ Waiting to retry...",
+      error: "Error!",
+      resultHere: "Result will appear here",
+      promptPlaceholder: "Enter prompt describing the motion...",
+      startImage: "Start Image",
+      endImage: "End Image",
+      deleteImage: "Delete Image",
+      addPrompt: "Add Prompt"
+    },
+    extendedVideo: {
+      title: "Extended Video",
+      desc: "Create long videos from multiple prompts, continuing scenes based on the last frame of the previous video. (Pro plan required)",
+      aspectRatio: "Aspect Ratio",
+      landscape: "16:9 Landscape",
+      portrait: "9:16 Portrait",
+      streams: "Streams (1)",
+      streamsTitle: "Concurrent processing streams (recommended 1-3 for this workflow)",
+      loadFromStory: "Load prompt from Story",
+      selectStory: "Select Story...",
+      importTxt: "From TXT file",
+      allowOverwrite: "Delete old file",
+      keepFile: "OFF (Keep file)",
+      deleteFile: "ON (Delete file)",
+      autoSave: "Auto Save",
+      savePathDefault: "Not selected...",
+      changeFolder: "Change",
+      videosPerFolder: "videos/folder",
+      stop: "Stop All",
+      runUnfinished: "Run Unfinished",
+      retryFailed: "Retry {count} errors",
+      runAll: "Run All ({count})",
+      selectAll: "Select All ({count})",
+      runSelected: "Run ({count})",
+      deleteAll: "Delete All Prompts",
+      addPrompt: "Add Prompt",
+      showError: "Show Errors Only",
+      col2: "2 Columns",
+      col3: "3 Columns",
+      total: "Total",
+      pending: "Pending",
+      success: "Success",
+      failed: "Failed",
+      emptyState: "Add prompt or load from file/story to start.",
+      emptyHint1: "The first prompt will create the base video (Text-to-Video).",
+      emptyHint2: "Subsequent prompts will use the last frame of the previous video as input (Image-to-Video).",
+      promptNum: "Prompt #{num}",
+      ready: "Ready",
+      runThisPrompt: "Run this prompt",
+      delete: "Delete",
+      download: "Download",
+      processing: "🔄 Processing...",
+      waitingRetry: "⏳ Waiting to retry...",
+      error: "Error!",
+      resultHere: "Result will appear here",
+      promptPlaceholderFirst: "Enter prompt for base video...",
+      promptPlaceholderNext: "Enter prompt for continuing scene...",
+      startImage: "Start Image",
+      deleteImage: "Delete Image"
+    },
+    autoCreate: {
+      title: "Auto Create",
+      desc: "Enter one or more ideas, configure, and let AI do the rest.",
+      settingsBtn: "Settings",
+      runAllBtn: "Run all ideas",
+      ideaLabel: "Idea #{num}",
+      ideaPlaceholder: "A cat and a dog become best friends and go on an adventure together...",
+      deleteIdea: "Delete idea",
+      addIdea: "+ Add Idea",
+      statusReady: "Ready",
+      statusProcessingIdea: "Processing idea...",
+      statusCreatingStory: "Generating story...",
+      statusCreatingPrompts: "Generating video prompts...",
+      statusSendingToQueue: "Sending to queue...",
+      statusCompleted: "Completed! Videos are being generated in the Veo 3 tab.",
+      statusPartial: "Partial success. Completed parts saved.",
+      statusError: "Error",
+      settings: {
+        title: "Auto Process Settings",
+        storySection: "1. Story Settings",
+        storyStyle: "Style",
+        storyLength: "Length (est.)",
+        promptSection: "2. Video Prompt Settings",
+        promptStyle: "Style (multi-select)",
+        promptGenre: "Genre",
+        promptType: "Prompt Type",
+        promptTypeDetailed: "Detailed (8s / prompt)",
+        promptTypeComprehensive: "Comprehensive (1 summary prompt)",
+        videoSection: "3. Video Generation Settings",
+        videoModel: "Model",
+        videoAspectRatio: "Aspect Ratio",
+        videoStreams: "Streams (1-10)",
+        videoResolution: "Download Resolution",
+        autoSave: "Auto Save",
+        selectFolder: "Select folder",
+        changeFolder: "Change folder",
+        closeBtn: "Close",
+        portraitWarning: "Model is automatically selected for portrait ratio."
+      }
+    },
+    mergeVideos: {
+      title: "Merge Videos",
+      desc: "Select generated videos to merge them into a longer video.",
+      saveFolder: "Save Folder",
+      defaultAskEveryTime: "Default (ask each time)",
+      selectBtn: "Select",
+      mergeMode: "Merge Mode",
+      mergeAll: "Merge all",
+      mergeBatch: "Merge in batches",
+      videosPerBatch: "Videos / batch",
+      stopBtn: "Stop",
+      mergeCountBtn: "Merge {count} videos",
+      startBatchMergeBtn: "Start batch merge",
+      addFromLocal: "Add from computer",
+      addFromHistory: "Add from History",
+      selectAll: "Select all",
+      addVideoLocalBtn: "+ Add Video from computer...",
+      noLocalVideos: "No videos added yet.",
+      noHistoryVideos: "No videos in history with file paths.",
+      mergeListTitle: "Merge List ({count} videos)",
+      noVideoSelected: "No videos selected.",
+      unselectBtn: "Unselect",
+      processingPercent: "Processing: {percent}%",
+      addedVideos: "Added {count} videos.",
+      saveLocationInfo: "Video will be saved at: {path}",
+      minVideosError: "Please select at least 2 videos to merge.",
+      startingMergeAll: "Starting to merge all...",
+      mergeSuccess: "Merge successful! Saved at: {path}",
+      mergeError: "Critical error merging videos: {error}",
+      batchSizeError: "Batch size must be greater than or equal to 2.",
+      stoppedBatchMerge: "Batch merging process stopped.",
+      skipGroup: "Skipped group {group} because it has only 1 video.",
+      mergingGroup: "Merging group {current}/{total} ({count} videos)...",
+      groupMergeSuccess: "Group {group} merged successfully! Saved at: {path}",
+      groupMergeError: "Critical error merging group {group}: {error}"
+    },
+    historyTab: {
+      title: "Creation History",
+      desc: "Review all content you have created.",
+      tabs: {
+        stories: "Stories",
+        thumbnails: "Thumbnails",
+        videos: "Videos",
+        prompts: "Video Prompts",
+      },
+      filterStory: "Filter by story",
+      selectStoryPlaceholder: "-- Please select a story --",
+      selectAll: "Select all ({count})",
+      exportTxt: "Export TXT",
+      importVeo: "Import to Veo ({count})",
+      deleteCount: "Delete ({count})",
+      noPromptsFound: "No video prompts found for this story.",
+      selectStoryToView: "Please select a story to view the video prompt history.",
+      emptyHistory: "No items in history yet.",
+      noTitle: "No title",
+      noContent: "No content",
+      copyContent: "Copy content",
+      copyPrompt: "Copy prompt",
+      videoUnavailable: "Video unavailable",
+      download: "Download",
+      unselect: "Unselect",
+      delete: "Delete",
+      from: "From: ",
+      unknownSource: "Unknown source",
+      deleteConfirm: "Are you sure you want to delete {count} selected items?",
+      deletedSuccess: "Deleted {count} items.",
+      deleteError: "Error deleting: {error}",
+      copied: "Copied!",
+      copyError: "Error copying.",
+      noUrlError: "Invalid video or no URL available for download."
+    },
+    packages: {
+      title: "Choose the right plan for you",
+      subtitle: "Unlock your full creative potential with our plans.",
+      noticeTitle: "Notice",
+      noticeDesc: "The 'Early Bird' promotion has ended, prices will return to the original list price. Thank you for your trust and support.",
+      bestValue: "Best Value -10%",
+      noVeoAccount: "No Veo 3 account required",
+      selectPlan: "Select Plan",
+      selectEnterprise: "Select Enterprise Plan",
+      annualDiscount: "10% off for annual billing",
+      historyTitle: "Your Transaction History",
+      noTransactions: "You have no transactions.",
+      table: {
+        plan: "Plan",
+        desc: "Description/Txn ID",
+        amount: "Amount",
+        date: "Date",
+        expiry: "Expiry Date",
+        status: "Status"
+      },
+      status: {
+        completed: "Completed",
+        pending: "Pending",
+        failed: "Failed",
+        cancelled: "Cancelled"
+      },
+      payment: {
+        title: "Confirm Payment",
+        desc: "Choose duration and scan QR code to activate.",
+        durationTitle: "Subscription Duration:",
+        extraDiscount: "Extra {percent}% off",
+        months: "{count} Months",
+        perMonth: "/month",
+        standardPlan: "Standard Plan",
+        servicePlan: "Service Plan",
+        durationLabel: "Duration {count} months",
+        totalPayment: "Total Payment",
+        saveLabel: "Save {amount}",
+        bank: "Bank:",
+        accountHolder: "Account Holder:",
+        accountNumber: "Account Number:",
+        copiedAccount: "Account number copied!",
+        transferContent: "Transfer Content",
+        required: "Required",
+        clickToCopy: "Click to copy content",
+        exactContentNote: "*Please enter the exact content above for automatic activation.",
+        scanQr: "Scan QR code to pay",
+        iHavePaid: "I HAVE PAID",
+        afterPaymentNote: "After successful transfer, click 'I HAVE PAID' above to confirm.",
+        successTitle: "Request sent successfully!",
+        processingNote: "System is processing transaction for plan",
+        nextSteps: "Next steps:",
+        step1: "Please wait ",
+        step1b: "5-15 minutes",
+        step1c: " for automatic confirmation.",
+        step2: "Check your inbox (or Spam folder) for the activation confirmation email.",
+        important: "Important:",
+        step3: " After receiving the email, please ",
+        step3b: "Log Out",
+        step3c: " and ",
+        step3d: "Log In",
+        step3e: " again to update your new plan.",
+        support: "Need immediate support?",
+        closeWindow: "Close Window"
+      },
+      planData: {
+        personal: {
+          name: "Personal Plan / 1 Device",
+          desc: "Basic plan for text-to-video needs.",
+          f1: "Unlimited Veo 3 Text to Video",
+          f2: "Prompt/Story/Thumbnail tools",
+          f3: "Download 720p videos",
+          f4: "Max 1 concurrent stream"
+        },
+        personalPro: {
+          name: "Personal Pro Plan",
+          desc: "Professional plan with full features and high performance.",
+          f1: "Unlimited Veo 3 T2V / Image to Video / Consistent Video",
+          f2: "Unlimited Whisk/Nano Image",
+          f3: "Download 720p/1080p videos",
+          f4: "Up to 20 concurrent streams",
+          f5: "All tool features"
+        },
+        team: {
+          name: "Team Pro Plan / 5 Devices",
+          desc: "Extended plan for teams up to 5 devices.",
+          f6: "Use on 5 devices simultaneously"
+        },
+        yearly: {
+          name: "1 Year Pro Plan / 1 Device",
+          desc: "Most economical choice for long-term users (20% off)."
+        },
+        enterprise: {
+          name: "Enterprise Plan",
+          desc: "Comprehensive solution for companies.",
+          f6: "Up to 30 devices simultaneously.",
+          f7: "Unlimited Videos created per month.",
+          f8: "Dedicated Server for optimal video generation speed.",
+          f9: "10% off for annual billing.",
+          sub1: "Contact Support to purchase the Enterprise Plan annually."
+        },
+        monthLabel: "/ month",
+        yearLabel: "/ year",
+        currency: " VND"
+      }
+    },
+    cookieManager: {
+      title: "Manage Cookies & Tokens",
+      desc: "Add, edit, or delete cookies and bearer tokens for advanced features.",
+      addBtn: "Add New",
+      deleteBtn: "Delete ({count})",
+      table: {
+        name: "Alias Name",
+        status: "Token Status",
+        actions: "Actions",
+        noCookies: "No accounts added yet. Please add a new one.",
+        cookieLabel: "Cookie: Entered",
+        tokenOk: "Token: OK",
+        tokenMissing: "Token: Missing",
+        active: "ACTIVE",
+        activateBtn: "Activate",
+        editBtn: "Edit",
+        deleteBtn: "Delete",
+      },
+      modal: {
+        addTitle: "Add New Cookie",
+        editTitle: "Edit Cookie",
+        nameLabel: "Alias Name",
+        namePlaceholder: "Example: Main Google Acc",
+        cookieLabel: "Full Cookie Value (Required)",
+        cookiePlaceholder: "Paste full cookie value from labs.google Request Headers...",
+        tokenLabel: "Bearer Token (Important for video generation)",
+        tokenPlaceholder: "Paste Bearer Token from 'Authorization' header of aisandbox-pa.googleapis.com...",
+        saveBtn: "Save Information",
+        cancelBtn: "Cancel",
+      },
+      messages: {
+        validationError: "Please enter Name and Cookie.",
+        updated: "Cookie updated successfully!",
+        added: "New cookie added successfully!",
+        deleted: "Deleted.",
+        deleteConfirm: "Delete {count} selected cookies?",
+        activated: "Activated: '{name}'"
+      }
+    },
+    apiKeySettings: {
+      title: "API Key Settings",
+      desc: "Please enter your Google Gemini API Key to start using the app.",
+      label: "Google Gemini API Key",
+      placeholder: "Paste your API Key here",
+      saveBtn: "Save and Continue",
+      noKeyHint: "Don't have an API Key? Get this one: ",
+      successMsg: "API Key saved successfully!",
+      errorMsg: "Please enter a valid API Key."
+    },
+    support: {
+      title: "Support Information",
+      desc: "If you have any questions or need help, please contact us through the channels below.",
+      empty: "No support information configured.",
+      errorLoad: "Failed to load support information.",
+      errorConnection: "Connection error while loading support information.",
+      copied: "Copied {name} link!",
+      copyError: "Failed to copy.",
+      openError: "Failed to open link.",
+      notAvailable: "Open link feature is not available.",
+      copyLink: "Copy {name} link",
+      openLink: "Open {name}"
+    },
+    profile: {
+      title: "Profile",
+      fetchError: "Cannot load profile data.",
+      updateSuccess: "Name updated successfully!",
+      updateFailed: "Update failed.",
+      pwdIncomplete: "Please fill in all password fields.",
+      pwdSuccess: "Password changed successfully!",
+      pwdFailed: "Password change failed.",
+      displayName: "Display Name",
+      saveBtn: "Save",
+      cancelBtn: "Cancel",
+      planLabel: "Current Plan:",
+      freePlan: "Free",
+      expiryLabel: "Expiry Date:",
+      editInfoBtn: "Edit Information",
+      changePwdTitle: "Change Password",
+      currentPwd: "Current Password",
+      newPwd: "New Password",
+      confirmBtn: "Confirm",
+      txnHistoryTitle: "Transaction History",
+      noTxn: "You have no transactions.",
+      table: {
+        plan: "Plan",
+        desc: "Description/Txn ID",
+        amount: "Amount",
+        date: "Date",
+        status: "Status"
+      },
+      status: {
+        completed: "Completed",
+        pending: "Pending",
+        failed: "Failed",
+        cancelled: "Cancelled"
+      }
+    },
+    common: {
+      custom: "Custom",
+      updating: "Updating",
+      creating: "Creating",
+      results: "Results",
+      copy: "Copy",
+      copied: "Copied!",
+      copyError: "Error copying",
+      edit: "Edit",
+      delete: "Delete",
+      cancelEdit: "Cancel Edit",
+      status: {
+        ready: "Ready",
+        processing: "Processing...",
+        queued: "Queued...",
+        success: "Success!",
+        failed: "Failed",
+        stopped: "Stopped"
+      }
+    },
+  };
+
+const r_ = {
+  sidebar: {
     dashboard: "Tổng quan",
     createStory: "Tạo Câu chuyện",
     youtubeScript: "Kịch bản YouTube",
@@ -50151,13 +45738,14 @@ const Nk = 1e4,
     autoCreate: "Ý tưởng Tự Động",
     mergeVideos: "Ghép Video",
     history: "Lịch sử",
+    manageCookies: "Quản lý Cookie",
     upgrade: "Nâng cấp",
     apiKeySettings: "Cài đặt API Key",
     support: "Hỗ trợ",
     logout: "Đăng xuất",
     createComic: "Tạo Truyện Tranh (Beta)",
   },
-  s_ = {
+  dashboard: {
     title: "Tổng quan",
     totalVideos: "Tổng Video Đã Tạo",
     successfulTotal: "Video Thành Công (Tổng)",
@@ -50176,26 +45764,36 @@ const Nk = 1e4,
       equivalent: "Tương đương",
     },
   },
-  o_ = {
+  userInfo: {
     toggleLanguage: "Đổi ngôn ngữ / Change Language",
     refresh: "Làm mới (Force Reload)",
   },
-  i_ = {
-    custom: "Tùy chỉnh",
-    updating: "Đang cập nhật",
-    creating: "Đang tạo",
-    results: "Kết quả",
-    copy: "Sao chép",
-    copied: "Đã sao chép!",
-    copyError: "Lỗi khi sao chép",
-    edit: "Sửa",
-    delete: "Xóa",
-    cancelEdit: "Hủy Chỉnh sửa",
+  createPrompts: {
+    collection: {
+      editChar: "Chỉnh sửa nhân vật",
+      addChar: "Thêm nhân vật mới",
+      charName: "Tên nhân vật",
+      charNamePlaceholder: "Ví dụ: Bò Vàng",
+      charDesc: "Mô tả (Character Sheet)",
+      charDescPlaceholder: "Mô tả chi tiết ngoại hình, tính cách, quần áo...",
+      saveChanges: "Lưu thay đổi",
+      addToCollection: "Thêm vào bộ sưu tập",
+      cancel: "Hủy",
+      createFromImage: "Tạo nhân vật từ ảnh",
+      uploadHint: "Tải lên một hình ảnh để AI tự động tạo mô tả nhân vật cho bạn.",
+      analysisReq: "Yêu cầu phân tích (tùy chọn)",
+      analysisReqPlaceholder: "Nhập hướng dẫn thêm cho AI...",
+      analyzing: "Đang phân tích...",
+      analyzeBtn: "Phân tích & điền vào form",
+      charList: "Danh sách nhân vật ({count})",
+      emptyList: "Chưa có nhân vật nào được lưu.",
+      edit: "Sửa",
+      delete: "Xóa"
+    }
   },
-  l_ = {
+  createStory: {
     mainTitle: "Quản lý Câu chuyện",
-    description:
-      "Tạo câu chuyện mới, hoặc tạo tiêu đề và mô tả cho các câu chuyện đã có.",
+    description: "Tạo câu chuyện mới, hoặc tạo tiêu đề và mô tả cho các câu chuyện đã có.",
     tabs: {
       create: "Tạo Câu chuyện",
       edit: "Chỉnh sửa câu chuyện",
@@ -50213,12 +45811,12 @@ const Nk = 1e4,
       customStyle: "Nhập phong cách của bạn",
     },
     length: {
-      1e3: "1000 từ",
-      2e3: "2000 từ",
-      3500: "3500 từ",
-      7e3: "7000 từ",
-      1e4: "10000 từ",
-      2e4: "20000 từ",
+      "1000": "1000 từ",
+      "2000": "2000 từ",
+      "3500": "3500 từ",
+      "7000": "7000 từ",
+      "10000": "10000 từ",
+      "20000": "20000 từ",
       title: "Độ dài",
       "1000Time": "~1.5 phút đọc",
       "2000Time": "~3 phút đọc",
@@ -50261,7 +45859,7 @@ const Nk = 1e4,
       "Tin tức/Nhật ký thời sự": "Tin tức/Nhật ký thời sự",
       "Phim ngắn": "Phim ngắn",
       "Trailer phim": "Trailer phim",
-      "Phát triển dựa trên nội dung gốc": "Phát triển dựa trên nội dung gốc",
+      "Phát triển dựa trên nội dung gốc": "Phát triển dựa trên nội dung gốc"
     },
     buttons: {
       create: "Tạo câu chuyện",
@@ -50296,10 +45894,50 @@ const Nk = 1e4,
       noStories: "Không có câu chuyện nào",
     },
   },
-  a_ = {
+  clone: {
+    title: "Clone video Beta",
+    desc: "Hiện đang trong quá trình nghiên cứu Promtp chuẩn.",
+    tabs: {
+      script: "Lấy Kịch Bản (Cũ)",
+      link: "Link → Prompt",
+      upload: "Upload → Prompt",
+      history: "Lịch sử",
+    },
+    ui: {
+      youtubeUrl: "URL Video YouTube",
+      request: "Yêu cầu",
+      uploadHint: "🔥 Upload Video để AI nghe giọng và tách prompt theo lời thoại.",
+      styleLabel: "🎨 Chọn Style & Giọng (AI sẽ tự mô tả)",
+      videoName: "Tên video",
+    },
+    btn: {
+      getScript: "Lấy Kịch Bản",
+      analyzeLink: "Phân tích Link",
+      uploadAnalyze: "Upload & Phân tích",
+      exportTxt: "Xuất .TXT",
+    },
+    status: {
+      getting: "Đang lấy kịch bản...",
+      analyzing: "Đang phân tích (Link Mode)...",
+      uploading: "1/3. Upload",
+      processingVideo: "2/3. Server đang xử lý video...",
+      aiWriting: "3/3. AI đang viết prompt (Chế độ im lặng, chỉ xuất data)...",
+    },
+    success: {
+      done: "Thành công!",
+      cleanPrompt: "Đã tạo Prompt sạch (Không lời dẫn)!",
+      complete: "Hoàn thành! Prompt sạch đẹp.",
+      exported: "Đã xuất file TXT!",
+    },
+    error: {
+      noUrl: "Nhập URL.",
+      noFile: "Chọn file video.",
+      videoFailed: "Video lỗi.",
+    },
+  },
+  createVideoFromFrames: {
     title: "Tạo video Đồng nhất bằng Ảnh/Khung hình",
-    description:
-      "Tải ảnh Bắt đầu và Kết thúc để AI tạo chuyển động giữa 2 khung hình.",
+    description: "Tải ảnh Bắt đầu và Kết thúc để AI tạo chuyển động giữa 2 khung hình.",
     useCommonImages: "Sử dụng ảnh chung",
     commonStartImage: "Ảnh Bắt đầu (Chung)",
     commonEndImage: "Ảnh Kết thúc (Chung)",
@@ -50332,57 +45970,628 @@ const Nk = 1e4,
     download: "Tải về",
     runThisPrompt: "Chạy prompt này",
   },
-  r_ = {
-    sidebar: n_,
-    dashboard: s_,
-    userInfo: o_,
-    common: i_,
-    createStory: l_,
-    clone: {
-      title: "Clone video Beta",
-      desc: "Hiện đang trong quá trình nghiên cứu Promtp chuẩn.",
-      tabs: {
-        script: "Lấy Kịch Bản (Cũ)",
-        link: "Link → Prompt",
-        upload: "Upload → Prompt",
-        history: "Lịch sử",
-      },
-      ui: {
-        youtubeUrl: "URL Video YouTube",
-        request: "Yêu cầu",
-        uploadHint:
-          "🔥 Upload Video để AI nghe giọng và tách prompt theo lời thoại.",
-        styleLabel: "🎨 Chọn Style & Giọng (AI sẽ tự mô tả)",
-        videoName: "Tên video",
-      },
-      btn: {
-        getScript: "Lấy Kịch Bản",
-        analyzeLink: "Phân tích Link",
-        uploadAnalyze: "Upload & Phân tích",
-        exportTxt: "Xuất .TXT",
-      },
-      status: {
-        getting: "Đang lấy kịch bản...",
-        analyzing: "Đang phân tích (Link Mode)...",
-        uploading: "1/3. Upload",
-        processingVideo: "2/3. Server đang xử lý video...",
-        aiWriting:
-          "3/3. AI đang viết prompt (Chế độ im lặng, chỉ xuất data)...",
-      },
-      success: {
-        done: "Thành công!",
-        cleanPrompt: "Đã tạo Prompt sạch (Không lời dẫn)!",
-        complete: "Hoàn thành! Prompt sạch đẹp.",
-        exported: "Đã xuất file TXT!",
-      },
-      error: {
-        noUrl: "Nhập URL.",
-        noFile: "Chọn file video.",
-        videoFailed: "Video lỗi.",
-      },
-    },
-    createVideoFromFrames: a_,
+  comic: {
+    title: "TRUYỆN TRANH AI (BETA)",
+    desc: "Tạo truyện tranh chuyên nghiệp từ kịch bản hoặc ý tưởng của bạn.",
+    selectExisting: "CHỌN TRUYỆN CÓ SẴN",
+    manualInput: "TỰ NHẬP NỘI DUNG",
+    selectPlaceholder: "-- Chọn một câu chuyện từ thư viện --",
+    analyzeBtn: "PHÂN TÍCH KỊCH BẢN",
+    analyzing: "Đang phân tích...",
+    aspectRatio: "Tỷ lệ",
+    style: "Thể loại",
+    language: "Ngôn ngữ",
+    scenes: "Cảnh",
+    streams: "Luồng",
+    seed: "Seed",
+    autoSave: "Tự lưu",
+    saveFolder: "Thư mục lưu",
+    selectFolder: "CHỌN THƯ MỤC...",
+    storyboard: "Kịch bản phân cảnh",
+    runSelected: "Chạy {count} cảnh đã chọn",
+    stop: "DỪNG LẠI 🛑",
+    generateAll: "Bắt đầu tạo tất cả",
+    sceneNum: "Phân cảnh {num}",
+    ready: "Sẵn sàng",
+    processing: "Đang tạo...",
+    success: "Hoàn thành",
+    failed: "Thất bại",
+    promptPlaceholder: "Prompt cho phân cảnh này...",
+    saveImage: "Lưu ảnh"
   },
+  thumbnail: {
+    title: "Tạo Thumbnail YouTube (Pro)",
+    desc: "Tạo ảnh bìa thu hút từ câu chuyện.",
+    fromStory: "Từ Câu Chuyện",
+    manualInput: "Nhập Thủ Công",
+    selectStory: "Chọn Câu chuyện",
+    selectPlaceholder: "-- Chọn một câu chuyện --",
+    contentIdea: "Nội dung / Ý tưởng Thumbnail",
+    contentPlaceholder: "Mô tả nội dung thumbnail bạn muốn tạo...",
+    styleSettings: "Thiết lập Phong cách",
+    imageStyle: "Phong cách Ảnh",
+    trendStyle: "Kiểu Thumbnail (Trend)",
+    aspectRatio: "Tỷ lệ khung hình",
+    landscape: "16:9 (Ngang)",
+    portrait: "9:16 (Dọc)",
+    language: "Ngôn ngữ trong ảnh",
+    langVi: "Tiếng Việt",
+    langEn: "Tiếng Anh (Quốc tế)",
+    promptToSend: "Prompt gửi đi (Tự động tạo & Tối ưu)",
+    copy: "Sao chép",
+    promptCopied: "Đã sao chép prompt",
+    promptPlaceholder: "Prompt sẽ xuất hiện ở đây sau khi bạn chọn câu chuyện...",
+    refImage: "Ảnh tham chiếu",
+    delete: "Xóa",
+    selectImage: "Chọn ảnh...",
+    createBtn: "Tạo Thumbnail Ngay",
+    processing: "Đang xử lý...",
+    initializing: "Đang khởi tạo...",
+    fetchingServer: "Đang lấy tài khoản Server...",
+    serverError: "Lỗi Server. Thử lại...",
+    generating: "Đang vẽ (Banana Pro)...",
+    success: "Tạo thành công!",
+    emptyState: "Chưa có ảnh nào được tạo",
+    emptyHint: "Chọn câu chuyện và nhấn nút Tạo bên trái",
+    download: "Tải về máy",
+    downloadHint: "Vui lòng tải về máy ngay khi tạo xong, ảnh tạo xong không được lưu",
+    checking: "Đang kiểm tra...",
+    errorLogin: "Vui lòng đăng nhập.",
+    errorEmpty: "Nội dung prompt trống.",
+    errorApp: "Lỗi kết nối App. Thử lại ngay...",
+    errorExpired: "Cookie hết hạn. Đổi tài khoản...",
+    errorBusy: "Server bận. Đổi tài khoản..."
+  },
+  veo: {
+    title: "Tạo video bằng Veo3/Veo 3.1",
+    desc: "Tự động hóa quy trình tạo video hàng loạt.",
+    model: "Model",
+    veo3: "Veo 3 / 3.1",
+    veo31: "Veo 3.1",
+    aspectRatio: "Tỷ lệ",
+    landscape: "16:9 Ngang",
+    portrait: "9:16 Dọc",
+    streams: "Luồng (1-10)",
+    resolution: "Độ phân giải",
+    res720: "720p (Gốc)",
+    res1080: "1080p (HD+)",
+    res2k: "2K (QHD)",
+    loadHistory: "Tải prompt từ Lịch sử",
+    selectReplace: "-- Chọn để thay thế --",
+    addPromptTitle: "Thêm Prompt",
+    addTxt: "TXT / JSON",
+    oldFile: "File cũ",
+    keepFile: "TẮT (Giữ file)",
+    deleteFile: "BẬT (Xóa file)",
+    autoSave: "Tự động lưu",
+    noFolder: "Chưa chọn...",
+    changeFolder: "Đổi",
+    videosPerFolder: "video/phần",
+    autoRetry: "Tự động thử lại",
+    on: "BẬT",
+    off: "TẮT",
+    stopAll: "Dừng Tất cả",
+    runAll: "Chạy tất cả",
+    runUnfinished: "Chạy lại chưa xong",
+    retryErrors: "Chạy lại {count} lỗi",
+    selectAll: "Chọn tất cả",
+    runSelected: "Chạy ({count})",
+    deleteAll: "Xóa tất cả Prompt",
+    showErrors: "Hiển thị prompt Lỗi",
+    showPending: "Chưa chạy / Đã dừng",
+    col2: "2 cột",
+    col3: "3 cột",
+    total: "Tổng: ",
+    pending: "Đang chờ: ",
+    success: "Thành công: ",
+    failed: "Thất bại: ",
+    promptPlaceholder: "Nhập prompt để tạo video ở đây...",
+    addNewPrompt: "Thêm Prompt mới",
+    promptNum: "Prompt #{num}",
+    stopped: "Đã dừng",
+    runThis: "Chạy prompt này",
+    download: "Tải về",
+    waitingRetry: "⏳ Đang chờ thử lại...",
+    processing: "🔄 Đang xử lý...",
+    error: "Lỗi!",
+    resultHere: "Kết quả sẽ hiện ở đây",
+    deleteImage: "Xóa ảnh",
+    delete: "Xóa",
+    ready: "Sẵn sàng."
+  },
+  videoFromImage: {
+    title: "Tạo video từ ảnh",
+    desc: "Tải lên tối đa 6 ảnh nhân vật, phong cách. AI sẽ phân tích tất cả ảnh để tạo video.",
+    imageMode: "Chế độ ảnh",
+    shared: "Dùng chung",
+    separate: "Dùng riêng",
+    imageLabel: "Ảnh {num}",
+    addSlot: "Thêm ô (tối đa 6)",
+    aspectRatio: "Tỷ lệ",
+    streams: "Luồng (1-10)",
+    resolution: "Độ phân giải",
+    res720: "720p (Gốc)",
+    res1080: "1080p (HD+)",
+    res2k: "2K (QHD)",
+    autoRetry: "Tự động thử lại",
+    on: "BẬT",
+    off: "TẮT",
+    loadFromStory: "-- Tải prompt từ Story --",
+    importTxt: "Nhập từ TXT",
+    autoSave: "Tự động lưu",
+    noFolder: "Chưa chọn...",
+    changeFolder: "Đổi",
+    stop: "Dừng",
+    runAll: "Chạy tất cả",
+    runUnfinished: "Chạy lại chưa xong",
+    selectAll: "Chọn tất cả ({count})",
+    runSelected: "Chạy ({count})",
+    deleteAll: "Xóa tất cả",
+    showPending: "Chưa chạy",
+    analyzing: "Đang Phân tích ảnh ...",
+    analyzingShared: "Đang phân tích ảnh chung {current}/{total}...",
+    analyzingSeparate: "Đang phân tích ảnh riêng {current}/{total}...",
+    analysisSuccess: "Phân tích ảnh thành công!",
+    total: "Tổng: ",
+    success: "Thành công: ",
+    failed: "Thất bại: ",
+    addPrompt: "+ Thêm Prompt",
+    emptyState: "Thêm prompt để bắt đầu.",
+    promptNum: "Prompt #{num}",
+    processing: "🔄 Đang xử lý...",
+    waitingRetry: "⏳ Đang chờ thử lại...",
+    ready: "Sẵn sàng",
+    resultHere: "Kết quả sẽ hiện ở đây",
+    download: "Tải về",
+    errorAnalyze: "Lỗi phân tích: {msg}",
+    errorNoImageShared: 'Chế độ "Dùng chung" yêu cầu ít nhất một ảnh ở thanh công cụ.',
+    errorNoImageSeparate: 'Chế độ "Dùng riêng" yêu cầu các prompt phải có ảnh tải lên.',
+    errorImageSlot: "Ảnh cho prompt #{num} bị lỗi. Bỏ qua.",
+    errorNoValidPrompt: "Không có prompt nào hợp lệ để chạy sau khi phân tích."
+  },
+  createVideoFromFrames: {
+    title: "Tạo video Đồng nhất bằng Ảnh",
+    description: "Tải ảnh Bắt đầu và Kết thúc để AI tạo chuyển động giữa 2 khung hình.",
+    aspectRatio: "Tỷ lệ",
+    aspectLandscape: "16:9 Ngang",
+    aspectPortrait: "9:16 Dọc",
+    streams: "Luồng (1-10)",
+    resolution: "Độ phân giải",
+    res720: "720p (Gốc)",
+    res1080: "1080p (HD+)",
+    res2k: "2K (QHD)",
+    autoRetry: "Tự động thử lại",
+    on: "BẬT",
+    off: "TẮT",
+    addPromptTitle: "Thêm prompt",
+    loadFromStory: "Thêm prompt từ Story",
+    selectStory: "Chọn Story...",
+    importTxt: "Từ file TXT",
+    useEndImage: "Sử dụng ảnh cuối",
+    uploadMultiple: "Tải Nhiều Ảnh",
+    allowOverwrite: "Xóa file cũ",
+    keepFile: "TẮT (Giữ file)",
+    deleteFile: "BẬT (Xóa file)",
+    autoSave: "Tự động lưu",
+    savePathDefault: "Chưa chọn...",
+    changeFolder: "Đổi",
+    videosPerFolder: "video/phần",
+    stop: "Dừng Tất cả",
+    runUnfinished: "Chạy lại chưa xong",
+    retryFailed: "Chạy lại {count} lỗi",
+    runAll: "Chạy tất cả",
+    selectAll: "Chọn tất cả",
+    showError: "Lỗi",
+    showPending: "Chưa chạy",
+    runSelected: "Chạy ({count})",
+    deleteAll: "Xóa tất cả",
+    col2: "2 cột",
+    col3: "3 cột",
+    total: "Tổng",
+    pending: "Đang chờ",
+    success: "Thành công",
+    failed: "Thất bại",
+    emptyState: "Thêm prompt hoặc tải ảnh để bắt đầu.",
+    promptNum: "Prompt #{num}",
+    ready: "Sẵn sàng",
+    runThisPrompt: "Chạy prompt này",
+    delete: "Xóa",
+    download: "Tải về",
+    processing: "🔄 Đang xử lý...",
+    waitingRetry: "⏳ Đang chờ thử lại...",
+    error: "Lỗi!",
+    resultHere: "Kết quả sẽ hiện ở đây",
+    promptPlaceholder: "Nhập prompt mô tả chuyển động...",
+    startImage: "Ảnh Bắt đầu",
+    endImage: "Ảnh Kết thúc",
+    deleteImage: "Xóa ảnh",
+    addPrompt: "+ Thêm Prompt"
+  },
+  extendedVideo: {
+    title: "Tạo Video Mở Rộng",
+    desc: "Tạo video dài từ nhiều prompt, nối tiếp cảnh dựa trên khung hình cuối của video trước. (Yêu cầu gói Pro)",
+    aspectRatio: "Tỷ lệ",
+    landscape: "16:9 Ngang",
+    portrait: "9:16 Dọc",
+    streams: "Luồng (1)",
+    streamsTitle: "Số luồng xử lý song song (khuyến nghị 1-3 cho quy trình này)",
+    loadFromStory: "Tải prompt từ Story",
+    selectStory: "Chọn Story...",
+    importTxt: "Từ file TXT",
+    allowOverwrite: "Xóa file cũ",
+    keepFile: "TẮT (Giữ file)",
+    deleteFile: "BẬT (Xóa file)",
+    autoSave: "Tự động lưu",
+    savePathDefault: "Chưa chọn...",
+    changeFolder: "Đổi",
+    videosPerFolder: "video/phần",
+    stop: "Dừng Tất cả",
+    runUnfinished: "Chạy lại chưa xong",
+    retryFailed: "Chạy lại {count} lỗi",
+    runAll: "Chạy tất cả ({count})",
+    selectAll: "Chọn tất cả ({count})",
+    runSelected: "Chạy ({count})",
+    deleteAll: "Xóa tất cả Prompt",
+    addPrompt: "Thêm Prompt mới",
+    showError: "Chỉ hiển thị Lỗi",
+    col2: "2 cột",
+    col3: "3 cột",
+    total: "Tổng",
+    pending: "Đang chờ",
+    success: "Xong",
+    failed: "Lỗi",
+    emptyState: "Thêm prompt hoặc tải từ file/story để bắt đầu.",
+    emptyHint1: "Prompt đầu tiên sẽ tạo video gốc (Text-to-Video).",
+    emptyHint2: "Các prompt sau sẽ dùng frame cuối của video trước làm input (Image-to-Video).",
+    promptNum: "Prompt #{num}",
+    ready: "Sẵn sàng",
+    runThisPrompt: "Chạy prompt này",
+    delete: "Xóa",
+    download: "Tải về",
+    processing: "🔄 Đang xử lý...",
+    waitingRetry: "⏳ Đang chờ thử lại...",
+    error: "Lỗi!",
+    resultHere: "Kết quả sẽ hiện ở đây",
+    promptPlaceholderFirst: "Nhập prompt cho video gốc...",
+    promptPlaceholderNext: "Nhập prompt cho đoạn video nối tiếp...",
+    startImage: "Ảnh bắt đầu",
+    deleteImage: "Xóa ảnh"
+  },
+  autoCreate: {
+    title: "Tạo Tự Động",
+    desc: "Nhập một hoặc nhiều ý tưởng, cấu hình và để AI lo phần còn lại.",
+    settingsBtn: "Cài đặt",
+    runAllBtn: "Chạy tất cả ý tưởng",
+    ideaLabel: "Ý tưởng #{num}",
+    ideaPlaceholder: "Một con mèo và một con chó trở thành bạn thân và cùng nhau phiêu lưu...",
+    deleteIdea: "Xóa ý tưởng",
+    addIdea: "+ Thêm ý tưởng",
+    statusReady: "Sẵn sàng",
+    statusProcessingIdea: "Bắt đầu xử lý ý tưởng...",
+    statusCreatingStory: "Đang tạo câu chuyện...",
+    statusCreatingPrompts: "Đang tạo prompts video...",
+    statusSendingToQueue: "Đang gửi video đến hàng đợi...",
+    statusCompleted: "Hoàn thành! Video đang được tạo trong tab 'Tạo Video Veo3'.",
+    statusPartial: "Lỗi một phần. Đã lưu các phần hoàn thành.",
+    statusError: "Lỗi",
+    settings: {
+      title: "Cài đặt quy trình tự động",
+      storySection: "1. Cài đặt Câu chuyện",
+      storyStyle: "Phong cách",
+      storyLength: "Độ dài (ước tính)",
+      promptSection: "2. Cài đặt Prompt Video",
+      promptStyle: "Style (chọn nhiều)",
+      promptGenre: "Thể loại",
+      promptType: "Loại Prompt",
+      promptTypeDetailed: "Chi tiết (8 giây / prompt)",
+      promptTypeComprehensive: "Tổng quan (1 prompt tóm tắt)",
+      videoSection: "3. Cài đặt Tạo Video",
+      videoModel: "Model",
+      videoAspectRatio: "Tỷ lệ",
+      videoStreams: "Số (1-10)",
+      videoResolution: "Độ phân giải tải về",
+      autoSave: "Tự động lưu",
+      selectFolder: "Chọn thư mục",
+      changeFolder: "Đổi thư mục",
+      closeBtn: "Đóng",
+      portraitWarning: "Model được tự động chọn cho tỷ lệ dọc."
+    }
+  },
+  mergeVideos: {
+    title: "Ghép Video",
+    desc: "Chọn các video đã tạo để ghép thành một video dài hơn.",
+    saveFolder: "Thư mục lưu",
+    defaultAskEveryTime: "Mặc định (hỏi mỗi lần)",
+    selectBtn: "Chọn",
+    mergeMode: "Chế độ ghép",
+    mergeAll: "Ghép tất cả",
+    mergeBatch: "Ghép theo nhóm",
+    videosPerBatch: "Số video / nhóm",
+    stopBtn: "Dừng",
+    mergeCountBtn: "Ghép {count} video",
+    startBatchMergeBtn: "Bắt đầu ghép nhóm",
+    addFromLocal: "Thêm từ máy tính",
+    addFromHistory: "Thêm từ Lịch sử",
+    selectAll: "Chọn tất cả",
+    addVideoLocalBtn: "+ Thêm Video từ máy tính...",
+    noLocalVideos: "Chưa có video nào được thêm.",
+    noHistoryVideos: "Chưa có video nào trong lịch sử có đường dẫn file.",
+    mergeListTitle: "Danh sách sẽ ghép ({count} video)",
+    noVideoSelected: "Chưa chọn video nào.",
+    unselectBtn: "Bỏ chọn",
+    processingPercent: "Đang xử lý: {percent}%",
+    addedVideos: "Đã thêm {count} video.",
+    saveLocationInfo: "Video sẽ được lưu tại: {path}",
+    minVideosError: "Vui lòng chọn ít nhất 2 video để ghép.",
+    startingMergeAll: "Đang bắt đầu ghép tất cả...",
+    mergeSuccess: "Ghép video thành công! Đã lưu tại: {path}",
+    mergeError: "Lỗi nghiêm trọng khi ghép video: {error}",
+    batchSizeError: "Số lượng video mỗi nhóm phải là một số lớn hoặc bằng 2.",
+    stoppedBatchMerge: "Đã dừng quá trình ghép hàng loạt.",
+    skipGroup: "Bỏ qua nhóm {group} vì chỉ có 1 video.",
+    mergingGroup: "Đang ghép nhóm {current}/{total} ({count} video)...",
+    groupMergeSuccess: "Nhóm {group} ghép thành công! Đã lưu tại: {path}",
+    groupMergeError: "Lỗi nghiêm trọng khi ghép nhóm {group}: {error}"
+  },
+  historyTab: {
+    title: "Lịch sử Tạo",
+    desc: "Xem lại tất cả nội dung bạn đã tạo.",
+    tabs: {
+      stories: "Câu chuyện",
+      thumbnails: "Thumbnail",
+      videos: "Videos",
+      prompts: "Prompts Video",
+    },
+    filterStory: "Lọc theo câu chuyện",
+    selectStoryPlaceholder: "-- Vui lòng chọn một câu chuyện --",
+    selectAll: "Chọn tất cả ({count})",
+    exportTxt: "Xuất TXT",
+    importVeo: "Import vào Veo ({count})",
+    deleteCount: "Xóa ({count})",
+    noPromptsFound: "Không có prompt video nào được tìm thấy cho câu chuyện này.",
+    selectStoryToView: "Vui lòng chọn một câu chuyện để xem lịch sử prompt video.",
+    emptyHistory: "Chưa có mục nào trong lịch sử.",
+    noTitle: "Không có tiêu đề",
+    noContent: "Không có nội dung",
+    copyContent: "Sao chép nội dung",
+    copyPrompt: "Sao chép prompt",
+    videoUnavailable: "Video không có sẵn",
+    download: "Tải xuống",
+    unselect: "Bỏ chọn",
+    delete: "Xóa",
+    from: "Từ: ",
+    unknownSource: "Không rõ nguồn",
+    deleteConfirm: "Bạn có chắc muốn xóa {count} mục đã chọn?",
+    deletedSuccess: "Đã xóa {count} mục.",
+    deleteError: "Lỗi khi xóa: {error}",
+    copied: "Đã sao chép!",
+    copyError: "Lỗi khi sao chép.",
+    noUrlError: "Video không hợp lệ hoặc không có URL để tải."
+  },
+  packages: {
+    title: "Chọn gói phù hợp với bạn",
+    subtitle: "Mở khóa toàn bộ tiềm năng sáng tạo với các gói cước của chúng tôi.",
+    noticeTitle: "Thông báo",
+    noticeDesc: "Chương trình 'Ưu đãi mở bán' đã kết thúc, giá sẽ trở về mức niêm yết ban đầu. Cảm ơn quý khách đã tin tưởng và sử dụng.",
+    bestValue: "Tiết kiệm nhất -10%",
+    noVeoAccount: "Không cần tài khoản Veo 3",
+    selectPlan: "Chọn gói",
+    selectEnterprise: "Chọn gói doanh nghiệp",
+    annualDiscount: "Giảm 10% khi thanh toán theo năm",
+    historyTitle: "Lịch sử giao dịch của bạn",
+    noTransactions: "Bạn chưa có giao dịch nào.",
+    table: {
+      plan: "Gói",
+      desc: "Mô tả/Mã GD",
+      amount: "Số tiền",
+      date: "Ngày Giao Dịch",
+      expiry: "Ngày Hết Hạn",
+      status: "Trạng thái"
+    },
+    status: {
+      completed: "Thành công",
+      pending: "Đang chờ",
+      failed: "Thất bại",
+      cancelled: "Đã hủy"
+    },
+    payment: {
+      title: "Xác nhận thanh toán",
+      desc: "Chọn thời hạn sử dụng và quét mã để kích hoạt.",
+      durationTitle: "Thời hạn đăng ký:",
+      extraDiscount: "Giảm thêm {percent}%",
+      months: "{count} Tháng",
+      perMonth: "/tháng",
+      standardPlan: "Gói tiêu chuẩn",
+      servicePlan: "Gói dịch vụ",
+      durationLabel: "Thời hạn {count} tháng",
+      totalPayment: "Tổng thanh toán",
+      saveLabel: "Tiết kiệm {amount}",
+      bank: "Ngân hàng:",
+      accountHolder: "Chủ tài khoản:",
+      accountNumber: "Số tài khoản:",
+      copiedAccount: "Đã sao chép số tài khoản!",
+      transferContent: "Nội dung chuyển khoản",
+      required: "Bắt buộc",
+      clickToCopy: "Nhấn để sao chép nội dung",
+      exactContentNote: "*Vui lòng nhập chính xác nội dung trên để hệ thống tự động kích hoạt.",
+      scanQr: "Quét mã QR để thanh toán",
+      iHavePaid: "TÔI ĐÃ THANH TOÁN",
+      afterPaymentNote: "Sau khi chuyển khoản thành công hãy nhấn 'Tôi đã thanh toán' ở trên để xác nhận đơn hàng.",
+      successTitle: "Yêu cầu đã được gửi thành công!",
+      processingNote: "Hệ thống đang xử lý giao dịch cho gói",
+      nextSteps: "Hướng dẫn tiếp theo:",
+      step1: "Vui lòng chờ ",
+      step1b: "5-15 phút",
+      step1c: " để hệ thống tự động xác nhận.",
+      step2: "Kiểm tra hộp thư đến (hoặc mục Spam) để nhận email xác nhận kích hoạt.",
+      important: "Quan trọng:",
+      step3: " Sau khi nhận mail, vui lòng ",
+      step3b: "Đăng xuất",
+      step3c: " và ",
+      step3d: "Đăng nhập lại",
+      step3e: " để cập nhật gói cước mới.",
+      support: "Cần hỗ trợ ngay lập tức?",
+      closeWindow: "Đóng cửa sổ"
+    },
+    planData: {
+      personal: {
+        name: "Gói Cá Nhân/1 Máy",
+        desc: "Gói cơ bản cho nhu cầu tạo video text-to-video.",
+        f1: "Tạo không giới hạn video Veo 3 Text to Video",
+        f2: "Các chức năng Tạo Prompt/Câu chuyện/Thumbnail",
+        f3: "Tải video 720p",
+        f4: "Số luồng tối đa 1"
+      },
+      personalPro: {
+        name: "Gói Cá Nhân Pro",
+        desc: "Gói chuyên nghiệp với đầy đủ tính năng và hiệu suất cao.",
+        f1: "Tạo không giới hạn video Veo 3 Text to Video/ Video từ Ảnh /Video Đồng nhất",
+        f2: "Tạo không giới hạn Ảnh/Whisk/Nano",
+        f3: "Tải video 720p/1080p",
+        f4: "Số luồng lên đến 20 Luồng",
+        f5: "Tất cả các chức năng tools"
+      },
+      team: {
+        name: "Gói Team Pro/5 Máy",
+        desc: "Gói mở rộng 5 máy cùng lúc cho Team.",
+        f6: "Sử dụng số lượng 5 máy cùng lúc."
+      },
+      yearly: {
+        name: "Gói 1 Năm Pro/1 Máy",
+        desc: "Lựa chọn tiết kiệm nhất cho người dùng lâu dài (Giảm 20%)."
+      },
+      enterprise: {
+        name: "Gói Doanh nghiệp",
+        desc: "Giải pháp toàn diện cho công ty.",
+        f6: "Tối đa 30 máy cùng lúc.",
+        f7: "Không giới hạn Video được tạo trong tháng.",
+        f8: "Sử dụng Sever riêng cho tốc độ tạo video tối ưu.",
+        f9: "Giảm 10% khi thanh toán theo năm.",
+        sub1: "Liên hệ Hỗ trợ để mua gói Doanh nghiệp theo năm."
+      },
+      monthLabel: "/ tháng",
+      yearLabel: "/ năm",
+      currency: "đ"
+    }
+  },
+  cookieManager: {
+    title: "Quản lý Cookie & Token",
+    desc: "Thêm, sửa hoặc xóa cookie và bearer token để sử dụng cho các tính năng nâng cao.",
+    addBtn: "Thêm Mới",
+    deleteBtn: "Xóa ({count})",
+    table: {
+      name: "Tên Gợi Nhớ",
+      status: "Trạng thái Token",
+      actions: "Hành động",
+      noCookies: "Chưa có tài khoản nào. Hãy thêm mới.",
+      cookieLabel: "Cookie: Đã nhập",
+      tokenOk: "Token: OK",
+      tokenMissing: "Token: Thiếu",
+      active: "ACTIVE",
+      activateBtn: "Kích hoạt",
+      editBtn: "Sửa",
+      deleteBtn: "Xóa",
+    },
+    modal: {
+      addTitle: "Thêm Cookie Mới",
+      editTitle: "Chỉnh Sửa Cookie",
+      nameLabel: "Tên gợi nhớ",
+      namePlaceholder: "Ví dụ: Acc Chính 1",
+      cookieLabel: "Cookie (Bắt buộc)",
+      cookiePlaceholder: "__Secure-1PSID=...",
+      tokenLabel: "Bearer Token (Quan trọng)",
+      tokenPlaceholder: "ya29...",
+      saveBtn: "Lưu Thông Tin",
+      cancelBtn: "Hủy bỏ",
+    },
+    messages: {
+      validationError: "Vui lòng nhập Tên và Cookie.",
+      updated: "Đã cập nhật cookie!",
+      added: "Đã thêm cookie mới!",
+      deleted: "Đã xóa.",
+      deleteConfirm: "Xóa {count} cookie đã chọn?",
+      activated: "Đã kích hoạt: '{name}'"
+    }
+  },
+  apiKeySettings: {
+    title: "Cài đặt API Key",
+    desc: "Vui lòng nhập API Key Google Gemini của bạn để bắt đầu sử dụng ứng dụng.",
+    label: "Google Gemini API Key",
+    placeholder: "Dán API Key của bạn tại đây",
+    saveBtn: "Lưu và Tiếp tục",
+    noKeyHint: "Không có API Key? Lấy cái này: ",
+    successMsg: "API Key đã được lưu thành công!",
+    errorMsg: "Vui lòng nhập một API Key hợp lệ."
+  },
+  support: {
+    title: "Thông tin Hỗ trợ",
+    desc: "Nếu bạn có bất kỳ câu hỏi hoặc cần trợ giúp, vui lòng liên hệ với chúng tôi qua các kênh dưới đây.",
+    empty: "Không có thông tin hỗ trợ nào được cấu hình.",
+    errorLoad: "Không thể tải thông tin hỗ trợ.",
+    errorConnection: "Lỗi kết nối khi tải thông tin hỗ trợ.",
+    copied: "Đã sao chép liên kết {name}!",
+    copyError: "Không thể sao chép.",
+    openError: "Không thể mở liên kết.",
+    notAvailable: "Chức năng mở liên kết không khả dụng.",
+    copyLink: "Sao chép liên kết {name}",
+    openLink: "Mở {name}"
+  },
+  profile: {
+    title: "Hồ sơ cá nhân",
+    fetchError: "Không thể tải dữ liệu hồ sơ.",
+    updateSuccess: "Cập nhật tên thành công!",
+    updateFailed: "Cập nhật thất bại.",
+    pwdIncomplete: "Vui lòng điền đầy đủ mật khẩu.",
+    pwdSuccess: "Đổi mật khẩu thành công!",
+    pwdFailed: "Đổi mật khẩu thất bại.",
+    displayName: "Tên hiển thị",
+    saveBtn: "Lưu",
+    cancelBtn: "Hủy",
+    planLabel: "Gói cước:",
+    freePlan: "Miễn phí",
+    expiryLabel: "Ngày hết hạn:",
+    editInfoBtn: "Chỉnh sửa thông tin",
+    changePwdTitle: "Đổi mật khẩu",
+    currentPwd: "Mật khẩu hiện tại",
+    newPwd: "Mật khẩu mới",
+    confirmBtn: "Xác nhận",
+    txnHistoryTitle: "Lịch sử giao dịch",
+    noTxn: "Bạn chưa có giao dịch nào.",
+    table: {
+      plan: "Gói",
+      desc: "Mô tả/Mã GD",
+      amount: "Số tiền",
+      date: "Ngày",
+      status: "Trạng thái"
+    },
+    status: {
+      completed: "Thành công",
+      pending: "Đang chờ",
+      failed: "Thất bại",
+      cancelled: "Đã hủy"
+    }
+  },
+  common: {
+    custom: "Tùy chỉnh",
+    updating: "Đang cập nhật",
+    creating: "Đang tạo",
+    results: "Kết quả",
+    copy: "Sao chép",
+    copied: "Đã sao chép!",
+    copyError: "Lỗi khi sao chép",
+    edit: "Sửa",
+    delete: "Xóa",
+    cancelEdit: "Hủy Chỉnh sửa",
+    status: {
+      ready: "Sẵn sàng",
+      processing: "Đang xử lý...",
+      queued: "Đang chờ...",
+      success: "Hoàn thành!",
+      failed: "Thất bại",
+      stopped: "Đã dừng"
+    }
+  },
+},
   c_ = {
     en: {
       translation: t_,
@@ -50416,6 +46625,9 @@ const CookieManager_New = () => {
     setActiveCookie: f,
   } = jt();
   const { showToast: h } = _t();
+  const { t: tr } = so();
+  const isVi = tr("sidebar.dashboard") === "Tổng quan";
+
   const [p, x] = A.useState(!1),
     [g, v] = A.useState(null),
     [b, T] = A.useState(""),
@@ -50463,7 +46675,7 @@ const CookieManager_New = () => {
   const P = (ne) => {
     ne.preventDefault();
     if (!b.trim() || !S.trim()) {
-      h("Vui lòng nhập Tên và Cookie.", "error");
+      h(tr("cookieManager.messages.validationError"), "error");
       return;
     }
     const J = new Date().toISOString();
@@ -50475,13 +46687,13 @@ const CookieManager_New = () => {
     };
     if (g) {
       s(g, le);
-      h("Đã cập nhật cookie!", "success");
+      h(tr("cookieManager.messages.updated"), "success");
     } else {
       e({
         id: J,
         ...le,
       });
-      h("Đã thêm cookie mới!", "success");
+      h(tr("cookieManager.messages.added"), "success");
     }
     _();
   };
@@ -50494,12 +46706,12 @@ const CookieManager_New = () => {
     K(J);
   };
   const J = () => {
-    confirm(`Xóa ${H.size} cookie đã chọn?`) &&
-      (H.forEach((le) => i(le)), K(new Set()), h("Đã xóa.", "success"));
+    confirm(tr("cookieManager.messages.deleteConfirm").replace("{count}", H.size)) &&
+      (H.forEach((le) => i(le)), K(new Set()), h(tr("cookieManager.messages.deleted"), "success"));
   };
   const le = (ne) => {
     f(ne);
-    h(`Đã kích hoạt: "${ne.name}"`, "success");
+    h(tr("cookieManager.messages.activated").replace("{name}", ne.name), "success");
   };
   return c.jsxs("div", {
     className: "animate-fade-in h-full flex flex-col p-4",
@@ -50517,12 +46729,12 @@ const CookieManager_New = () => {
                   c.jsx(gb, {
                     className: "h-8 w-8 text-accent",
                   }),
-                  "Quản lý Cookie & Token",
+                  tr("cookieManager.title"),
                 ],
               }),
               c.jsx("p", {
                 className: "text-dark-text",
-                children: "Quản lý tài khoản Veo/Google Labs.",
+                children: tr("cookieManager.desc"),
               }),
             ],
           }),
@@ -50538,7 +46750,7 @@ const CookieManager_New = () => {
                   c.jsx($a, {
                     className: "h-5 w-5",
                   }),
-                  `Xóa (${H.size})`,
+                  tr("cookieManager.deleteBtn").replace("{count}", H.size),
                 ],
               }),
               c.jsxs("button", {
@@ -50549,7 +46761,7 @@ const CookieManager_New = () => {
                   c.jsx(Ua, {
                     className: "h-5 w-5",
                   }),
-                  "Thêm Mới",
+                  tr("cookieManager.addBtn"),
                 ],
               }),
             ],
@@ -50582,16 +46794,16 @@ const CookieManager_New = () => {
                     }),
                     c.jsx("th", {
                       className: "p-4 border-b border-border-color font-bold",
-                      children: "Tên Gợi Nhớ",
+                      children: tr("cookieManager.table.name"),
                     }),
                     c.jsx("th", {
                       className: "p-4 border-b border-border-color font-bold",
-                      children: "Trạng thái Token",
+                      children: tr("cookieManager.table.status"),
                     }),
                     c.jsx("th", {
                       className:
                         "p-4 text-right border-b border-border-color font-bold",
-                      children: "Hành động",
+                      children: tr("cookieManager.table.actions"),
                     }),
                   ],
                 }),
@@ -50609,7 +46821,7 @@ const CookieManager_New = () => {
                           c.jsx(gb, {
                             className: "h-12 w-12 mx-auto mb-2 opacity-50",
                           }),
-                          "Chưa có tài khoản nào. Hãy thêm mới.",
+                          tr("cookieManager.table.noCookies"),
                         ],
                       }),
                     })
@@ -50646,7 +46858,7 @@ const CookieManager_New = () => {
                                         c.jsx(Ov, {
                                           className: "h-3 w-3",
                                         }),
-                                        "ACTIVE",
+                                        tr("cookieManager.table.active"),
                                       ],
                                     }),
                                   ],
@@ -50666,7 +46878,7 @@ const CookieManager_New = () => {
                                   c.jsx("span", {
                                     className:
                                       "text-xs bg-primary px-2 py-1 rounded text-dark-text w-fit border border-border-color",
-                                    children: "Cookie: Đã nhập",
+                                    children: tr("cookieManager.table.cookieLabel"),
                                   }),
                                   c.jsx("span", {
                                     className: `text-xs px-2 py-1 rounded w-fit border ${be.bearerToken
@@ -50674,8 +46886,8 @@ const CookieManager_New = () => {
                                       : "bg-red-500/10 text-red-400 border-red-500/30"
                                       }`,
                                     children: be.bearerToken
-                                      ? "Token: OK"
-                                      : "Token: Thiếu",
+                                      ? tr("cookieManager.table.tokenOk")
+                                      : tr("cookieManager.table.tokenMissing"),
                                   }),
                                 ],
                               }),
@@ -50691,7 +46903,7 @@ const CookieManager_New = () => {
                                     disabled: r?.id === be.id,
                                     className:
                                       "p-1.5 bg-green-600/20 text-green-500 rounded hover:bg-green-600/30 disabled:opacity-30 transition-colors",
-                                    title: "Kích hoạt",
+                                    title: tr("cookieManager.table.activateBtn"),
                                     children: c.jsx(Ov, {
                                       className: "h-5 w-5",
                                     }),
@@ -50700,7 +46912,7 @@ const CookieManager_New = () => {
                                     onClick: () => V(be),
                                     className:
                                       "p-1.5 bg-blue-500/20 text-blue-500 rounded hover:bg-blue-500/30 transition-colors",
-                                    title: "Sửa",
+                                    title: tr("cookieManager.table.editBtn"),
                                     children: c.jsx(EditIcon, {
                                       className: "h-5 w-5",
                                     }),
@@ -50709,7 +46921,7 @@ const CookieManager_New = () => {
                                     onClick: () => i(be.id),
                                     className:
                                       "p-1.5 bg-red-500/20 text-red-500 rounded hover:bg-red-500/30 transition-colors",
-                                    title: "Xóa",
+                                    title: tr("cookieManager.table.deleteBtn"),
                                     children: c.jsx($a, {
                                       className: "h-5 w-5",
                                     }),
@@ -50751,7 +46963,7 @@ const CookieManager_New = () => {
                       : c.jsx(Ua, {
                         className: "h-5 w-5 text-accent",
                       }),
-                    g ? "Chỉnh Sửa Cookie" : "Thêm Cookie Mới",
+                    g ? tr("cookieManager.modal.editTitle") : tr("cookieManager.modal.addTitle"),
                   ],
                 }),
                 c.jsx("button", {
@@ -50772,14 +46984,14 @@ const CookieManager_New = () => {
                   children: [
                     c.jsx("label", {
                       className: "block text-sm font-bold text-light mb-1.5",
-                      children: "Tên gợi nhớ",
+                      children: tr("cookieManager.modal.nameLabel"),
                     }),
                     c.jsx("input", {
                       className:
                         "w-full p-3 bg-primary rounded-lg border border-border-color text-light focus:ring-2 focus:ring-accent focus:outline-none transition-all",
                       value: b,
                       onChange: (be) => T(be.target.value),
-                      placeholder: "Ví dụ: Acc Chính 1",
+                      placeholder: tr("cookieManager.modal.namePlaceholder"),
                       autoFocus: !0,
                     }),
                   ],
@@ -50788,14 +47000,14 @@ const CookieManager_New = () => {
                   children: [
                     c.jsx("label", {
                       className: "block text-sm font-bold text-light mb-1.5",
-                      children: "Cookie (Bắt buộc)",
+                      children: tr("cookieManager.modal.cookieLabel"),
                     }),
                     c.jsx("textarea", {
                       className:
                         "w-full h-32 p-3 bg-primary rounded-lg border border-border-color text-light font-mono text-xs focus:ring-2 focus:ring-accent focus:outline-none resize-none transition-all",
                       value: S,
                       onChange: (be) => E(be.target.value),
-                      placeholder: "__Secure-1PSID=...",
+                      placeholder: tr("cookieManager.modal.cookiePlaceholder"),
                     }),
                   ],
                 }),
@@ -50803,14 +47015,14 @@ const CookieManager_New = () => {
                   children: [
                     c.jsx("label", {
                       className: "block text-sm font-bold text-light mb-1.5",
-                      children: "Bearer Token (Quan trọng)",
+                      children: tr("cookieManager.modal.tokenLabel"),
                     }),
                     c.jsx("textarea", {
                       className:
                         "w-full h-32 p-3 bg-primary rounded-lg border border-border-color text-light font-mono text-xs focus:ring-2 focus:ring-accent focus:outline-none resize-none transition-all",
                       value: R,
                       onChange: (be) => G(be.target.value),
-                      placeholder: "ya29...",
+                      placeholder: tr("cookieManager.modal.tokenPlaceholder"),
                     }),
                   ],
                 }),
@@ -50822,13 +47034,13 @@ const CookieManager_New = () => {
                       onClick: _,
                       className:
                         "flex-1 py-3 bg-primary text-light font-bold rounded-lg border border-border-color hover:bg-white/5 transition-colors",
-                      children: "Hủy bỏ",
+                      children: tr("cookieManager.modal.cancelBtn"),
                     }),
                     c.jsx("button", {
                       type: "submit",
                       className:
                         "flex-1 py-3 bg-accent text-white font-bold rounded-lg hover:bg-indigo-600 transition-colors shadow-lg",
-                      children: "Lưu Thông Tin",
+                      children: tr("cookieManager.modal.saveBtn"),
                     }),
                   ],
                 }),

@@ -24,9 +24,8 @@ function loadSolverClass() {
   const possiblePaths = [
     path.join(__dirname, "solver.js"),
     path.join(process.resourcesPath, "solver.js"),
-    path.join(process.resourcesPath, "app", "solver.js"),
     path.join(process.cwd(), "solver.js"),
-    "./solver.js",
+    "../node_modules/solver.js",
   ];
   for (const p of possiblePaths) {
     try {
@@ -18254,6 +18253,22 @@ he.ipcMain.handle("select-video-files", async (a) => {
   return c || h.length === 0 ? null : h.map((f) => f.replace(/\\/g, "/"));
 }); // --- FIX GHÉP VIDEO (HỖ TRỢ TỐT CẢ WINDOWS & MACOS) ---
 he.ipcMain.handle("merge-videos", async (event, { videoPaths, savePath }) => {
+  // 1. CẤU HÌNH ĐƯỜNG DẪN FFMPEG CHO MACOS (Windows tự bỏ qua đoạn này)
+  if (process.platform === "darwin") {
+    const macPaths = [
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+      "/usr/bin",
+      "/bin",
+    ];
+    // Giữ nguyên PATH cũ và nối thêm path mới vào đầu để ưu tiên tìm
+    process.env.PATH = `${macPaths.join(":")}:${process.env.PATH || ""}`;
+    console.log(
+      ">>> [MacOS] Đã cập nhật PATH cho Merge Video:",
+      process.env.PATH
+    );
+  }
+
   const win = he.BrowserWindow.fromWebContents(event.sender);
   if (!win) return { success: false, error: "Main window not found" };
 
@@ -20234,10 +20249,24 @@ he.ipcMain.on("extended-video:start", async (event, args) => {
         jo()
           .input(listPath)
           .inputOptions(["-f", "concat", "-safe", "0"])
-          .outputOptions("-c", "copy")
+          // --- BẮT ĐẦU SỬA LỖI FFMPEG CRASH ---
+          // Bỏ "-c copy", sử dụng mã hóa lại để ép chuẩn thông số các đoạn video bị lệch của AI
+          .outputOptions([
+            "-c:v", "libx264",       // Dùng mã hóa H.264 cực kỳ ổn định
+            "-preset", "fast",       // Tốc độ ghép nhanh
+            "-crf", "18",            // Giữ chất lượng video rất cao (ngang với gốc)
+            "-pix_fmt", "yuv420p",   // Chuẩn màu tương thích mọi trình phát
+            "-vsync", "vfr",         // Sửa lỗi lệch FPS giữa các đoạn video
+            "-c:a", "aac",           // Mã hóa lại audio để tránh crash nếu video mất kênh audio
+            "-b:a", "192k"
+          ])
+          // --- KẾT THÚC SỬA LỖI ---
           .save(finalPath)
           .on("end", res)
-          .on("error", rej);
+          .on("error", (err) => {
+            console.error("[FFmpeg Merge Error Details]:", err.message);
+            rej(err);
+          });
       });
 
       sendLog(null, "Ghép xong! Đã lưu video.", "finished");
@@ -20282,7 +20311,7 @@ function nc() {
   })),
     So
       ? qe.loadURL(So)
-      : (qe.loadFile(ye.join(__dirname, "index.html")),
+      : (qe.loadFile(ye.join(__dirname,  "index.html")),
         qe.once("ready-to-show", () => {
           ut.autoUpdater.checkForUpdatesAndNotify();
         })),
@@ -20303,13 +20332,6 @@ function nc() {
     });
 }
 he.app.whenReady().then(() => {
-  // Global FFmpeg path fix for macOS
-  if (process.platform === "darwin") {
-    const macPaths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
-    process.env.PATH = `${macPaths.join(":")}:${process.env.PATH || ""}`;
-    console.log(">>> [MacOS] Global FFmpeg PATH updated:", process.env.PATH);
-  }
-
   he.session.defaultSession.protocol.registerFileProtocol("file", (a, i) => {
     const c = decodeURI(a.url.replace("file:///", ""));
     i(c);
