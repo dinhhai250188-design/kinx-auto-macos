@@ -18470,7 +18470,7 @@ const SunoTab = ({ setActiveView }) => {
                       disabled: isRunning,
                       className:
                         "bg-primary hover:bg-hover-bg text-dark-text font-bold py-2 px-3 rounded-lg text-xs h-[34px]",
-                      children: "+ Thủ công",
+                      children: "thủ công",
                     }),
                     c.jsx("button", {
                       onClick: handleImportTxt,
@@ -31571,7 +31571,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
       time: "~30 phút đọc",
     },
   ],
-  XM = () => {
+  XM = ({ setActiveView }) => {
     const {
       stories: t,
       addStory: e,
@@ -31580,6 +31580,8 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
       generatedMetadatas: r,
       addGeneratedMetadata: f,
       deleteGeneratedMetadata: h,
+      currentUser,
+      refreshCurrentUser: refreshUser,
     } = jt(),
       { showToast: p } = _t(),
       { t: x } = so(),
@@ -31597,6 +31599,30 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
       [se, U] = A.useState(""),
       [ee, fe] = A.useState(null),
       [ke, w] = A.useState(!1);
+
+    const isExpired = A.useMemo(() => {
+      if (!currentUser || !currentUser.subscription || currentUser.user.status !== "active") return true;
+      if (new Date(currentUser.subscription.end_date) < new Date()) return true;
+      return false;
+    }, [currentUser]);
+
+    const checkPlanServer = async () => {
+      try {
+        await refreshUser();
+        await new Promise((res) => setTimeout(res, 150));
+        const userObj = JSON.parse(localStorage.getItem("currentUser") || "null");
+        if (!userObj || !userObj.subscription || !userObj.subscription.end_date || new Date(userObj.subscription.end_date) < new Date()) {
+          p(x("sidebar.dashboard") === "Tổng quan" ? "Gói đăng ký đã hết hạn. Vui lòng nâng cấp." : "Subscription expired.", "error");
+          if (setActiveView) setActiveView(je.PACKAGES);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        p(x("sidebar.dashboard") === "Tổng quan" ? "Lỗi kiểm tra gói cước." : "Plan check error.", "error");
+        return false;
+      }
+    };
+
     A.useEffect(() => {
       g !== "create" && $e(null);
     }, [g]),
@@ -31604,7 +31630,9 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
         Re ? (E(Re.source), ne(Re.content)) : g === "create" && (E(""), ne(""));
       }, [Re, g]);
     const B = async (Ee) => {
-      Ee.preventDefault(), Me(""), Re || ne(""), le(!0);
+      Ee.preventDefault();
+      if (!(await checkPlanServer())) return; // CHẶN LẠI ĐÂY
+      Me(""), Re || ne(""), le(!0);
       const ut = R === "custom" ? H : R,
         St = L === "custom" ? _ : L;
       if (!S.trim() || !ut.trim() || !St.trim()) {
@@ -31640,10 +31668,12 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
       }
     },
       W = async (Ee) => {
-        if ((Ee.preventDefault(), Me(""), fe(null), !se)) {
+        Ee.preventDefault(); Me(""); fe(null);
+        if (!se) {
           p(x("createStory.errors.selectStory"), "error");
           return;
         }
+        if (!(await checkPlanServer())) return; // CHẶN LẠI ĐÂY
         w(!0);
         try {
           const ut = t.find((Fe) => Fe.id === se);
@@ -32204,6 +32234,27 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
               ),
           ],
         });
+    if (isExpired) {
+      return c.jsxs("div", {
+        className: "flex flex-col items-center justify-center h-full space-y-4",
+        children: [
+          c.jsx("h1", {
+            className: "text-3xl font-bold text-light",
+            children: x("createStory.mainTitle"),
+          }),
+          c.jsx("p", {
+            className: "text-dark-text text-lg",
+            children: x("sidebar.dashboard") === "Tổng quan" ? "Gói đăng ký của bạn đã hết hạn. Vui lòng nâng cấp để sử dụng." : "Your subscription has expired. Please upgrade.",
+          }),
+          c.jsx("button", {
+            className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors",
+            onClick: () => setActiveView && setActiveView(je.PACKAGES),
+            children: x("sidebar.dashboard") === "Tổng quan" ? "Nâng cấp ngay" : "Upgrade Now",
+          }),
+        ],
+      });
+    }
+
     return c.jsxs("div", {
       className: "animate-fade-in",
       children: [
@@ -32262,7 +32313,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
       ],
     });
   },
-  ComicView_New = () => {
+  ComicView_New = ({ setActiveView }) => {
     const {
       stories: t,
       whiskImages: e,
@@ -32272,27 +32323,37 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
       currentUser: fe,
       whiskAutoSaveConfig: x,
       setWhiskAutoSaveConfig: g_save,
+      refreshCurrentUser: refreshUser,
     } = jt(),
       { showToast: p } = _t(),
       { t: x_t } = so(),
-      [g, v] = A.useState(""), // inputStoryId
-      [b, T] = A.useState(""), // manualStory
-      [S, E_panels] = A.useState([]), // panels (objects: { id, prompt, status, imageUrl, message, seed })
-      [R, G] = A.useState(!1), // isAnalyzing
-      [H, K] = A.useState(!1), // isGenerating
-      [L, V] = A.useState(null), // generatedImage
-      [Re, $e] = A.useState("LANDSCAPE"), // aspect ratio
-      [model, setModel] = A.useState("GEM_PIX_2"), // model
-      [se_seed, U_seed] = A.useState(() => Math.floor(Math.random() * 1e6)), // seed
-      [textLanguage, setTextLanguage] = A.useState("Tiếng Việt"), // text language
-      [comicGenre, setComicGenre] = A.useState("Comic Book Style"), // comic genre
-      [sceneCount, setSceneCount] = A.useState(4), // scene count
-      [concurrentStreams, setConcurrentStreams] = A.useState(4), // concurrent streams
-      [inputMode, setInputMode] = A.useState("select"); // "select" or "manual"
-    const [isStopping, setIsStopping] = A.useState(false); // stop signal for UI
-    const isStoppingRef = A.useRef(false); // stop signal for logic
-    const [selectedPanels, setSelectedPanels] = A.useState(new Set()); // selected for batch
+      [g, v] = A.useState(""),
+      [b, T] = A.useState(""),
+      [S, E_panels] = A.useState([]),
+      [R, G] = A.useState(!1),
+      [H, K] = A.useState(!1),
+      [L, V] = A.useState(null),
+      [Re, $e] = A.useState("LANDSCAPE"),
+      [model, setModel] = A.useState("GEM_PIX_2"),
+      [se_seed, U_seed] = A.useState(() => Math.floor(Math.random() * 1e6)),
+      [textLanguage, setTextLanguage] = A.useState("Tiếng Việt"),
+      [comicGenre, setComicGenre] = A.useState("Comic Book Style"),
+      [sceneCount, setSceneCount] = A.useState(4),
+      [concurrentStreams, setConcurrentStreams] = A.useState(4),
+      [inputMode, setInputMode] = A.useState("select");
+    const [isStopping, setIsStopping] = A.useState(false);
+    const isStoppingRef = A.useRef(false);
+    const [selectedPanels, setSelectedPanels] = A.useState(new Set());
 
+    // 1. Hook kiểm tra gói Pro (Bắt buộc khai báo cùng lúc với useState)
+    const isPro = A.useMemo(() => {
+      const basicPackage = "Gói Cá Nhân/1 Máy";
+      if (!fe || !fe.subscription || fe.user.status !== "active") return false;
+      if (new Date(fe.subscription.end_date) < new Date()) return false;
+      return fe.subscription.package_name !== basicPackage;
+    }, [fe]);
+
+    // 2. Hook UseEffect 
     A.useEffect(() => {
       if (!cookie && fe?.token) {
         ak(fe.token)
@@ -32308,7 +32369,55 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
       }
     }, [fe, cookie, E]);
 
+    // 3. XỬ LÝ GIAO DIỆN KHÓA NẾU HẾT HẠN (An toàn vì nằm sau tất cả các Hooks)
+    if (!isPro) {
+      return c.jsxs("div", {
+        className: "flex flex-col items-center justify-center h-full space-y-4",
+        children: [
+          c.jsx("h1", {
+            className: "text-3xl font-bold text-light",
+            children: "TRUYỆN TRANH AI (BETA)",
+          }),
+          c.jsx("p", {
+            className: "text-dark-text text-lg",
+            children: "Tính năng này đã hết hạn hoặc yêu cầu gói PRO để truy cập.",
+          }),
+          c.jsx("button", {
+            className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors",
+            onClick: () => setActiveView(je.PACKAGES),
+            children: "Nâng cấp ngay",
+          }),
+        ],
+      });
+    }
+
+    // 4. KIỂM TRA CHẶN BACKEND TRƯỚC KHI CHẠY TÍNH NĂNG
+    const checkPlan = async () => {
+      try {
+        await refreshUser();
+        await new Promise((res) => setTimeout(res, 150));
+        const userObj = JSON.parse(localStorage.getItem("currentUser") || "null");
+
+        if (!userObj || !userObj.subscription || !userObj.subscription.end_date || new Date(userObj.subscription.end_date) < new Date()) {
+          p(x_t("sidebar.dashboard") === "Tổng quan" ? "Gói đăng ký đã hết hạn. Vui lòng nâng cấp." : "Subscription expired. Please upgrade.", "error");
+          setActiveView(je.PACKAGES);
+          return false;
+        }
+        if (userObj.subscription.package_name === "Gói Cá Nhân/1 Máy") {
+          p(x_t("sidebar.dashboard") === "Tổng quan" ? "Tính năng Truyện tranh AI yêu cầu Gói Pro." : "AI Comic requires Pro plan.", "info");
+          setActiveView(je.PACKAGES);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        p(x_t("sidebar.dashboard") === "Tổng quan" ? "Lỗi kiểm tra gói cước." : "Plan check error.", "error");
+        return false;
+      }
+    };
+
     const handleAnalyze = async () => {
+      if (!(await checkPlan())) return; // Chặn ngay nếu hết hạn
+
       let storyText = "";
       if (inputMode === "manual") {
         storyText = b;
@@ -32411,6 +32520,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
     };
 
     const handleGenerateSingle = async (index) => {
+      if (!(await checkPlan())) return; // Chặn ngay nếu hết hạn
       if (!cookie || !cookie.bearerToken) {
         p("Vui lòng cấu hình Cookie/Token Whisk trước.", "error");
         return;
@@ -32498,6 +32608,7 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
     };
 
     const handleGenerate = async (onlySelected = false) => {
+      if (!(await checkPlan())) return; // Chặn ngay nếu hết hạn
       if (S.length === 0) {
         p("Vui lòng phân tích kịch bản trước.", "warning");
         return;
@@ -32625,6 +32736,27 @@ Return a JSON object with two keys: "new_characters" (array of NON-LOCKED charac
         setIsStopping(false);
       }
     };
+
+    if (!isPro) {
+      return c.jsxs("div", {
+        className: "flex flex-col items-center justify-center h-full space-y-4",
+        children: [
+          c.jsx("h1", {
+            className: "text-3xl font-bold text-light",
+            children: "TRUYỆN TRANH AI (BETA)",
+          }),
+          c.jsx("p", {
+            className: "text-dark-text text-lg",
+            children: "Tính năng này đã hết hạn hoặc yêu cầu gói PRO để truy cập.",
+          }),
+          c.jsx("button", {
+            className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors",
+            onClick: () => setActiveView(je.PACKAGES),
+            children: "Nâng cấp ngay",
+          }),
+        ],
+      });
+    }
 
     return c.jsxs("div", {
       className: "animate-fade-in space-y-6",
@@ -33104,9 +33236,34 @@ const sk = ({ setActiveView: t }) => {
     deleteCharacter: v,
     geminiModel: b,
     setGeminiModel: T,
+    currentUser,
+    refreshCurrentUser: refreshUser,
   } = jt();
   const { showToast: E } = _t();
   const { t: tr } = so();
+
+  const isExpired = A.useMemo(() => {
+    if (!currentUser || !currentUser.subscription || currentUser.user.status !== "active") return true;
+    if (new Date(currentUser.subscription.end_date) < new Date()) return true;
+    return false;
+  }, [currentUser]);
+
+  const checkPlanServer = async () => {
+    try {
+      await refreshUser();
+      await new Promise((res) => setTimeout(res, 150));
+      const userObj = JSON.parse(localStorage.getItem("currentUser") || "null");
+      if (!userObj || !userObj.subscription || !userObj.subscription.end_date || new Date(userObj.subscription.end_date) < new Date()) {
+        E(tr("sidebar.dashboard") === "Tổng quan" ? "Gói đăng ký đã hết hạn. Vui lòng nâng cấp." : "Subscription expired. Please upgrade.", "error");
+        if (t) t(je.PACKAGES);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      E(tr("sidebar.dashboard") === "Tổng quan" ? "Lỗi kiểm tra gói cước." : "Plan check error.", "error");
+      return false;
+    }
+  };
   // --- xuất txt prompt ---
   const handleExportTxt = (data, filename) => {
     if (!data || data.length === 0) {
@@ -33300,6 +33457,7 @@ const sk = ({ setActiveView: t }) => {
   // --- ACTION TẠO PROMPT (QUAN TRỌNG) ---
   const js = async (ev) => {
     ev.preventDefault();
+    if (!(await checkPlanServer())) return; // CHẶN ĐỨNG NẾU HẾT HẠN
 
     // 1. Lấy nội dung truyện
     let storyContent, storyObj;
@@ -33466,6 +33624,7 @@ const sk = ({ setActiveView: t }) => {
       E("Vui lòng chọn một hình ảnh.", "error");
       return;
     }
+    if (!(await checkPlanServer())) return; // CHẶN ĐỨNG NẾU HẾT HẠN
     ye(true);
     try {
       const base64Data = await xx(et);
@@ -34521,12 +34680,34 @@ const sk = ({ setActiveView: t }) => {
         return null;
     }
   };
+
+  if (isExpired) {
+    return c.jsxs("div", {
+      className: "flex flex-col items-center justify-center h-full space-y-4",
+      children: [
+        c.jsx("h1", {
+          className: "text-3xl font-bold text-light",
+          children: tr("sidebar.dashboard") === "Tổng quan" ? "Tạo Prompt Video (Pro)" : "Create Video Prompts (Pro)",
+        }),
+        c.jsx("p", {
+          className: "text-dark-text text-lg",
+          children: tr("sidebar.dashboard") === "Tổng quan" ? "Gói đăng ký của bạn đã hết hạn. Vui lòng nâng cấp để sử dụng." : "Your subscription has expired. Please upgrade.",
+        }),
+        c.jsx("button", {
+          className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors",
+          onClick: () => t && t(je.PACKAGES),
+          children: tr("sidebar.dashboard") === "Tổng quan" ? "Nâng cấp ngay" : "Upgrade Now",
+        }),
+      ],
+    });
+  }
+
   return c.jsxs("div", {
     className: "animate-fade-in",
     children: [
       c.jsx("h1", {
         className: "text-3xl font-bold text-light mb-2",
-        children: tr("sidebar.dashboard") === "Tổng quan" ? "Tạo Prompt Video (Pro)" : "Create Video Prompts (Pro)",
+        children: tr("sidebar.dashboard") === "Tổng quan" ? "Tạo Prompt Video" : "Create Video Prompts",
       }),
       c.jsx("p", {
         className: "text-dark-text mb-6",
@@ -34662,10 +34843,10 @@ const gen_Banana_Pro = async (cookie, s, i, aspect, imageBase64 = null) => {
   return v;
 };
 
-const lk = () => {
+const lk = ({ setActiveView }) => {
   const { t: tr } = so();
   const isVi = tr("sidebar.dashboard") === "Tổng quan";
-  const { stories: t, currentUser: e, activeCookie: r } = jt();
+  const { stories: t, currentUser: e, activeCookie: r, refreshCurrentUser: refreshUser } = jt();
   const { showToast: s } = _t(),
     [i, setMode] = A.useState("story"),
     [f, h] = A.useState(""),
@@ -34681,7 +34862,57 @@ const lk = () => {
     [useInputImage, setUseInputImage] = A.useState(false),
     [inputImageData, setInputImageData] = A.useState(null);
 
+  const isPro = A.useMemo(() => {
+    const basicPackage = "Gói Cá Nhân/1 Máy";
+    if (!e || !e.subscription || e.user.status !== "active") return false;
+    if (new Date(e.subscription.end_date) < new Date()) return false;
+    return e.subscription.package_name !== basicPackage;
+  }, [e]);
+
   A.useEffect(() => { setUseInputImage(false); setInputImageData(null); }, [i]);
+
+  if (!isPro) {
+    return c.jsxs("div", {
+      className: "flex flex-col items-center justify-center h-full space-y-4",
+      children: [
+        c.jsx("h1", {
+          className: "text-3xl font-bold text-light",
+          children: tr("thumbnail.title"),
+        }),
+        c.jsx("p", {
+          className: "text-dark-text text-lg",
+          children: isVi ? "Tính năng này đã hết hạn hoặc yêu cầu Gói PRO để truy cập." : "This feature has expired or requires a PRO plan.",
+        }),
+        c.jsx("button", {
+          className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors",
+          onClick: () => setActiveView && setActiveView(je.PACKAGES),
+          children: isVi ? "Nâng cấp ngay" : "Upgrade Now",
+        }),
+      ],
+    });
+  }
+
+  const checkPlanServer = async () => {
+    try {
+      await refreshUser();
+      await new Promise((res) => setTimeout(res, 150));
+      const userObj = JSON.parse(localStorage.getItem("currentUser") || "null");
+      if (!userObj || !userObj.subscription || !userObj.subscription.end_date || new Date(userObj.subscription.end_date) < new Date()) {
+        s(isVi ? "Gói đăng ký đã hết hạn. Vui lòng nâng cấp." : "Subscription expired.", "error");
+        if (setActiveView) setActiveView(je.PACKAGES);
+        return false;
+      }
+      if (userObj.subscription.package_name === "Gói Cá Nhân/1 Máy") {
+        s(isVi ? "Tính năng này yêu cầu Gói Pro." : "Feature requires Pro plan.", "info");
+        if (setActiveView) setActiveView(je.PACKAGES);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      s(isVi ? "Lỗi kiểm tra gói cước." : "Plan check error.", "error");
+      return false;
+    }
+  };
 
   A.useEffect(() => {
     let ie = "";
@@ -34710,6 +34941,7 @@ const lk = () => {
   };
 
   const W = async () => {
+    if (!(await checkPlanServer())) return; // CHẶN ĐỨNG NẾU KHÔNG QUA ĐƯỢC BÀI KIỂM TRA SERVER
     if (!e || !e.token) { s(tr("thumbnail.errorLogin"), "error"); return; }
     if (!U.trim()) { s(tr("thumbnail.errorEmpty"), "error"); return; }
     j(!0); D(null); ne(tr("thumbnail.initializing"));
@@ -38691,14 +38923,39 @@ const Nk = 1e4,
     { vi: "Dựa trên video này, đề xuất các chủ đề video liên quan.", en: "Suggest related video topics based on this video." },
     { vi: "Phân tích các ý chính của video.", en: "Analyze the main points of the video." }
   ],
-  Ak = () => {
+  Ak = ({ setActiveView }) => {
     const {
       youtubeScripts: t,
       addYouTubeScript: e,
       deleteYouTubeScript: s,
+      currentUser,
+      refreshCurrentUser: refreshUser,
     } = jt();
     const { showToast: i } = _t();
     const { t: tr } = so();
+
+    const isExpired = A.useMemo(() => {
+      if (!currentUser || !currentUser.subscription || currentUser.user.status !== "active") return true;
+      if (new Date(currentUser.subscription.end_date) < new Date()) return true;
+      return false;
+    }, [currentUser]);
+
+    const checkPlanServer = async () => {
+      try {
+        await refreshUser();
+        await new Promise((res) => setTimeout(res, 150));
+        const userObj = JSON.parse(localStorage.getItem("currentUser") || "null");
+        if (!userObj || !userObj.subscription || !userObj.subscription.end_date || new Date(userObj.subscription.end_date) < new Date()) {
+          i(tr("sidebar.dashboard") === "Tổng quan" ? "Gói đăng ký đã hết hạn. Vui lòng nâng cấp." : "Subscription expired. Please upgrade.", "error");
+          if (setActiveView) setActiveView(je.PACKAGES);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        i(tr("sidebar.dashboard") === "Tổng quan" ? "Lỗi kiểm tra gói cước." : "Plan check error.", "error");
+        return false;
+      }
+    };
 
     const [r, f] = A.useState("script");
     const [h, p] = A.useState("");
@@ -38842,6 +39099,7 @@ const Nk = 1e4,
     // 1. Lấy Kịch Bản
     const getScript = async (ev) => {
       ev.preventDefault();
+      if (!(await checkPlanServer())) return; // CHẶN
       R("");
       b("");
       S(!0);
@@ -38871,6 +39129,7 @@ const Nk = 1e4,
     // 2. Link -> Prompt
     const linkToPrompt = async (ev) => {
       ev.preventDefault();
+      if (!(await checkPlanServer())) return; // CHẶN
       R("");
       b("");
       S(!0);
@@ -38907,6 +39166,7 @@ const Nk = 1e4,
     // 3. Upload -> Prompt (CHÍNH)
     const uploadToPrompt = async (ev) => {
       ev.preventDefault();
+      if (!(await checkPlanServer())) return; // CHẶN
       if (!videoFile) {
         i(tr("clone.error.noFile"), "error");
         return;
@@ -39085,6 +39345,27 @@ const Nk = 1e4,
           ],
         }),
       });
+
+    if (isExpired) {
+      return c.jsxs("div", {
+        className: "flex flex-col items-center justify-center h-full space-y-4",
+        children: [
+          c.jsx("h1", {
+            className: "text-3xl font-bold text-light",
+            children: tr("clone.title"),
+          }),
+          c.jsx("p", {
+            className: "text-dark-text text-lg",
+            children: tr("sidebar.dashboard") === "Tổng quan" ? "Gói đăng ký của bạn đã hết hạn. Vui lòng nâng cấp để sử dụng." : "Your subscription has expired. Please upgrade.",
+          }),
+          c.jsx("button", {
+            className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors",
+            onClick: () => setActiveView && setActiveView(je.PACKAGES),
+            children: tr("sidebar.dashboard") === "Tổng quan" ? "Nâng cấp ngay" : "Upgrade Now",
+          }),
+        ],
+      });
+    }
 
     return c.jsxs("div", {
       className: "animate-fade-in",
@@ -42148,7 +42429,33 @@ const Nk = 1e4,
     const Ve = () => v((ae) => ({ ...ae, prompts: [...ae.prompts, { id: `prompt-${Date.now()}`, text: "", status: "idle", message: tr("videoFromImage.ready") }] }));
     const Ee = () => { window.confirm(tr("videoFromImage.deleteAll") + "?") && v((ae) => ({ ...ae, prompts: [] })); };
 
+    // BẮT ĐẦU THÊM: Hàm gọi Server kiểm tra gói
+    const checkPlan = async () => {
+      try {
+        await p(); // Lấy dữ liệu mới nhất từ server
+        await new Promise((res) => setTimeout(res, 150));
+        const userObj = JSON.parse(localStorage.getItem("currentUser") || "null");
+        if (!userObj || !userObj.subscription || !userObj.subscription.end_date || new Date(userObj.subscription.end_date) < new Date()) {
+          x(isVi ? "Gói đăng ký đã hết hạn. Vui lòng nâng cấp." : "Subscription expired.", "error");
+          t(je.PACKAGES);
+          return false;
+        }
+        if (userObj.subscription.package_name === "Gói Cá Nhân/1 Máy") {
+          x(isVi ? "Tính năng này yêu cầu Gói Pro." : "Feature requires Pro plan.", "info");
+          t(je.PACKAGES);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        x(isVi ? "Lỗi kiểm tra gói cước." : "Plan check error.", "error");
+        return false;
+      }
+    };
+    // KẾT THÚC THÊM
+
     const B = async (ae) => {
+      if (!(await checkPlan())) return; // Dừng lại ngay lập tức nếu không phải Pro
+
       E(!0), v((Ie) => ({ ...Ie, isRunning: !0 })); let ve = [], Fe = new Set(ae.map((Ie) => Ie.id));
       try {
         if (P === "shared") {
@@ -42250,6 +42557,36 @@ const Nk = 1e4,
         return () => clearTimeout(e);
       }
     }, [H, K, h, L, g, r, V, ac]);
+
+    // BẮT ĐẦU THÊM: Kiểm tra gói Pro
+    const isPro = A.useMemo(() => {
+      const basicPackage = "Gói Cá Nhân/1 Máy";
+      if (!h || !h.subscription || h.user.status !== "active") return false;
+      if (new Date(h.subscription.end_date) < new Date()) return false;
+      return h.subscription.package_name !== basicPackage;
+    }, [h]);
+
+    if (!isPro) {
+      return c.jsxs("div", {
+        className: "flex flex-col items-center justify-center h-full space-y-4",
+        children: [
+          c.jsx("h1", {
+            className: "text-3xl font-bold text-light",
+            children: tr("videoFromImage.title"),
+          }),
+          c.jsx("p", {
+            className: "text-dark-text text-lg",
+            children: isVi ? "Tính năng này đã hết hạn hoặc yêu cầu Gói PRO để truy cập." : "This feature has expired or requires a PRO plan.",
+          }),
+          c.jsx("button", {
+            className: "bg-accent hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors",
+            onClick: () => t(je.PACKAGES),
+            children: isVi ? "Nâng cấp ngay" : "Upgrade Now",
+          }),
+        ],
+      });
+    }
+    // KẾT THÚC THÊM
 
     return c.jsxs("div", {
       className: "animate-fade-in h-full flex flex-col",
@@ -44530,13 +44867,17 @@ const Nk = 1e4,
           case je.DASHBOARD:
             return c.jsx(qm, {});
           case je.CREATE_STORY:
-            return c.jsx(XM, {});
+            return c.jsx(XM, {
+              setActiveView: i,
+            });
           case je.CREATE_PROMPTS:
             return c.jsx(sk, {
               setActiveView: i,
             });
           case je.CREATE_THUMBNAIL:
-            return c.jsx(lk, {});
+            return c.jsx(lk, {
+              setActiveView: i,
+            });
           case je.AUTO_CREATE:
             return c.jsx(Tk, {
               setActiveView: i,
@@ -44554,7 +44895,9 @@ const Nk = 1e4,
           case je.HISTORY:
             return c.jsx(Ek, {});
           case je.GET_YOUTUBE_SCRIPT:
-            return c.jsx(Ak, {});
+            return c.jsx(Ak, {
+              setActiveView: i,
+            });
           case je.API_KEY:
             return c.jsx(Mk, {
               onKeySaved: x,
@@ -44583,8 +44926,7 @@ const Nk = 1e4,
             return c.jsx(pk, {
               setActiveView: i,
             });
-          case je.CREATE_COMIC:
-            return c.jsx(ComicView_New, {});
+          case je.CREATE_COMIC: return c.jsx(ComicView_New, { setActiveView: i });
           default:
             return c.jsx(qm, {});
         }
@@ -45239,6 +45581,8 @@ const Nk = 1e4,
       imageLabel: "Image {num}",
       addSlot: "Add slot (max 6)",
       aspectRatio: "Aspect Ratio",
+      landscape: "16:9 Landscape",
+      portrait: "9:16 Portrait",
       streams: "Streams (1-10)",
       resolution: "Resolution",
       res720: "720p (Original)",
@@ -45935,6 +46279,48 @@ const r_ = {
       videoFailed: "Video lỗi.",
     },
   },
+  whisk: {
+    title: "Tạo Ảnh Whisk (Nano Banana) Pro",
+    loadPrompt: "Tải Prompt",
+    fromStory: "Từ Câu Chuyện",
+    addFromTxt: "Thêm từ TXT/JSON",
+    useInputImage: "Sử dụng ảnh đầu vào",
+    upgrade: "Nâng cấp",
+    addInputImage: "Thêm Ảnh (tối đa {max})",
+    aspectRatio: "Tỷ lệ khung hình",
+    landscape: "16:9 Ngang",
+    portrait: "9:16 Dọc",
+    seed: "Seed",
+    streams: "Luồng",
+    autoSave: "Tự động lưu",
+    autoRetry: "Tự động thử lại",
+    selectFolder: "Chọn thư mục...",
+    stopAll: "Dừng Tất cả",
+    runUnfinished: "Chạy lại chưa xong ({count})",
+    runAll: "Chạy Tất cả ({count})",
+    runSelected: "Chạy các mục đã chọn ({count})",
+    manualPrompt: "Prompt thủ công",
+    stats: {
+      total: "Tổng",
+      running: "Đang chạy",
+      done: "Hoàn thành",
+      failed: "Thất bại",
+      waiting: "Đang chờ",
+      cancelled: "Đã hủy"
+    },
+    item: {
+      imageNum: "Ảnh #{num}",
+      success: "Thành công!",
+      processing: "Đang xử lý...",
+      failed: "Thất bại",
+      queued: "Đang chờ...",
+      ready: "Sẵn sàng",
+      download: "Tải về",
+      promptPlaceholder: "Mô tả hình ảnh bạn muốn tạo...",
+      run: "Chạy",
+      retry: "Chạy lại"
+    }
+  },
   createVideoFromFrames: {
     title: "Tạo video Đồng nhất bằng Ảnh/Khung hình",
     description: "Tải ảnh Bắt đầu và Kết thúc để AI tạo chuyển động giữa 2 khung hình.",
@@ -46108,6 +46494,8 @@ const r_ = {
     imageLabel: "Ảnh {num}",
     addSlot: "Thêm ô (tối đa 6)",
     aspectRatio: "Tỷ lệ",
+    landscape: "16:9 Ngang",
+    portrait: "9:16 Dọc",
     streams: "Luồng (1-10)",
     resolution: "Độ phân giải",
     res720: "720p (Gốc)",
@@ -46135,7 +46523,7 @@ const r_ = {
     total: "Tổng: ",
     success: "Thành công: ",
     failed: "Thất bại: ",
-    addPrompt: "+ Thêm Prompt",
+    addPrompt: "thêm Prompt",
     emptyState: "Thêm prompt để bắt đầu.",
     promptNum: "Prompt #{num}",
     processing: "🔄 Đang xử lý...",
@@ -46205,7 +46593,7 @@ const r_ = {
     startImage: "Ảnh Bắt đầu",
     endImage: "Ảnh Kết thúc",
     deleteImage: "Xóa ảnh",
-    addPrompt: "+ Thêm Prompt"
+    addPrompt: "thêm Prompt"
   },
   extendedVideo: {
     title: "Tạo Video Mở Rộng",
@@ -46265,7 +46653,7 @@ const r_ = {
     ideaLabel: "Ý tưởng #{num}",
     ideaPlaceholder: "Một con mèo và một con chó trở thành bạn thân và cùng nhau phiêu lưu...",
     deleteIdea: "Xóa ý tưởng",
-    addIdea: "+ Thêm ý tưởng",
+    addIdea: "thêm ý tưởng",
     statusReady: "Sẵn sàng",
     statusProcessingIdea: "Bắt đầu xử lý ý tưởng...",
     statusCreatingStory: "Đang tạo câu chuyện...",
@@ -46313,7 +46701,7 @@ const r_ = {
     addFromLocal: "Thêm từ máy tính",
     addFromHistory: "Thêm từ Lịch sử",
     selectAll: "Chọn tất cả",
-    addVideoLocalBtn: "+ Thêm Video từ máy tính...",
+    addVideoLocalBtn: "thêm Video từ máy tính...",
     noLocalVideos: "Chưa có video nào được thêm.",
     noHistoryVideos: "Chưa có video nào trong lịch sử có đường dẫn file.",
     mergeListTitle: "Danh sách sẽ ghép ({count} video)",
