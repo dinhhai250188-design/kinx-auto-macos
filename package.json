@@ -1,13 +1,13 @@
 {
   "name": "kinx-auto",
-  "version": "4.1.1",
+  "version": "4.1.2",
   "description": "Kinx Auto",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder --mac"
   },
   "build": {
     "appId": "com.kinx.auto",
@@ -32,9 +32,32 @@
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.icns",
       "target": [
-        "dmg",
-        "zip"
-      ]
+        {
+          "target": "dmg",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${arch}.${ext}"
     },
     "dmg": {
       "background": null,
@@ -42,18 +65,6 @@
         "width": 540,
         "height": 380
       }
-    },
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ]
-    },
-    "linux": {
-      "target": [
-        "AppImage"
-      ],
-      "category": "Utility"
     }
   },
   "dependencies": {
