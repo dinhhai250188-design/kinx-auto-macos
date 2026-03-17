@@ -1,20 +1,42 @@
 directories:
   output: dist
   buildResources: build
+
 appId: com.veosuite.app
 productName: Veo Auto
+
 files:
-  - filter:
-      - dist/**/*
-      - dist-electron/**/*
-win:
-  target: nsis
-  icon: build/icon.ico
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
+  - dist/**/*
+  - dist-electron/**/*
+
 publish:
   provider: github
-  owner: nphuongthaopipo
+  owner: kinxauto
   repo: veocreator_done
+
 electronVersion: 38.1.2
+
+# ✅ Cấu hình build Mac
+mac:
+  category: public.app-category.developer-tools
+
+  # ⚠️ giữ icon nhưng phải là .icns
+  icon: build/icon.icns
+
+  target:
+    - target: dmg
+      arch:
+        - x64     # Mac Intel
+        - arm64   # Mac M1/M2/M3
+    - target: zip
+      arch:
+        - x64
+        - arm64
+
+  artifactName: "${productName}-${arch}.${ext}"
+
+# Giao diện cửa sổ cài
+dmg:
+  window:
+    width: 540
+    height: 380
