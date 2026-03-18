@@ -1,4 +1,4 @@
-const { BrowserWindow, session } = require("electron");
+const { app, BrowserWindow, session } = require("electron");
 
 const DEFAULT_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
 
@@ -22,6 +22,11 @@ class RecaptchaSolver {
       this.solverWindow.destroy();
     }
 
+    // [MACOS] Ẩn icon ứng dụng khỏi thanh Dock và Cmd+Tab
+    if (app.dock) {
+      app.dock.hide();
+    }
+
     const sessionOptions = partitionId
       ? { session: session.fromPartition(partitionId) }
       : { session: session.defaultSession };
@@ -29,12 +34,20 @@ class RecaptchaSolver {
     this.solverWindow = new BrowserWindow({
       width: 400 + Math.floor(Math.random() * 50),
       height: 700 + Math.floor(Math.random() * 50),
-      show: true,
-      x: -1500 + Math.floor(Math.random() * 200),
-      y: -1500 + Math.floor(Math.random() * 200),
+      
+      show: true, 
+      x: -9999,   // [MACOS/WIN] Đẩy hẳn ra xa ngoài màn hình (tránh lỗi multi-monitor)
+      y: -9999,
+      
       frame: false,
-      skipTaskbar: true,
+      skipTaskbar: true, // [WIN/LINUX] Ẩn khỏi taskbar
       focusable: false,
+      
+      // [MACOS] Các thuộc tính tàng hình
+      opacity: 0,                   // Làm cửa sổ trong suốt 100%
+      transparent: true,            // Hỗ trợ nền trong suốt
+      hiddenInMissionControl: true, // Ẩn khỏi giao diện Mission Control
+
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: false,
